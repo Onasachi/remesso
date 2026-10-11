@@ -38,6 +38,10 @@ current in a way this file may not be.
 
 ## Paying for a service
 
+A focused skill for this, with a tested script and a `manifest.json` of
+assets and prices generated from the live 402, is `remesso-x402`
+(`npx skills add crackedstudio/Remesso --skill remesso-x402`).
+
 These endpoints speak **x402 v2**, so the standard client works with no
 Remesso-specific code:
 

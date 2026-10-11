@@ -31,6 +31,9 @@ deno test --unstable-sloppy-imports web/lib/history.test.ts
 # phone numbers — E.164 normalisation and masking for MiniPay recipients
 (cd web && deno test --unstable-sloppy-imports lib/phone.test.ts)   # from web/: needs its node_modules
 
+# skill manifests — regenerate from the live 402, or --check for drift
+deno run --allow-net --allow-write --allow-read scripts/build-skill-manifest.ts
+
 # is .env complete and coherent? proves the SSH key by round-tripping it
 deno run --allow-env --allow-read --allow-net scripts/check-env.ts
 
@@ -451,6 +454,15 @@ The agent address is an identity, not a key that moves money. Runs are still
 signed by the executor (`0x3c754AD3…49Cd1`) and bounded by the contract.
 
 ## Agents: being paid, and paying
+
+**`skills/remesso-x402/`** is the paid-services skill on its own: SKILL.md, a
+tested `scripts/pay.mjs` (official v2 client, asset by address, `--max` cap
+refused before signing) and `manifest.json`. **Never hand-edit the
+manifests** — `scripts/build-skill-manifest.ts` writes them from the live 402
+and `/agent`; `--check` exits 1 on drift. `skills/manifest.json` indexes both
+skills; `skills/manifest.schema.json` is the format (ours — Agent Skills
+itself defines only SKILL.md frontmatter). `/skills/<path>` on the app 307s to
+the repo files, allowlisted.
 
 `skills/remesso/SKILL.md` is the integration guide an agent loads instead of
 being sent a brief — the same arrangement Celo uses for `x402.celo.org/skill.md`.

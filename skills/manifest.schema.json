@@ -1,0 +1,79 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/crackedstudio/Remesso/main/skills/manifest.schema.json",
+  "title": "Remesso skill manifest",
+  "description": "Machine-readable companion to a SKILL.md. Either an index of skills (has `skills`) or one skill's manifest (has `skill` and, for paid services, `payment`). Payment terms are a snapshot of a live 402; the 402 is authoritative.",
+  "type": "object",
+  "required": ["manifestVersion"],
+  "properties": {
+    "manifestVersion": { "const": 1 },
+    "name": { "type": "string", "pattern": "^[a-z0-9-]{1,64}$" },
+    "version": { "type": "string" },
+    "description": { "type": "string" },
+    "skill": {
+      "type": "object",
+      "required": ["entry", "url"],
+      "properties": { "entry": { "type": "string" }, "url": { "type": "string", "format": "uri" } }
+    },
+    "install": { "type": "object" },
+    "payment": {
+      "type": "object",
+      "required": ["protocol", "version", "network", "payTo", "assets"],
+      "properties": {
+        "protocol": { "const": "x402" },
+        "version": { "type": "integer" },
+        "scheme": { "type": "string" },
+        "network": { "type": "string", "description": "CAIP-2, e.g. eip155:42220" },
+        "payTo": { "type": "string", "pattern": "^0x[0-9a-fA-F]{40}$" },
+        "facilitator": { "type": "string", "format": "uri" },
+        "assets": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["symbol", "address", "decimals", "eip712"],
+            "properties": {
+              "symbol": { "type": "string" },
+              "address": { "type": "string", "pattern": "^0x[0-9a-fA-F]{40}$" },
+              "decimals": { "type": "integer" },
+              "eip712": {
+                "type": "object",
+                "required": ["name", "version"],
+                "properties": { "name": { "type": "string" }, "version": { "type": "string" } }
+              }
+            }
+          }
+        }
+      }
+    },
+    "services": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["name", "endpoint", "method", "price"],
+        "properties": {
+          "name": { "type": "string" },
+          "endpoint": { "type": "string", "format": "uri" },
+          "method": { "enum": ["GET", "POST"] },
+          "price": {
+            "type": "object",
+            "required": ["amount", "decimals"],
+            "properties": { "amount": { "type": "string", "pattern": "^[0-9]+$" }, "decimals": { "type": "integer" } }
+          }
+        }
+      }
+    },
+    "skills": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["name", "skill"],
+        "properties": {
+          "name": { "type": "string" },
+          "skill": { "type": "string", "format": "uri" },
+          "manifest": { "type": "string", "format": "uri" },
+          "install": { "type": "string" }
+        }
+      }
+    }
+  }
+}

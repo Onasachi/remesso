@@ -40,6 +40,11 @@ export async function GET() {
       /// to read.
       skill: "https://raw.githubusercontent.com/crackedstudio/Remesso/main/skills/remesso/SKILL.md",
 
+      /// Every skill we publish, as data: names, install commands, and for the
+      /// paid ones a manifest of assets, EIP-712 domains and prices generated
+      /// from the live 402 (`scripts/build-skill-manifest.ts`).
+      skills: "https://raw.githubusercontent.com/crackedstudio/Remesso/main/skills/manifest.json",
+
       endpoints: [
         { name: "capabilities", url: `${FUNCTIONS}/agent`, method: "GET" },
         { name: "request-payment", url: `${FUNCTIONS}/request-payment`, method: "POST" },
