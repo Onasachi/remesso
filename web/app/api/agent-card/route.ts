@@ -49,6 +49,8 @@ export async function GET() {
         { name: "capabilities", url: `${FUNCTIONS}/agent`, method: "GET" },
         { name: "request-payment", url: `${FUNCTIONS}/request-payment`, method: "POST" },
         { name: "naira-rate", url: `${FUNCTIONS}/rate-service`, method: "POST" },
+        { name: "latam-rate", url: `${FUNCTIONS}/latam-rate`, method: "POST" },
+        { name: "latam-route", url: `${FUNCTIONS}/latam-route`, method: "POST" },
         { name: "trigger-run", url: `${FUNCTIONS}/trigger-run`, method: "POST" },
       ],
 

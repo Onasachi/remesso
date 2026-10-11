@@ -38,6 +38,23 @@ function triggerAddress(): string | undefined {
   }
 }
 
+/// The payment block for a paid service, shaped exactly like the hand-written
+/// ones above it: several currencies, one price, every asset 6dp.
+function paid(amount: string) {
+  return X402.isConfigured
+    ? {
+      protocol: "x402",
+      version: 2,
+      network: "celo",
+      assets: ASSETS.map((a) => ({ symbol: a.symbol, address: a.address, eip712: { name: a.name, version: a.version } })),
+      amount,
+      decimals: 6,
+      facilitator: X402.base,
+      discover: "POST without a payment header: the price list is in the PAYMENT-REQUIRED header (v2) and the 402 body (v1)",
+    }
+    : { protocol: "none", note: "not configured to take payment" };
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: CORS });
   if (req.method !== "GET") {
@@ -144,18 +161,58 @@ Deno.serve(async (req) => {
         payment: X402.isConfigured
           ? {
             protocol: "x402",
-            version: 1,
+            // v2 on the wire (PAYMENT-REQUIRED header); v1 still accepted.
+            version: 2,
             network: "celo",
             // Several currencies, one price: every accepted asset is 6dp.
             assets: ASSETS.map((a) => ({ symbol: a.symbol, address: a.address, eip712: { name: a.name, version: a.version } })),
             amount: Deno.env.get("RATE_SERVICE_PRICE_UNITS") ?? "1000",
             decimals: 6,
             facilitator: X402.base,
-            discover: "POST without X-PAYMENT and read the 402 body",
+            discover: "POST without a payment header: the price list is in the PAYMENT-REQUIRED header (v2) and the 402 body (v1)",
           }
           : { protocol: "none", note: "not configured to take payment" },
         refusals: [
           "503 if the upstream rate feed is unreachable — you are not charged",
+        ],
+      },
+      {
+        name: "latam-rate",
+        description:
+          "Live USD-to-wARS and USD-to-wBRL on Celo from two independent on-chain " +
+          "sources side by side — Textile's RFQ makers and the Uniswap pool at your " +
+          "size — with a flag when they disagree. wCOP has no on-chain market on " +
+          "Celo and is reported as such, never priced from elsewhere.",
+        endpoint: `${BASE}/functions/v1/latam-rate`,
+        method: "POST",
+        input: { usd: "optional trade size to price the pool at (default 100, max 100000)" },
+        payment: paid(Deno.env.get("LATAM_RATE_PRICE_UNITS") ?? "1000"),
+        refusals: [
+          "400 for an invalid size, before any price is quoted",
+          "503 if the sources are unreachable — you are not charged",
+        ],
+      },
+      {
+        name: "latam-route",
+        description:
+          "How to deliver an amount of pesos or reais on Celo: the token, the " +
+          "dollars it takes at your size and from which venue (with price impact), " +
+          "Ripio's public buy and cash-out links and a prefilled Remesso schedule " +
+          "link. Moves nothing and signs nothing. Argentina and Brazil are priced " +
+          "on-chain; Colombia gets the Ripio route only.",
+        endpoint: `${BASE}/functions/v1/latam-route`,
+        method: "POST",
+        input: {
+          country: "AR | BR | CO",
+          amount: "number, in local currency unless currency is USD",
+          currency: "optional LOCAL (default) | USD",
+          recipient: "optional 0x address to prefill",
+          every: "optional week | fortnight | month (default month)",
+        },
+        payment: paid(Deno.env.get("LATAM_ROUTE_PRICE_UNITS") ?? "2000"),
+        refusals: [
+          "400 for an unknown country or a bad amount, before any price is quoted",
+          "503 if the sources are unreachable — you are not charged",
         ],
       },
       {
@@ -202,7 +259,8 @@ Deno.serve(async (req) => {
         payment: X402.isConfigured
           ? {
             protocol: "x402",
-            version: 1,
+            // v2 on the wire (PAYMENT-REQUIRED header); v1 still accepted.
+            version: 2,
             network: "celo",
             // Several currencies, one price: every accepted asset is 6dp.
             // The address is the identity — USAT's 18dp fee adapter reports
@@ -213,7 +271,7 @@ Deno.serve(async (req) => {
             facilitator: X402.base,
             /// Unpaid calls answer 402 with the exact requirements, so a
             /// caller never has to take this document's word for the price.
-            discover: "POST without X-PAYMENT and read the 402 body",
+            discover: "POST without a payment header: the price list is in the PAYMENT-REQUIRED header (v2) and the 402 body (v1)",
           }
           : { protocol: "none", note: "paid triggering is not configured" },
         refusals: [

@@ -82,3 +82,11 @@ verify_jwt = false
 # caller from outside.
 [functions.sync-schedules]
 verify_jwt = true
+
+# Paid LatAm services sold to other agents (2026-10-11). Same reasoning as
+# rate-service: the caller pays with a signed authorisation, not a Supabase JWT.
+[functions.latam-rate]
+verify_jwt = false
+
+[functions.latam-route]
+verify_jwt = false

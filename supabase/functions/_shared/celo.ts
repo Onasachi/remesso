@@ -159,6 +159,27 @@ export async function quoteUsdtToCngn(amountIn: bigint): Promise<{
   return { amountOut, minOut, rateE6 };
 }
 
+/// A read-only quote for any single pool: how much `tokenOut` the pool would
+/// return for `amountIn` right now. Sells nothing and signs nothing — the
+/// LatAm rate services use it to price wARS and wBRL at the caller's own
+/// size. Kept here with the cNGN quote so every Uniswap call stays in this
+/// file (the swap venue is a replaceable component). Throws if the pool
+/// does not exist or cannot fill the size.
+export async function quoteExactIn(
+  tokenIn: Address,
+  tokenOut: Address,
+  amountIn: bigint,
+  fee: number,
+): Promise<bigint> {
+  const { result } = await publicClient.simulateContract({
+    address: CELO.quoter,
+    abi: quoterAbi,
+    functionName: "quoteExactInputSingle",
+    args: [{ tokenIn, tokenOut, amountIn, fee, sqrtPriceLimitX96: 0n }],
+  });
+  return result[0];
+}
+
 /// The cNGN/USDT pool is the single venue on Celo and holds roughly $95k.
 /// Before every run we confirm the pool can still fill it at a sane price —
 /// a run that would move the price more than `maxAcceptableImpactBps` is

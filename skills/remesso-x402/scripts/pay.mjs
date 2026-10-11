@@ -3,6 +3,8 @@
 //
 //   npm i @x402/fetch@2.28.0 @x402/evm@2.28.0 viem
 //   PAYER_KEY=0x… node pay.mjs --service naira-rate                # pays in USA₮
+//   PAYER_KEY=0x… node pay.mjs --service latam-rate --body '{"usd":250}'
+//   PAYER_KEY=0x… node pay.mjs --service latam-route --body '{"country":"AR","amount":20000}'
 //   PAYER_KEY=0x… node pay.mjs --service trigger-run --body '{"scheduleId":3}'
 //   PAYER_KEY=0x… node pay.mjs --service naira-rate --asset USDC   # opt out of USA₮
 //
@@ -21,7 +23,12 @@ import { createPublicClient, http, parseAbi } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 
 const FUNCTIONS = "https://engaboljiqudghvzmebq.supabase.co/functions/v1";
-const SERVICES = { "naira-rate": "rate-service", "trigger-run": "trigger-run" };
+const SERVICES = {
+  "naira-rate": "rate-service",
+  "latam-rate": "latam-rate",
+  "latam-route": "latam-route",
+  "trigger-run": "trigger-run",
+};
 const ASSETS = {
   USDC: "0xcebA9300f2b948710d2653dD7B07f33A8B32118C",
   USDT: "0x48065fbBE25f71C9282ddf5e1cD6D6A887483D5e",

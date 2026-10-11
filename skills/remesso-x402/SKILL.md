@@ -1,12 +1,12 @@
 ---
 name: remesso-x402
-description: Pay Remesso's paid HTTP services on Celo mainnet over x402 v2 — in USA₮ by default (USDC and USD₮ also accepted), with no CELO needed. Use when an agent wants live NGN exchange rates (naira-rate, 0.001) or to bring a scheduled stablecoin payment forward (trigger-run, 0.01), or needs a working, tested example of paying an x402 endpoint on Celo with the official @x402/fetch client, including choosing USA₮ and capping the price.
+description: Pay Remesso's paid HTTP services on Celo mainnet over x402 v2 — in USA₮ by default (USDC and USD₮ also accepted), with no CELO needed. Use when an agent wants live NGN rates (naira-rate, 0.001), live peso and real rates on Celo (latam-rate, 0.001), a ready route to deliver pesos or reais with Ripio links (latam-route, 0.002), or to bring a scheduled stablecoin payment forward (trigger-run, 0.01), or needs a working, tested example of paying an x402 endpoint on Celo with the official @x402/fetch client, including choosing USA₮ and capping the price.
 license: MIT
 ---
 
 # Remesso x402 — pay per call on Celo
 
-Two paid endpoints, one protocol. Send an unpaid request, read the price from
+Four paid endpoints, one protocol. Send an unpaid request, read the price from
 the 402, sign a token authorisation, send it again. The facilitator submits the
 transfer and pays the gas, so **the payer needs the token and no CELO**.
 
@@ -19,11 +19,26 @@ EIP-712 domains, prices, the payee — generated from the live 402. **The live
 | Service | Endpoint | Price | Body |
 |---|---|---|---|
 | `naira-rate` | `POST https://engaboljiqudghvzmebq.supabase.co/functions/v1/rate-service` | 0.001 | `{}` |
+| `latam-rate` | `POST https://engaboljiqudghvzmebq.supabase.co/functions/v1/latam-rate` | 0.001 | `{"usd": 250}` (optional) |
+| `latam-route` | `POST https://engaboljiqudghvzmebq.supabase.co/functions/v1/latam-route` | 0.002 | `{"country":"AR","amount":20000}` |
 | `trigger-run` | `POST https://engaboljiqudghvzmebq.supabase.co/functions/v1/trigger-run` | 0.01 | `{"scheduleId": <id>}` |
 
 - **naira-rate** returns live USDT/NGN and USDC/NGN (bid, ask, last; mid and
   spread when both sides are quoted) from on-chain RFQ makers. `503` if the
   feed is down — you are not charged.
+- **latam-rate** returns USD-to-wARS and USD-to-wBRL from two independent
+  on-chain sources side by side — Textile's RFQ makers (bid/ask) and the
+  Uniswap pool on Celo at your size (with price impact) — and flags when they
+  disagree by more than 1%. wCOP has no on-chain market on Celo and comes back
+  as `"market": "none on Celo"`, never a number from elsewhere.
+- **latam-route** answers "how do I get N pesos or reais to someone": the
+  token, the dollars it takes at that size and from which venue, Ripio's public
+  buy and cash-out links and a prefilled Remesso schedule link. Input
+  `country` (AR | BR | CO), `amount` (local currency, or USD with
+  `"currency":"USD"`), optional `recipient` and `every`. It moves nothing.
+  Ripio is linked, not partnered: the person does Ripio's own checks there.
+- Bad input to either is a `400` before any price is quoted, and a source
+  outage is a `503` — not charged.
 - **trigger-run** brings ONE payment of an existing Remesso schedule forward.
   It only works for a schedule whose payer allowed early sends, and it answers
   `403` *before quoting a price* otherwise — so you never pay to learn a call

@@ -84,6 +84,8 @@ including in this file. A plain POST with no payment header returns it for free.
 | `/functions/v1/agent` | free | Capabilities, prices, refusals |
 | `/functions/v1/request-payment` | free | Ask someone to pay you on a schedule |
 | `/functions/v1/rate-service` | 0.001 | Live USDT/NGN and USDC/NGN from on-chain RFQ makers |
+| `/functions/v1/latam-rate` | 0.001 | USD-to-wARS and USD-to-wBRL from RFQ makers and the Uniswap pool, side by side |
+| `/functions/v1/latam-route` | 0.002 | A route to deliver pesos or reais: venue, dollars needed, Ripio links, schedule link |
 | `/functions/v1/trigger-run` | 0.01 | Bring one payment of an existing schedule forward |
 
 Prices are in **USDC, USD₮ or USA₮** — the same number of base units in each,
