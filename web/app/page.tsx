@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useState } from "react";
 import { useAccount, useConnect } from "wagmi";
-import { useBalances, useIsMiniPay, useMiniPayState, useSchedules } from "@/lib/hooks";
+import { useAllowedDirectTokens, useBalances, useIsMiniPay, useMiniPayState, useSchedules } from "@/lib/hooks";
 import { recipientLabel } from "@/lib/identity";
 import { formatUnits, intervalLabel, relativeTime } from "@/lib/format";
 import { SchedulePill } from "@/components/StatusPill";
@@ -318,11 +318,43 @@ function EmptyState() {
   );
 }
 
+const CURRENCY_NAME: Record<string, string> = {
+  USD: "US dollars",
+  ARS: "Argentine pesos",
+  BRL: "Brazilian reais",
+  COP: "Colombian pesos",
+};
+
+/// "a, b and c".
+function listOf(items: string[]): string {
+  return items.length < 2 ? items.join("") : `${items.slice(0, -1).join(", ")} and ${items.at(-1)}`;
+}
+
 /// Seen only outside MiniPay, or for the moment before MiniPay auto-connects.
 function Landing() {
   const miniPay = useMiniPayState();
   const { connect, connectors, isPending } = useConnect();
   const injected = connectors.find((c) => c.id === "injected");
+
+  // What a browser wallet can send beyond MiniPay's three, read from the
+  // contract's allowlist like the send form — so this line can never promise
+  // a currency the contract would refuse, and USA₮ appears here the day it
+  // is allowed without anyone editing copy.
+  const beyondMiniPay = useAllowedDirectTokens().filter((t) => !t.miniPayVisible);
+  const describe = (t: TokenInfo) => `${t.symbol} (${CURRENCY_NAME[t.currency] ?? t.currency})`;
+  const fiat = beyondMiniPay.some((t) => t.currency !== "USD");
+  const features: Array<[string, string]> = [
+    ["You stay in control", "Nothing moves outside the amount, rhythm and person you signed."],
+    ["They see it in MiniPay", "Paid in USDT, USDC or USDm — the balances MiniPay actually shows."],
+    ...(beyondMiniPay.length
+      ? [[
+          "More currencies on the web",
+          `With a browser wallet like MetaMask you can also send ${listOf(beyondMiniPay.map(describe))}` +
+            (fiat ? ", bought and cashed out at a local bank through Ripio." : "."),
+        ] as [string, string]]
+      : []),
+    ["Stop it any time", "Pause or cancel from your wallet. No calls, no forms."],
+  ];
 
   return (
     <div className="stagger mt-6">
@@ -337,11 +369,7 @@ function Landing() {
       </p>
 
       <ul className="mt-8 divide-y divide-line/70 border-y border-line/70">
-        {[
-          ["You stay in control", "Nothing moves outside the amount, rhythm and person you signed."],
-          ["They see it in MiniPay", "Paid in USDT, USDC or USDm — the balances MiniPay actually shows."],
-          ["Stop it any time", "Pause or cancel from your wallet. No calls, no forms."],
-        ].map(([title, body]) => (
+        {features.map(([title, body]) => (
           <li key={title} className="py-4">
             <p className="text-[15px] font-medium text-ink">{title}</p>
             <p className="mt-0.5 text-[14px] leading-relaxed text-ink-2">{body}</p>
