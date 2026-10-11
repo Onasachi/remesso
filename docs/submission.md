@@ -156,7 +156,7 @@ everything MiniPay's rules leave out.
 
 ## x402 integration
 
-Remesso sells two services to other agents over **x402**, through **Celo's
+Remesso sells four services to other agents over **x402**, through **Celo's
 facilitator** (`https://api.x402.celo.org`). The paying agent signs a token
 authorisation; the facilitator submits it and pays the gas, so **the payer needs
 no CELO**.
@@ -164,6 +164,8 @@ no CELO**.
 | Service | Endpoint | Price | What it does |
 |---|---|---|---|
 | `naira-rate` | `POST /functions/v1/rate-service` | 0.001 | Live USDT/NGN and USDC/NGN — bid, ask, last; mid and spread only when both sides are quoted (never invented) |
+| `latam-rate` | `POST /functions/v1/latam-rate` | 0.001 | USD-to-wARS and USD-to-wBRL from two independent on-chain sources side by side — Textile's RFQ makers and the Uniswap pool on Celo at your size, with price impact — flagged when they disagree by more than 1%. wCOP: "no on-chain market on Celo", never priced from elsewhere |
+| `latam-route` | `POST /functions/v1/latam-route` | 0.002 | How to deliver pesos or reais: the token, the dollars it takes and the best venue at that size, Ripio's buy and cash-out links and a prefilled Remesso schedule link. Moves nothing |
 | `trigger-run` | `POST /functions/v1/trigger-run` | 0.01 | Brings one payment of a schedule forward, only if its sender allowed early sends |
 
 - **Currencies:** USDC, USD₮ and **USA₮**, at the same price in each (all 6dp).
@@ -173,6 +175,11 @@ no CELO**.
   `PAYMENT-RESPONSE`. We moved to v2 after measuring that the official
   `@x402/fetch` refused v1 sellers — every agent using the standard SDK could
   not have paid us.
+- **The LatAm services read the market, not a table.** On live data, 20,000
+  ARS costs about $12.48 of USDT through the Uniswap pool; at $5,000 the wBRL
+  pool loses 1.2% to price impact, so `latam-route` picks Textile's makers
+  instead and `latam-rate` flags the split. Ripio is linked, not integrated —
+  its public ramp, no partnership implied.
 - **Nobody pays for a failure.** `trigger-run` checks the schedule on-chain and
   answers 403 *before quoting a price* if the call could not succeed; the order
   is verify → run → settle, so a payment that reverts charges nothing (409).
@@ -234,6 +241,7 @@ users yet, and we do not count any of the payments below as volume.
 | **First peso payment by the agent:** a 1,000 wARS weekly schedule created outside the app was found and paid within 5 minutes, unprompted — 997.5 wARS to the recipient, 2.5 wARS fee | `0x4eaf6976…9cdc` |
 | x402 payment in USA₮ through the official SDK | `0x5780ab21…d38d` |
 | x402 payment in USA₮ through the `remesso-x402` skill script | `0xf91d3465…d6f9`, `0x15167882…d6f8` |
+| `latam-rate` and `latam-route` paid in USA₮ through the skill script | `0x24d0ea8d…713a`, `0x86706193…d328` |
 | An outside developer installed `remesso-x402` from GitHub and paid in USA₮ on their own — with test funds we provided | `0xa5d6eceb…aca2` |
 
 ## What we built during the hackathon (from 2026-10-06)
@@ -249,6 +257,8 @@ users yet, and we do not count any of the payments below as volume.
   numbers kept away from the AI model.
 - Web: every token on the landing page and the form, read from the contract.
 - x402 v2 verified with the official SDK in USA₮.
+- Two new paid services, `latam-rate` and `latam-route`, for pricing and
+  routing peso and real remittances on Celo.
 - The `remesso-x402` skill, its script and its generated manifest, USA₮ by
   default.
 

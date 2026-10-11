@@ -405,6 +405,17 @@ the USA₮ entry. `rate-service` answered 200; Celo's facilitator
 (`0x0d74…FB48`) settled 0.001 USA₮ to `0xcDEA…3Ae2` in `0x5780ab21…d38d`,
 87,489 gas, untagged as DevRel said. Our own test payment — not volume.
 
+**`latam-rate` (0.001) and `latam-route` (0.002), live 2026-10-11**, sell
+peso/real pricing and routing. Both read two independent sources side by side
+(`_shared/latam.ts`): Textile's public ticker feed (the one `rate-service`
+reads) and the Uniswap USDT pools on Celo — wARS 1bps `0x5D8e…2391`, wBRL
+1bps `0x01c3…` (~88k wBRL: 1.2% impact at $5k, so the route switches venue).
+wCOP has neither and is answered as "none on Celo". Ripio is links only.
+Both run through `_shared/x402-serve.ts` (400 before price, answer before
+settle); **its description must be Latin-1** — it rides in the base64
+PAYMENT-REQUIRED header and `btoa` throws on "→", which made every paid call
+a 500 locally before it was caught.
+
 `trigger-run` sells one early send over x402 — an agent pays $0.01 USDC, one
 run fires ahead of cadence. The caller buys timing and nothing else. Order is
 verify -> run -> settle, so a reverted run charges nobody; a settlement that

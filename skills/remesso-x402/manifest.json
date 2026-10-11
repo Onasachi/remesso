@@ -85,6 +85,38 @@
       }
     },
     {
+      "name": "latam-rate",
+      "description": "Live USD-to-wARS and USD-to-wBRL on Celo from two independent on-chain sources side by side — Textile's RFQ makers and the Uniswap pool at your size — with a flag when they disagree. wCOP has no on-chain market on Celo and is reported as such, never priced from elsewhere.",
+      "endpoint": "https://engaboljiqudghvzmebq.supabase.co/functions/v1/latam-rate",
+      "method": "POST",
+      "input": {
+        "usd": "optional trade size to price the pool at (default 100, max 100000)"
+      },
+      "price": {
+        "amount": "1000",
+        "decimals": 6,
+        "usd": 0.001
+      }
+    },
+    {
+      "name": "latam-route",
+      "description": "How to deliver an amount of pesos or reais on Celo: the token, the dollars it takes at your size and from which venue (with price impact), Ripio's public buy and cash-out links and a prefilled Remesso schedule link. Moves nothing and signs nothing. Argentina and Brazil are priced on-chain; Colombia gets the Ripio route only.",
+      "endpoint": "https://engaboljiqudghvzmebq.supabase.co/functions/v1/latam-route",
+      "method": "POST",
+      "input": {
+        "country": "AR | BR | CO",
+        "amount": "number, in local currency unless currency is USD",
+        "currency": "optional LOCAL (default) | USD",
+        "recipient": "optional 0x address to prefill",
+        "every": "optional week | fortnight | month (default month)"
+      },
+      "price": {
+        "amount": "2000",
+        "decimals": 6,
+        "usd": 0.002
+      }
+    },
+    {
       "name": "trigger-run",
       "description": "Bring one payment of an existing schedule forward. The caller buys timing and nothing else. Stablecoin payouts only: naira schedules are refused before a price is quoted.",
       "endpoint": "https://engaboljiqudghvzmebq.supabase.co/functions/v1/trigger-run",
