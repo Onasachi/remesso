@@ -171,7 +171,9 @@ export function RecipientStep({
         )}
         {/* The reason is in the README; the sender only needs to know it is
             not them. */}
-        {!BANK_PAYOUTS_ENABLED && value.payoutType !== "wallet" && (
+        {/* Naira news, so only beside a dollar payout: next to pesos it
+            reads as if wARS were heading for a Nigerian bank. */}
+        {!BANK_PAYOUTS_ENABLED && value.payoutType !== "wallet" && value.token.currency === "USD" && (
           <p className="hint">Paying straight into a naira bank account is coming soon.</p>
         )}
       </div>
