@@ -1,33 +1,266 @@
-## What it is
+# Remesso
 
-Remesso sends money home on a schedule, in the currency the family actually spends. A sender signs one on-chain mandate — who gets paid, how much, how often, until when — and Remesso's agent carries it out on Celo mainnet without asking again. Neither Remesso nor anyone else can redirect, resize or extend a payment: the contract (`RemessoExecutorV4`, `0x288b7cDD10e069eA64D4984c3E5fa0D9c5816009`) enforces the mandate, and the agent's key can only trigger a payment the sender already authorised.
+**Send money home on a schedule, in the currency your family spends — signed once, carried out by an agent on Celo.**
 
-## Who it is for
+Live on Celo mainnet · App: https://remesso-3q67.vercel.app · Repo: https://github.com/crackedstudio/Remesso
 
-Families split across borders. Someone in the diaspora paying a parent in Argentina, Brazil or Colombia every month today converts through the dollar and pays a fee at each step. With Remesso the sender funds in pesos or reais and the family receives exactly that — no conversion — and both sides move between the bank and the token through Ripio.
+---
+
+## The problem
+
+Families split across borders pay each other on a rhythm — school fees every
+term, rent every month, a parent's allowance every week. Today that is a chore
+repeated by hand, and for Argentina, Brazil or Colombia it usually means
+converting through dollars and paying a spread at each step. Automating it
+normally means handing a company custody of the money or a card on file.
+
+## What Remesso is
+
+A sender signs **one on-chain mandate**: who gets paid, how much, how often and
+until when. From then on **Remesso's agent** carries it out on Celo mainnet —
+every week or every month — without asking again.
+
+The agent can only do what was signed. The mandate lives in our contract,
+`RemessoExecutorV4` (`0x288b7cDD10e069eA64D4984c3E5fa0D9c5816009`, verified),
+and **nobody — not the agent, not us, not the contract owner — can redirect,
+resize or extend a payment**. The sender can pause, resume or cancel at any
+time from their wallet. Money never sits with us: each payment moves straight
+from the sender's wallet to the recipient's, through an allowance the sender
+grants and can revoke.
+
+How a payment happens:
+
+1. The sender approves the token and calls `createSchedule` — two transactions
+   in their own wallet.
+2. Every 5 minutes, `sync-schedules` finds new schedules on-chain, including
+   ones created outside the app (by a script or another agent).
+3. Every minute, `execute-due-runs` checks which schedules are due, reads
+   `runnability()` on-chain (due, funded, approved), and the agent wallet
+   calls `executeRun`.
+4. The contract moves the amount — minus a 0.25% fee, fixed at signing — to the
+   recipient, and the app shows the receipt.
+
+## The agent
+
+| | |
+|---|---|
+| Agent wallet (sends every payment) | `0x3c754AD31e802D5fA65487f460dED65Aba749Cd1` |
+| ERC-8004 identity held by the agent wallet | agent **#9879** (registry `0x8004A169FB4a3325136EB29fA0ceB6D2e539a432`) |
+| ERC-8004 identity held by the owner | agent #9867 |
+| Proof of a human behind it | Self Agent ID **#191** — soulbound, zero-knowledge passport proof |
+| Capabilities (machine-readable, free) | `GET https://engaboljiqudghvzmebq.supabase.co/functions/v1/agent` |
+| Agent card | https://remesso-3q67.vercel.app/.well-known/agent.json |
+
+Every transaction Remesso causes — each payment the agent sends and each
+transaction a sender signs in the app — carries an ERC-8021 attribution suffix
+with both `remesso` and our hackathon code `celo_5cd35ca55baf`, pinned
+byte-for-byte to `@celo/attribution-tags` by a test.
+
+---
+
+## Tokens we support
+
+All on Celo mainnet. The contract's own allowlist decides what a new schedule
+may use; the app and the agent document read that allowlist rather than a list
+of ours, so nothing is offered before the contract accepts it.
+
+| Token | Currency | Address | Decimals | In MiniPay | In a browser wallet | x402 |
+|---|---|---|---|---|---|---|
+| **USD₮** (USDT) | US dollar | `0x48065fbBE25f71C9282ddf5e1cD6D6A887483D5e` | 6 | ✅ | ✅ | ✅ |
+| **USDC** | US dollar | `0xcebA9300f2b948710d2653dD7B07f33A8B32118C` | 6 | ✅ | ✅ | ✅ |
+| **USDm** (formerly cUSD) | US dollar | `0x765DE816845861e75A25fCA122bb6898B8B1282a` | 18 | ✅ | ✅ | — |
+| **USA₮** | US dollar | `0xD2ab3C9A02DBBAB236BfEC45D1d755DF4267F771` | 6 | — | ✅ | ✅ (default) |
+| **wARS** (Ripio) | Argentine peso | `0x0DC4F92879B7670e5f4e4e6e3c801D229129D90D` | 18 | — | ✅ | — |
+| **wBRL** (Ripio) | Brazilian real | `0xD76f5Faf6888e24D9F04Bf92a0c8B921FE4390e0` | 18 | — | ✅ | — |
+| **wCOP** (Ripio) | Colombian peso | `0x8a1D45e102e886510e891d2Ec656a708991e2D76` | 18 | — | ✅ | — |
+
+Schedules use the **Direct** rail: the recipient receives exactly the token the
+sender funds with. No swap, no conversion, no price risk. A peso schedule pays
+pesos; a USA₮ schedule pays USA₮.
+
+**A peso is not a dollar**, and code written for dollar stablecoins assumed it
+was. We scaled the backend's per-payment safety cap per currency (rounded so
+it only ever gets stricter), count only dollar tokens in balance totals and in
+the unusual-payment check, and made the backend refuse any token it does not
+know rather than guess its decimals.
+
+---
+
+## MiniPay integration
+
+Remesso runs inside MiniPay as a Mini App, built to MiniPay's own rules.
+
+- **Connects by itself.** MiniPay is detected and the wallet connects
+  automatically — no connect button, no wallet picker.
+- **Pay a contact.** "Choose from contacts" opens **MiniPay's own contact
+  picker** (`minipay_requestContact`). MiniPay matches the contact to their
+  MiniPay wallet on the device, so no phone number ever reaches us, and the
+  contact's name fills "Who is this for?".
+- **Or type a phone number — never an address.** MiniPay forbids typing,
+  pasting or displaying wallet addresses, so inside MiniPay the recipient is a
+  phone number. A **country picker with all 245 countries** (Nigeria, Ghana,
+  Kenya, South Africa, Uganda, Tanzania, Cameroon and Ethiopia first; the last
+  choice remembered) lets people type numbers the local way — `0706 765 1245`
+  in Nigeria becomes `+234 706 765 1245`. No country is ever guessed.
+- **Phone → wallet through Celo's identity layer.** Our server resolves the
+  number with **ODIS** and **FederatedAttestations**, trusting only MiniPay's
+  own attestation issuer (`0x7888…7FBc`), so a number maps to the MiniPay
+  account its owner registered. Only a masked number is stored
+  (`+234 706 ••• 1245`); the full number is stored and logged nowhere. Lookups
+  are metered at 20 per user per day, because each one is paid and reveals
+  whose wallet a number is. If a number has no MiniPay account, the form offers
+  a WhatsApp invite instead.
+- **No address on screen, anywhere.** Inside MiniPay a recipient is shown by
+  name or masked number — never an address, truncated or not.
+- **MiniPay's tokens only.** Inside MiniPay we offer exactly USDT, USDC and
+  USDm, and call USDm by MiniPay's name for it.
+- **The assistant understands numbers too.** "Send 20 USDT to +234 803 123
+  4567 every month" fills the whole form. The phone number is cut out in the
+  browser before the sentence goes to the language model — the model sees
+  `[recipient]`, never a person's number — and then looked up exactly as if
+  typed.
+
+Status: built and tested through MiniPay's developer mode. Remesso is not yet a
+listed Mini App, so ordinary MiniPay users cannot open it until MiniPay
+approves it; that submission is our next step.
+
+## Web integration
+
+In any browser with a Celo wallet (MetaMask, Valora, Rabby…), Remesso offers
+everything MiniPay's rules leave out.
+
+- **All seven tokens**, including USA₮ and Ripio's pesos and reais. The landing
+  page tells visitors so, with the list read live from the contract.
+- **Ripio on- and off-ramp.** Choosing wARS, wBRL or wCOP shows "Buy it with
+  Ripio" (from a local bank account) and "Cash out at Ripio", prefilled with
+  country, Celo, token and wallet. We also bought wARS on Celo itself, through
+  Uniswap's 0.01% USDT/wARS pool.
+- **Wallet addresses**, typed or pasted, with a copy button on each schedule.
+- **Pay links.** `/schedules/new?to=…&amount=…&token=…&every=…` opens a
+  prefilled form; the form says a link filled it in, and the sender still
+  reviews and signs every field. Our invite links are built this way.
+- **Payment requests.** Anyone — a person or an agent — can ask to be paid on a
+  schedule (`POST /functions/v1/request-payment`, free); the request appears on
+  the payer's home screen as a prefilled form. It can never create a payment.
+- **"Or just say it".** Describe the payment in a sentence and the form fills
+  in. Every field is shown for review before signing; ambiguous readings are
+  flagged, and an unusual schedule (amount, rhythm, new recipient) gets a
+  warning before it is signed.
+- **Schedule pages** with the next payment countdown, pause, resume and cancel,
+  the full payment history, and — when the sender allows it — who may send a
+  payment early.
+- **Optional identity check** with Self (passport, 18+, sanctions list) shown as
+  a badge; it never gates a payment.
+
+---
+
+## x402 integration
+
+Remesso sells two services to other agents over **x402**, through **Celo's
+facilitator** (`https://api.x402.celo.org`). The paying agent signs a token
+authorisation; the facilitator submits it and pays the gas, so **the payer needs
+no CELO**.
+
+| Service | Endpoint | Price | What it does |
+|---|---|---|---|
+| `naira-rate` | `POST /functions/v1/rate-service` | 0.001 | Live USDT/NGN and USDC/NGN — bid, ask, last; mid and spread only when both sides are quoted (never invented) |
+| `trigger-run` | `POST /functions/v1/trigger-run` | 0.01 | Brings one payment of a schedule forward, only if its sender allowed early sends |
+
+- **Currencies:** USDC, USD₮ and **USA₮**, at the same price in each (all 6dp).
+- **Paid to:** `0xcDEA4Cc4191Ec9A5d8fD1a6B17e3F4C84E993Ae2`.
+- **x402 v2 on the wire**, v1 still accepted: the price list rides in the
+  `PAYMENT-REQUIRED` header, the payment in `PAYMENT-SIGNATURE`, the receipt in
+  `PAYMENT-RESPONSE`. We moved to v2 after measuring that the official
+  `@x402/fetch` refused v1 sellers — every agent using the standard SDK could
+  not have paid us.
+- **Nobody pays for a failure.** `trigger-run` checks the schedule on-chain and
+  answers 403 *before quoting a price* if the call could not succeed; the order
+  is verify → run → settle, so a payment that reverts charges nothing (409).
+- **Builder code.** Every 402 declares the x402 `builder-code` extension
+  (`{"a":"remesso","s":["celo_5cd35ca55baf"]}`), verified identical to
+  `@x402/extensions`, so settlements will carry our tag as soon as Celo's
+  facilitator writes it.
+- **Verified with the official client.** `@x402/fetch` + `@x402/evm` 2.28.0 at
+  default settings paid our endpoint in USA₮ on mainnet — USA₮ is inside the
+  SDK's default spend controls on Celo, so agents need no extra configuration.
+
+## Agent skills
+
+Two skills, installable by any agent with one command:
+
+```bash
+npx skills add crackedstudio/Remesso --skill remesso-x402   # pay our x402 services
+npx skills add crackedstudio/Remesso --skill remesso        # schedules, being paid, the contract
+```
+
+**`remesso-x402` pays in USA₮ by default.** It installs:
+
+- `SKILL.md` — the services, payment terms, a code sample and the mistakes that
+  cost money on Celo (fee adapters that share a token's symbol, EIP-712 names
+  that are not the symbol, v2 headers).
+- `scripts/pay.mjs` — a ready-to-run payer on the official x402 client:
+
+  ```bash
+  npm i @x402/fetch@2.28.0 @x402/evm@2.28.0 viem
+  PAYER_KEY=0x… node scripts/pay.mjs --service naira-rate            # pays in USA₮
+  PAYER_KEY=0x… node scripts/pay.mjs --service naira-rate --asset USDC
+  ```
+
+  It chooses the token by address, refuses any quote above `--max` (default
+  0.05) before signing, and stops before signing if the wallet holds no USA₮,
+  saying how to pay in USDC or USD₮ instead.
+- `manifest.json` — the payment terms as data: network `eip155:42220`, payee,
+  facilitator, **`defaultAsset` = USA₮**, each token's address, decimals and
+  EIP-712 domain, and each service's price. It is **generated from the live
+  402**, never typed by hand, and `--check` fails if it drifts. An index of
+  both skills (`skills/manifest.json`) and a JSON Schema for the format
+  (`skills/manifest.schema.json`) sit beside it.
+
+The skills are also served from the app (`/skills/manifest.json`,
+`/skill.md`) and linked from the agent card.
+
+---
+
+## Proof on mainnet
+
+All of these are **our own test transactions**. Remesso has no independent
+users yet, and we do not count any of the payments below as volume.
+
+| What | Transaction |
+|---|---|
+| wARS, wBRL, wCOP allowed on the contract (2026-10-06) | `0x717cc22c…`, `0x482172a7…`, `0xbed93797…` |
+| USA₮ allowed on the contract (2026-10-11) | `0xf3292694…9e5a` |
+| ERC-8004 agent #9879 registered from the agent wallet | `0xc806f21d…bad5` |
+| **First peso payment by the agent:** a 1,000 wARS weekly schedule created outside the app was found and paid within 5 minutes, unprompted — 997.5 wARS to the recipient, 2.5 wARS fee | `0x4eaf6976…9cdc` |
+| x402 payment in USA₮ through the official SDK | `0x5780ab21…d38d` |
+| x402 payment in USA₮ through the `remesso-x402` skill script | `0xf91d3465…d6f9`, `0x15167882…d6f8` |
+| An outside developer installed `remesso-x402` from GitHub and paid in USA₮ on their own — with test funds we provided | `0xa5d6eceb…aca2` |
 
 ## What we built during the hackathon (from 2026-10-06)
 
-- **Pesos and reais on mainnet.** Ripio's wARS, wBRL and wCOP were added to the live contract's allowlist on 2026-10-06 (txs `0x717cc22c…`, `0x482172a7…`, `0xbed93797…`), rehearsed first on a mainnet fork. The send form and our public agent document read that allowlist from the contract, so nothing is offered before it is real.
-- **USA₮ for schedules.** Allowed on the live contract on 2026-10-11 (tx `0xf3292694…9e5a`), alongside USDT, USDC and USDm.
-- **Ripio on- and off-ramp.** When a sender picks a wFIAT, the form links Ripio's ramp — buy wARS from a local bank account, and cash out the same way — prefilled with country, Celo, token and wallet.
-- **A peso is not a dollar.** Code written for dollar stablecoins assumed 1 token = $1. We fixed the per-run safety cap (now scaled per currency, failing toward refusal), balance totals and the risk check, and made the backend refuse any token it does not know.
-- **Attribution on every transaction.** Every executor run and every transaction a sender signs carries our hackathon tag alongside our own, pinned byte-for-byte to `@celo/attribution-tags`.
-- **Builder code on x402.** Our paid endpoints declare the x402 `builder-code` extension (verified identical to `@x402/extensions`), so settlements through Celo's facilitator tag themselves as soon as it ships support.
-- **Agent identity held by the agent wallet.** ERC-8004 agent **#9879**, registered from the executor that sends every run.
-- **Proven on mainnet with pesos.** Our own test run on 2026-10-11: a 1,000 wARS weekly schedule created outside the app (schedule #8) was discovered and paid by the agent in under five minutes with no one triggering it — 997.5 wARS to the recipient, 2.5 wARS fee, one tagged transaction (`0x4eaf6976…9cdc`). wARS was bought on Celo itself, through Uniswap's USDT/wARS pool.
-- **Pay a contact or a phone number, not an address.** MiniPay forbids typing or showing wallet addresses, so inside MiniPay a sender picks the recipient from their MiniPay contacts, or types their number with a country picker covering 245 countries. Numbers resolve to MiniPay wallets through Celo's ODIS and FederatedAttestations, trusting only MiniPay's issuer; only a masked number is stored, and a number typed into the AI box is removed before the sentence reaches the model.
-- **MiniPay-ready.** Inside MiniPay only USDT, USDC and USDm are offered, no address is ever displayed, and cUSD is called USDm as MiniPay names it. Every other currency stays available from a browser wallet, and the landing page says so.
+- Ripio's wARS, wBRL and wCOP, then USA₮, on the live contract's allowlist; the
+  form and agent document read the allowlist from the chain.
+- Ripio buy and cash-out links; per-currency safety caps and totals.
+- Attribution on every transaction with both codes; the x402 builder-code
+  extension.
+- ERC-8004 agent #9879 held by the agent wallet.
+- MiniPay: contact picker, phone numbers through ODIS with a 245-country picker,
+  no addresses on screen, MiniPay's three tokens only, USDm naming, phone
+  numbers kept away from the AI model.
+- Web: every token on the landing page and the form, read from the contract.
+- x402 v2 verified with the official SDK in USA₮.
+- The `remesso-x402` skill, its script and its generated manifest, USA₮ by
+  default.
 
-Commits: `a10658d`, `dda9809`, `668b82e`, `65cb225`, `041e7be`, `8b4f822`, `24f829e`, `7ce6f9f`, `ebc3729`, `1aaeb38`, `aba7696` (and later). Earlier work — the contract, the executor, x402 selling — predates the hackathon and is described in the README.
+Commits from `a10658d` onward. The contract, the agent loop and x402 selling
+predate the hackathon and are described in the README.
 
-## USA₮ and x402
+## Honest status
 
-Remesso sells over x402 through Celo's facilitator, priced in USDC, USD₮ or USA₮: `trigger-run` lets an agent bring a scheduled payment forward for $0.01, and `rate-service` sells live NGN rates for $0.001. x402 settlements are paid to `0xcDEA4Cc4191Ec9A5d8fD1a6B17e3F4C84E993Ae2`. Since 2026-10-11 USA₮ is also a schedule currency, so a sender can pay family in USA₮ on a schedule from a browser wallet.
-
-## Addresses
-
-- Agent wallet (executor, sends every run): `0x3c754AD31e802D5fA65487f460dED65Aba749Cd1`
-- ERC-8004: agent #9879 (also #9867, held by the owner); Self Agent ID #191
-- Contract: `0x288b7cDD10e069eA64D4984c3E5fa0D9c5816009` (verified, unaudited)
-- App: https://remesso-3q67.vercel.app · Agent document: `/functions/v1/agent`
+- **Unaudited.** `RemessoExecutorV4` is verified and live on mainnet but has
+  not been audited. Start small.
+- **No independent users yet.** Every payment so far is ours or funded by us.
+- **MiniPay listing pending.** The Mini App works in MiniPay's developer mode;
+  ordinary MiniPay users need MiniPay's approval first.
+- **Naira bank payouts are built and switched off** pending regulatory advice;
+  everything settles in stablecoins today.
