@@ -395,6 +395,13 @@ per asset AND `assetTransferMethod: "permit2"`, which is a different code path.
 USA₮'s domain is `Tether America USD` v1 — not the symbol — and its 18dp fee
 adapter `0x0357EE22…80C4` reports the same `symbol()`, so match on address.
 
+**Verified 2026-10-11 with the official client, as a stranger's agent would
+pay:** `@x402/fetch` + `@x402/evm` 2.28.0, `registerExactEvmScheme`, default
+spend controls (USA₮ is within them — no opt-in needed), a selector choosing
+the USA₮ entry. `rate-service` answered 200; Celo's facilitator
+(`0x0d74…FB48`) settled 0.001 USA₮ to `0xcDEA…3Ae2` in `0x5780ab21…d38d`,
+87,489 gas, untagged as DevRel said. Our own test payment — not volume.
+
 `trigger-run` sells one early send over x402 — an agent pays $0.01 USDC, one
 run fires ahead of cadence. The caller buys timing and nothing else. Order is
 verify -> run -> settle, so a reverted run charges nobody; a settlement that
