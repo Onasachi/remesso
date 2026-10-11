@@ -130,7 +130,8 @@ These each cost real time to find. None are visible from the code alone.
 ## Two rails
 
 `Direct` forwards the funding asset itself — sender funds USDT, USDC, USDm (formerly cUSD) or USA₮ and
-the recipient receives that same asset. No swap, no floor, no pool. This exists
+the recipient receives that same asset. No swap, no floor, no pool. USA₮
+(`0xD2ab…F771`, 6dp) was allowed on V4 on 2026-10-11 (`0xf3292694…9e5a`). This exists
 because **MiniPay displays only USDm, USDC and USDT**: a recipient paid
 in cNGN sees nothing and cannot add a custom token.
 
@@ -592,7 +593,8 @@ every sender re-authorising, so it is a deliberate decision, not a default.
   with no sender row and a "sign in" message naming a screen that does not
   exist. Re-claiming grants a view of a schedule list, never the ability to
   move money.
-- The contract is **live on mainnet and unaudited.** No schedule has ever run.
+- The contract is **live on mainnet and unaudited.** Schedules have run since 2026-09-22 — all
+  ours so far (the first wARS run: schedule #8, 2026-10-11, `0x4eaf6976…9cdc`).
 
 ## Conventions
 
