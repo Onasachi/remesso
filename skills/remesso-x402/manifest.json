@@ -3,7 +3,7 @@
   "manifestVersion": 1,
   "name": "remesso-x402",
   "version": "1.0.0",
-  "description": "Pay Remesso's paid HTTP services on Celo mainnet over x402 v2 — in USDC, USD₮ or USA₮, gasless for the payer. Use it to buy live NGN rates or to bring a scheduled stablecoin payment forward.",
+  "description": "Pay Remesso's paid HTTP services on Celo mainnet over x402 v2 — in USA₮ by default (USDC and USD₮ also accepted), gasless for the payer. Use it to buy live NGN rates or to bring a scheduled stablecoin payment forward.",
   "skill": {
     "entry": "SKILL.md",
     "url": "https://raw.githubusercontent.com/crackedstudio/Remesso/main/skills/remesso-x402/SKILL.md"
@@ -18,7 +18,7 @@
       "@x402/evm@2.28.0",
       "viem"
     ],
-    "run": "node scripts/pay.mjs --service naira-rate --asset USAT"
+    "run": "node scripts/pay.mjs --service naira-rate"
   },
   "payment": {
     "protocol": "x402",
@@ -33,6 +33,7 @@
     "payTo": "0xcDEA4Cc4191Ec9A5d8fD1a6B17e3F4C84E993Ae2",
     "facilitator": "https://api.x402.celo.org",
     "gas": "paid by the facilitator — the payer needs the token, not CELO",
+    "defaultAsset": "0xD2ab3C9A02DBBAB236BfEC45D1d755DF4267F771",
     "assets": [
       {
         "symbol": "USDC",

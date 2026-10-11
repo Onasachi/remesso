@@ -83,7 +83,7 @@ const x402Manifest = {
   name: "remesso-x402",
   version: "1.0.0",
   description:
-    "Pay Remesso's paid HTTP services on Celo mainnet over x402 v2 — in USDC, USD₮ or USA₮, gasless for the payer. " +
+    "Pay Remesso's paid HTTP services on Celo mainnet over x402 v2 — in USA₮ by default (USDC and USD₮ also accepted), gasless for the payer. " +
     "Use it to buy live NGN rates or to bring a scheduled stablecoin payment forward.",
   skill: { entry: "SKILL.md", url: `${RAW}/skills/remesso-x402/SKILL.md` },
   homepage: APP,
@@ -92,7 +92,7 @@ const x402Manifest = {
   install: {
     npxSkills: "npx skills add crackedstudio/Remesso --skill remesso-x402",
     npm: ["@x402/fetch@2.28.0", "@x402/evm@2.28.0", "viem"],
-    run: "node scripts/pay.mjs --service naira-rate --asset USAT",
+    run: "node scripts/pay.mjs --service naira-rate",
   },
   payment: {
     protocol: "x402",
@@ -104,6 +104,9 @@ const x402Manifest = {
     facilitator: agent.services?.find((s: { payment?: { facilitator?: string } }) => s.payment?.facilitator)?.payment.facilitator ??
       "https://api.x402.celo.org",
     gas: "paid by the facilitator — the payer needs the token, not CELO",
+    // What the skill pays in unless told otherwise. A preference, not a
+    // requirement: every asset below is accepted at the same price.
+    defaultAsset: assets.find((a) => a.symbol === "USA₮")?.address ?? null,
     assets,
     builderCode: (live.extensions?.["builder-code"] as { info?: unknown } | undefined)?.info ?? null,
     authoritative: "the PAYMENT-REQUIRED header of an unpaid request — this file is a snapshot of it",

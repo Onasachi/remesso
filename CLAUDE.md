@@ -456,8 +456,10 @@ signed by the executor (`0x3c754AD3…49Cd1`) and bounded by the contract.
 ## Agents: being paid, and paying
 
 **`skills/remesso-x402/`** is the paid-services skill on its own: SKILL.md, a
-tested `scripts/pay.mjs` (official v2 client, asset by address, `--max` cap
-refused before signing) and `manifest.json`. **Never hand-edit the
+tested `scripts/pay.mjs` (official v2 client, **USA₮ by default** — the
+hackathon's USA₮ track; a wallet holding none is stopped before signing and
+told to pass `--asset USDC|USDT` — asset by address, `--max` cap refused
+before signing) and `manifest.json`. **Never hand-edit the
 manifests** — `scripts/build-skill-manifest.ts` writes them from the live 402
 and `/agent`; `--check` exits 1 on drift. `skills/manifest.json` indexes both
 skills; `skills/manifest.schema.json` is the format (ours — Agent Skills

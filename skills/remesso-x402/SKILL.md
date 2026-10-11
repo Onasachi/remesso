@@ -1,6 +1,6 @@
 ---
 name: remesso-x402
-description: Pay Remesso's paid HTTP services on Celo mainnet over x402 v2 — in USDC, USD₮ or USA₮, with no CELO needed. Use when an agent wants live NGN exchange rates (naira-rate, 0.001) or to bring a scheduled stablecoin payment forward (trigger-run, 0.01), or needs a working, tested example of paying an x402 endpoint on Celo with the official @x402/fetch client, including choosing USA₮ and capping the price.
+description: Pay Remesso's paid HTTP services on Celo mainnet over x402 v2 — in USA₮ by default (USDC and USD₮ also accepted), with no CELO needed. Use when an agent wants live NGN exchange rates (naira-rate, 0.001) or to bring a scheduled stablecoin payment forward (trigger-run, 0.01), or needs a working, tested example of paying an x402 endpoint on Celo with the official @x402/fetch client, including choosing USA₮ and capping the price.
 license: MIT
 ---
 
@@ -43,17 +43,23 @@ EIP-712 domains, prices, the payee — generated from the live 402. **The live
 
 The same amount in base units is the price in each — all three are 6dp.
 
+**Pay in USA₮.** It is the default in `pay.mjs` and in the code below, and the
+currency to choose unless your wallet holds none. USDC and USD₮ remain
+accepted, for wallets that only hold those.
+
 ## Pay in three commands
 
 ```bash
 npm i @x402/fetch@2.28.0 @x402/evm@2.28.0 viem
 curl -sO https://raw.githubusercontent.com/crackedstudio/Remesso/main/skills/remesso-x402/scripts/pay.mjs
-PAYER_KEY=0x… node pay.mjs --service naira-rate --asset USAT
+PAYER_KEY=0x… node pay.mjs --service naira-rate
 ```
 
 `pay.mjs` prints the HTTP status, the settlement receipt (transaction hash)
-and the response body. Options: `--asset USDC|USDT|USAT`, `--max 0.05`
-(refuse any quote above this, before signing), `--body '{"scheduleId":3}'`.
+and the response body. It pays in **USA₮ unless told otherwise**, and stops
+before signing if the wallet holds none. Options: `--asset USAT|USDT|USDC`
+(default `USAT`), `--max 0.05` (refuse any quote above this, before signing),
+`--body '{"scheduleId":3}'`.
 
 Verified on mainnet 2026-10-11 with exactly this script: 200, both NGN pairs
 returned, 0.001 USA₮ settled by Celo's facilitator in
@@ -69,8 +75,8 @@ import { privateKeyToAccount } from "viem/accounts";
 const USAT = "0xD2ab3C9A02DBBAB236BfEC45D1d755DF4267F771";
 const MAX = 50_000n; // 0.05 — your ceiling per call
 
-// The selector CHOOSES the currency. Without one the SDK takes the first
-// entry in the 402, which is USDC: a wallet holding both pays in USDC.
+// The selector CHOOSES the currency — USA₮ here. Without one the SDK takes
+// the first entry in the 402, which is USDC.
 const select = (_v: number, accepts: any[]) => {
   const a = accepts.find((r) => r.asset.toLowerCase() === USAT.toLowerCase());
   if (!a || BigInt(a.amount) > MAX) throw new Error("no acceptable quote");

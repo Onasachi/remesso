@@ -12,7 +12,7 @@
     },
     {
       "name": "remesso-x402",
-      "description": "Pay Remesso's paid HTTP services on Celo mainnet over x402 v2 — in USDC, USD₮ or USA₮, gasless for the payer. Use it to buy live NGN rates or to bring a scheduled stablecoin payment forward.",
+      "description": "Pay Remesso's paid HTTP services on Celo mainnet over x402 v2 — in USA₮ by default (USDC and USD₮ also accepted), gasless for the payer. Use it to buy live NGN rates or to bring a scheduled stablecoin payment forward.",
       "skill": "https://raw.githubusercontent.com/crackedstudio/Remesso/main/skills/remesso-x402/SKILL.md",
       "manifest": "https://raw.githubusercontent.com/crackedstudio/Remesso/main/skills/remesso-x402/manifest.json",
       "install": "npx skills add crackedstudio/Remesso --skill remesso-x402"
