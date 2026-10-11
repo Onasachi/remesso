@@ -173,16 +173,23 @@ export default function NewSchedulePage() {
   /// to guess, and overwriting a value the sender already typed with a blank
   /// would be worse than leaving it. The token is resolved from its symbol
   /// against DIRECT_TOKENS rather than trusting an address from the model.
-  function applyDraft(d: Draft) {
+  function applyDraft(d: Draft, phone: string | null) {
     const token = tokenFromSymbol(d.token);
     setRecipient((r) => ({
       ...r,
       payoutType: "direct",
       displayName: d.recipientName ?? r.displayName,
-      walletAddress: d.destination ?? r.walletAddress,
-      // A drafted address replaces whatever number was found for it.
-      phoneMasked: d.destination ? "" : r.phoneMasked,
-      token: token ?? r.token,
+      ...(phone
+        ? // A number in the sentence: clear whatever was found before and let
+          // the phone field look this one up.
+          { walletAddress: "", phoneMasked: "", phoneTyped: phone, phoneAutoFind: r.phoneAutoFind + 1 }
+        : {
+            walletAddress: d.destination ?? r.walletAddress,
+            // A drafted address replaces whatever number was found for it.
+            phoneMasked: d.destination ? "" : r.phoneMasked,
+          }),
+      // MiniPay offers only its own three; a drafted USA₮ or wARS is dropped.
+      token: token && (!inMiniPay || token.miniPayVisible) ? token : r.token,
     }));
     setTerms((t) => ({
       ...t,
@@ -371,7 +378,7 @@ export default function NewSchedulePage() {
                 </p>
               </div>
             )}
-            <DescribeSchedule onDraft={applyDraft} />
+            <DescribeSchedule onDraft={applyDraft} phoneMode={inMiniPay} />
             <RecipientStep value={recipient} onChange={setRecipient} />
           </>
         )}

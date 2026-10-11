@@ -20,3 +20,25 @@ export function maskPhone(e164: string): string {
   const tail = e164.slice(-4);
   return `${head.slice(0, 4)} ${head.slice(4)} ••• ${tail}`.replace(/\s+/g, " ");
 }
+
+/// A phone number inside a sentence ("send 20 USDT to +234 706 765 1245 every
+/// month"), or null. Needs 9+ digits so an amount or a count never matches.
+/// Returns the text as written, plus the sentence with it cut out — the
+/// number is resolved by us, never sent to the language model: it is a
+/// person's phone number, and a model has no business seeing it.
+export function findPhone(text: string): { raw: string; redacted: string } | null {
+  const re = /(?:\+|\b00|\b0)\d[\d\s\-().]{6,20}\d/g;
+  for (const m of text.matchAll(re)) {
+    // An unbroken run that is already a whole number stands alone: in
+    // "07067651245 5000 USDT" the 5000 is the amount, not more digits.
+    const firstRun = /^\+?\d+/.exec(m[0])![0];
+    const span = firstRun.replace(/\D/g, "").length >= 9 ? firstRun : m[0].trim();
+    const digits = span.replace(/\D/g, "");
+    if (digits.length < 9 || digits.length > 15) continue;
+    return {
+      raw: span,
+      redacted: `${text.slice(0, m.index)}[recipient]${text.slice(m.index! + span.length)}`,
+    };
+  }
+  return null;
+}

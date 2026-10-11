@@ -211,6 +211,11 @@ keeps every address feature (paste, copy, all seven tokens) outside it.
   a new MiniPay wallet keeps receiving at the old one; the form says so.
 - Inside MiniPay only USDT/USDC/USDm are offered (`miniPayVisible`) — its rules
   forbid any other token there.
+- The "say it" box takes a number too ("Send 20 USDT to +234 … every month").
+  `findPhone` cuts it out in the browser and the model sees `[recipient]`:
+  **a phone number is never sent to DeepSeek.** The field then looks it up
+  once (`phoneAutoFind`), never per keystroke — a number is valid E.164
+  several digits before it is finished, and each lookup is paid.
 
 **Quota is prepaid and runs out silently into a 503.** Key
 `ODIS_QUOTA_PRIVATE_KEY` (Vercel, server-only; `~/.remesso/keys/odis.json`,

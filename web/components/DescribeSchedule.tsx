@@ -4,6 +4,7 @@ import { useState } from "react";
 import { parseSchedule, type Draft } from "@/lib/ai";
 import { CNGN_RAILS_ENABLED, DIRECT_TOKENS } from "@/lib/config";
 import { TEST_INTERVALS_ENABLED } from "@/lib/format";
+import { findPhone } from "@/lib/phone";
 
 /// Type the remittance in a sentence; the assistant fills the form in.
 ///
@@ -36,10 +37,22 @@ const STARTERS = [
   "Send 20 USDC to 0x… every month",
 ];
 
+/// Inside MiniPay a recipient is a phone number — addresses are neither typed
+/// nor shown there — so the examples teach that shape instead.
+const PHONE_STARTERS = [
+  "Send 5 USDT to +234 803 123 4567 every week for 8 transfers",
+  "Send 20 USDC to +234 803 123 4567 every month",
+];
+
 export function DescribeSchedule({
   onDraft,
+  phoneMode = false,
 }: {
-  onDraft: (d: Draft) => void;
+  /// `phone` is the number as written in the sentence, found by us rather
+  /// than the model; the form resolves it to a MiniPay wallet.
+  onDraft: (d: Draft, phone: string | null) => void;
+  /// MiniPay: recipients are phone numbers, never addresses.
+  phoneMode?: boolean;
 }) {
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
@@ -67,10 +80,18 @@ export function DescribeSchedule({
     setUnsure([]);
     setOpenEnded(false);
     try {
-      const r = await parseSchedule(t);
-      onDraft(r.draft);
+      // The number is cut out before the sentence leaves the browser: the
+      // model needs to know a recipient was named, not who. It also keeps
+      // eleven digits from being read as an amount.
+      const phone = phoneMode ? findPhone(t) : null;
+      const r = await parseSchedule(phone ? phone.redacted : t);
+      onDraft(phoneMode ? { ...r.draft, destination: null } : r.draft, phone?.raw ?? null);
       setNote(r.note);
-      setMissing(r.missing);
+      setMissing(
+        phoneMode
+          ? r.missing.flatMap((m) => (m !== "recipient address" ? [m] : phone ? [] : ["phone number"]))
+          : r.missing,
+      );
       setUnsure(r.unsure ?? []);
       // Not "missing" — running until stopped is a real choice. But a sender who
       // simply did not say should be shown that the choice exists, rather than
@@ -96,7 +117,11 @@ export function DescribeSchedule({
         id="describe"
         className="field min-h-[76px] resize-none"
         value={text}
-        placeholder="Send 20 USDT to 0x… every month for 6 months"
+        placeholder={
+          phoneMode
+            ? "Send 20 USDT to +234 803 123 4567 every month for 6 months"
+            : "Send 20 USDT to 0x… every month for 6 months"
+        }
         onChange={(e) => setText(e.target.value)}
         onKeyDown={(e) => {
           if (e.key === "Enter" && !e.shiftKey) {
@@ -107,7 +132,7 @@ export function DescribeSchedule({
       />
       {!text.trim() ? (
         <div className="mt-2.5 flex flex-wrap gap-2">
-          {STARTERS.map((example) => (
+          {(phoneMode ? PHONE_STARTERS : STARTERS).map((example) => (
             <button
               key={example}
               type="button"
@@ -178,11 +203,12 @@ export function DescribeSchedule({
             />
           )}
 
-          {(missing.includes("amount") || missing.includes("recipient address")) && (
+          {(missing.includes("amount") || missing.includes("recipient address") || missing.includes("phone number")) && (
             <p className="mt-2 text-ink-2">
               Add the {[
                 missing.includes("amount") ? "amount" : null,
                 missing.includes("recipient address") ? "address" : null,
+                missing.includes("phone number") ? "phone number" : null,
               ].filter(Boolean).join(" and ")} to the sentence, or type it into the form below.
             </p>
           )}

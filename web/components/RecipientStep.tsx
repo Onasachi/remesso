@@ -7,7 +7,7 @@ import { fetchBanks, verifyAccount, type AccountDetails } from "@/lib/api";
 import { BANK_PAYOUTS_ENABLED, CNGN_RAILS_ENABLED, DIRECT_TOKENS, type TokenInfo } from "@/lib/config";
 import { isMiniPay } from "@/lib/wagmi";
 import { useAllowedDirectTokens, useIsMiniPay } from "@/lib/hooks";
-import { ensureSession } from "@/lib/supabase";
+import { lookupPhone } from "@/lib/phoneLookup";
 import { toE164 } from "@/lib/phone";
 import { ripioRampUrl } from "@/lib/ripio";
 import { useAccount } from "wagmi";
@@ -25,6 +25,12 @@ export type RecipientDraft = {
   /// Set when the wallet came from a phone number (MiniPay): the masked
   /// number the sender recognises, shown and saved in place of the address.
   phoneMasked: string;
+  /// What is in the phone box — typed, or taken from the "say it" sentence.
+  phoneTyped: string;
+  /// Bumped when a number arrives from the sentence, so the field looks it
+  /// up once. Never on keystrokes: a number is valid E.164 several digits
+  /// before it is finished, and each lookup spends paid quota.
+  phoneAutoFind: number;
 };
 
 export const emptyRecipient: RecipientDraft = {
@@ -36,6 +42,8 @@ export const emptyRecipient: RecipientDraft = {
   accountName: "",
   token: DIRECT_TOKENS[0], // USDT — the one every MiniPay user already holds
   phoneMasked: "",
+  phoneTyped: "",
+  phoneAutoFind: 0,
 };
 
 export function recipientIsComplete(r: RecipientDraft): boolean {
@@ -217,7 +225,8 @@ function PhoneField({
   set: (p: Partial<RecipientDraft>) => void;
   sender?: string;
 }) {
-  const [phone, setPhone] = useState("");
+  const phone = value.phoneTyped;
+  const setPhone = (t: string) => set({ phoneTyped: t });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notFound, setNotFound] = useState(false);
@@ -237,14 +246,7 @@ function PhoneField({
     }
     setBusy(true);
     try {
-      const token = await ensureSession();
-      const res = await fetch("/api/resolve-phone", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
-        body: JSON.stringify({ phone: e164 }),
-      });
-      const json = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(json.error ?? "Could not look up that number. Try again.");
+      const json = await lookupPhone(e164);
       if (!json.found) {
         setNotFound(true);
         return;
@@ -261,6 +263,14 @@ function PhoneField({
     }
   }
 
+  // A number handed over by the "say it" box is looked up once, as if the
+  // sender had tapped Find; a local "0706…" lands in the box with the
+  // country-code message instead, for them to fix.
+  useEffect(() => {
+    if (value.phoneAutoFind) find();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [value.phoneAutoFind]);
+
   if (value.phoneMasked && isAddress(value.walletAddress)) {
     return (
       <div className="animate-rise rounded-xl bg-naira-soft px-4 py-3.5">
@@ -273,7 +283,7 @@ function PhoneField({
         <button
           type="button"
           className="mt-2 text-[13px] font-medium text-ink-2 underline"
-          onClick={() => set({ walletAddress: "", phoneMasked: "" })}
+          onClick={() => set({ walletAddress: "", phoneMasked: "", phoneTyped: "" })}
         >
           Use a different number
         </button>

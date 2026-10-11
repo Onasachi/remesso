@@ -4,7 +4,7 @@
 // A country is never guessed: "0803…" is a different person in every country,
 // and a wrong guess resolves to a stranger's MiniPay wallet.
 import { assertEquals } from "jsr:@std/assert@1";
-import { maskPhone, toE164 } from "./phone.ts";
+import { findPhone, maskPhone, toE164 } from "./phone.ts";
 
 Deno.test("toE164 accepts international forms and drops punctuation", () => {
   assertEquals(toE164("+234 803 123 4567"), "+2348031234567");
@@ -21,4 +21,13 @@ Deno.test("toE164 refuses what it would have to guess", () => {
 Deno.test("maskPhone keeps enough to recognise, not enough to dial", () => {
   assertEquals(maskPhone("+2348031234567"), "+234 803 ••• 4567");
   assertEquals(maskPhone("+14155552671"), "+141 555 ••• 2671");
+});
+
+Deno.test("findPhone picks the number out and never an amount", () => {
+  const f = findPhone("Send 20 USDT to +234 706 765 1245 every month for 6 months");
+  assertEquals(f?.raw, "+234 706 765 1245");
+  assertEquals(f?.redacted, "Send 20 USDT to [recipient] every month for 6 months");
+  assertEquals(findPhone("send 07067651245 5000 USDT weekly")?.raw, "07067651245");
+  assertEquals(findPhone("Send 1500 USDT every 2 weeks for 12 transfers"), null);
+  assertEquals(findPhone("Send 5 USDT to 0x2e2729F897D4E5799ADe12B3D911b40BA0307Aa4 weekly"), null);
 });
