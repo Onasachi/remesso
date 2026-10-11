@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { isAddress } from "viem";
 import { fetchBanks, verifyAccount, type AccountDetails } from "@/lib/api";
@@ -8,7 +8,7 @@ import { BANK_PAYOUTS_ENABLED, CNGN_RAILS_ENABLED, DIRECT_TOKENS, type TokenInfo
 import { isMiniPay } from "@/lib/wagmi";
 import { useAllowedDirectTokens, useIsMiniPay } from "@/lib/hooks";
 import { lookupPhone } from "@/lib/phoneLookup";
-import { toE164 } from "@/lib/phone";
+import { countryOf, countryOptions, toE164, type CountryCode } from "@/lib/phone";
 import { ripioRampUrl } from "@/lib/ripio";
 import { useAccount } from "wagmi";
 import type { PayoutKind } from "@/lib/types";
@@ -31,6 +31,8 @@ export type RecipientDraft = {
   /// up once. Never on keystrokes: a number is valid E.164 several digits
   /// before it is finished, and each lookup spends paid quota.
   phoneAutoFind: number;
+  /// The recipient's country, for numbers typed the local way ("0706…").
+  phoneCountry: CountryCode;
 };
 
 export const emptyRecipient: RecipientDraft = {
@@ -44,6 +46,7 @@ export const emptyRecipient: RecipientDraft = {
   phoneMasked: "",
   phoneTyped: "",
   phoneAutoFind: 0,
+  phoneCountry: "NG",
 };
 
 export function recipientIsComplete(r: RecipientDraft): boolean {
@@ -227,6 +230,33 @@ function PhoneField({
 }) {
   const phone = value.phoneTyped;
   const setPhone = (t: string) => set({ phoneTyped: t });
+  const countries = useMemo(() => countryOptions(), []);
+  const country = countries.find((c) => c.code === value.phoneCountry) ?? countries[0];
+
+  // The last country picked, so a sender paying home every month does not
+  // pick it every time. Per device and best-effort: a blocked storage just
+  // means Nigeria first, as before.
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem("remesso.phoneCountry") as CountryCode | null;
+      if (saved && saved !== value.phoneCountry && countries.some((c) => c.code === saved)) {
+        set({ phoneCountry: saved });
+      }
+    } catch {
+      /* private mode */
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  function pickCountry(code: CountryCode) {
+    set({ phoneCountry: code });
+    setError(null);
+    setNotFound(false);
+    try {
+      localStorage.setItem("remesso.phoneCountry", code);
+    } catch {
+      /* private mode */
+    }
+  }
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notFound, setNotFound] = useState(false);
@@ -239,11 +269,14 @@ function PhoneField({
   async function find() {
     setError(null);
     setNotFound(false);
-    const e164 = toE164(phone);
+    const e164 = toE164(phone, value.phoneCountry);
     if (!e164) {
-      setError("Enter the full number with its country code, like +234 803 123 4567.");
+      setError(`That doesn't look like a ${country.name} number. Check it, or pick their country.`);
       return;
     }
+    // Typed with a + for another country: the picker follows what they typed.
+    const typedCountry = countryOf(e164);
+    if (typedCountry && typedCountry !== value.phoneCountry) set({ phoneCountry: typedCountry });
     setBusy(true);
     try {
       const json = await lookupPhone(e164);
@@ -264,8 +297,7 @@ function PhoneField({
   }
 
   // A number handed over by the "say it" box is looked up once, as if the
-  // sender had tapped Find; a local "0706…" lands in the box with the
-  // country-code message instead, for them to fix.
+  // sender had tapped Find — a local "0706…" read in the picked country.
   useEffect(() => {
     if (value.phoneAutoFind) find();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -316,13 +348,34 @@ function PhoneField({
         Their phone number
       </label>
       <div className="flex gap-2">
+        {/* Shows "🇳🇬 +234" so the row fits a 360px screen; the native list
+            underneath carries full names, which Android lets you type to
+            jump through. Transparent select over a styled face, so the tap
+            target is the whole chip and the picker is the phone's own. */}
+        <div className="field relative flex w-auto shrink-0 items-center gap-1 px-3">
+          <span aria-hidden className="text-[18px] leading-none">{country.flag}</span>
+          <span aria-hidden className="text-[15px] tabular-nums text-ink">{country.dial}</span>
+          <span aria-hidden className="text-ink-3">▾</span>
+          <select
+            aria-label="Their country"
+            className="absolute inset-0 cursor-pointer opacity-0"
+            value={country.code}
+            onChange={(e) => pickCountry(e.target.value as CountryCode)}
+          >
+            {countries.map((c) => (
+              <option key={c.code} value={c.code}>
+                {c.flag} {c.name} {c.dial}
+              </option>
+            ))}
+          </select>
+        </div>
         <input
           id="recipient-phone"
-          className="field flex-1"
+          className="field min-w-0 flex-1"
           type="tel"
           inputMode="tel"
           autoComplete="tel"
-          placeholder="+234 803 123 4567"
+          placeholder={country.code === "NG" ? "0803 123 4567" : "Phone number"}
           value={phone}
           onChange={(e) => {
             setPhone(e.target.value);
@@ -331,7 +384,7 @@ function PhoneField({
           }}
           onKeyDown={(e) => e.key === "Enter" && find()}
         />
-        <button type="button" className="btn-ink shrink-0 px-4" disabled={busy || !phone.trim()} onClick={find}>
+        <button type="button" className="btn-ink w-[5.75rem] shrink-0 px-0" disabled={busy || !phone.trim()} onClick={find}>
           {busy ? "Finding…" : "Find"}
         </button>
       </div>
@@ -346,7 +399,7 @@ function PhoneField({
           , then try again once they have joined.
         </p>
       ) : (
-        <p className="hint">The number they use for MiniPay, with the country code.</p>
+        <p className="hint">The number they use for MiniPay. Pick their country first.</p>
       )}
     </div>
   );

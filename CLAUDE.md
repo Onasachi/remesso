@@ -29,7 +29,7 @@ deno test --allow-env --allow-read --allow-net supabase/functions/_shared/x402.t
 deno test --unstable-sloppy-imports web/lib/history.test.ts
 
 # phone numbers — E.164 normalisation and masking for MiniPay recipients
-deno test --unstable-sloppy-imports web/lib/phone.test.ts
+(cd web && deno test --unstable-sloppy-imports lib/phone.test.ts)   # from web/: needs its node_modules
 
 # is .env complete and coherent? proves the SSH key by round-tripping it
 deno run --allow-env --allow-read --allow-net scripts/check-env.ts
@@ -199,7 +199,8 @@ keeps every address feature (paste, copy, all seven tokens) outside it.
 
 - `POST /api/resolve-phone` (Vercel route, Node runtime — `@celo/identity`
   pulls web3 1.x, which does not load under Deno) normalises to E.164
-  (`web/lib/phone.ts`; no country is ever guessed), asks ODIS PnP for the
+  (`web/lib/phone.ts`, libphonenumber-js; a local "0706…" is read in the country
+  the sender picked — 245 of them, last pick remembered — never a guessed one), asks ODIS PnP for the
   obfuscated identifier, and reads `FederatedAttestations.lookupAttestations`
   trusting **only MiniPay's issuer `0x7888…7FBc`**. Newest attestation wins.
 - The address goes back to the browser (the wallet must sign it into

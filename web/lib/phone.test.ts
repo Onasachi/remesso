@@ -12,6 +12,15 @@ Deno.test("toE164 accepts international forms and drops punctuation", () => {
   assertEquals(toE164("(+1) 415.555.2671"), "+14155552671");
 });
 
+Deno.test("toE164 reads a local number in the country the sender picked", () => {
+  assertEquals(toE164("0706 765 1245", "NG"), "+2347067651245");
+  assertEquals(toE164("024 412 3456", "GH"), "+233244123456");
+  assertEquals(toE164("0712 345678", "KE"), "+254712345678");
+  // A typed + wins over the picker: they told us the country themselves.
+  assertEquals(toE164("+234 706 765 1245", "KE"), "+2347067651245");
+  assertEquals(toE164("0706 765", "NG"), null); // too short for Nigeria
+});
+
 Deno.test("toE164 refuses what it would have to guess", () => {
   assertEquals(toE164("08031234567"), null);
   assertEquals(toE164("+0123456789"), null);
@@ -20,7 +29,8 @@ Deno.test("toE164 refuses what it would have to guess", () => {
 
 Deno.test("maskPhone keeps enough to recognise, not enough to dial", () => {
   assertEquals(maskPhone("+2348031234567"), "+234 803 ••• 4567");
-  assertEquals(maskPhone("+14155552671"), "+141 555 ••• 2671");
+  assertEquals(maskPhone("+14155552671"), "+1 415 ••• 2671");
+  assertEquals(maskPhone("+233244123456"), "+233 244 ••• 3456");
 });
 
 Deno.test("findPhone picks the number out and never an amount", () => {
