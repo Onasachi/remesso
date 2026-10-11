@@ -33,6 +33,9 @@ export type RecipientDraft = {
   phoneAutoFind: number;
   /// The recipient's country, for numbers typed the local way ("0706…").
   phoneCountry: CountryCode;
+  /// Picked from MiniPay's own contact list: MiniPay resolved the wallet, so
+  /// there is no number to show — only the contact's name.
+  fromContact: boolean;
 };
 
 export const emptyRecipient: RecipientDraft = {
@@ -47,6 +50,7 @@ export const emptyRecipient: RecipientDraft = {
   phoneTyped: "",
   phoneAutoFind: 0,
   phoneCountry: "NG",
+  fromContact: false,
 };
 
 export function recipientIsComplete(r: RecipientDraft): boolean {
@@ -264,7 +268,7 @@ function PhoneField({
   // A wallet set by a payment link or a drafted request rather than a
   // number. Not shown (it is an address), only acknowledged, with a way back
   // to a number.
-  const fromLink = isAddress(value.walletAddress) && !value.phoneMasked;
+  const fromLink = isAddress(value.walletAddress) && !value.phoneMasked && !value.fromContact;
 
   async function find() {
     setError(null);
@@ -303,21 +307,55 @@ function PhoneField({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [value.phoneAutoFind]);
 
-  if (value.phoneMasked && isAddress(value.walletAddress)) {
+  /// MiniPay's own contact picker. MiniPay matches the contact to their
+  /// MiniPay wallet itself, so no number leaves the phone and no lookup quota
+  /// is spent. Its docs say nothing about cancelling or older versions, so
+  /// any failure is quiet and the typed number is still there.
+  async function pickContact() {
+    setError(null);
+    setNotFound(false);
+    try {
+      const eth = (window as unknown as {
+        ethereum?: { request: (a: { method: string; params: unknown[] }) => Promise<unknown> };
+      }).ethereum;
+      const c = (await eth?.request({ method: "minipay_requestContact", params: [] })) as
+        | { name?: string; address?: string }
+        | null
+        | undefined;
+      if (!c?.address || !isAddress(c.address)) return; // cancelled, or no MiniPay account
+      if (sender && c.address.toLowerCase() === sender.toLowerCase()) {
+        setError("That is you. Choose the person you are paying.");
+        return;
+      }
+      set({
+        walletAddress: c.address,
+        phoneMasked: "",
+        fromContact: true,
+        // Their name from the contact, unless the sender already wrote one.
+        ...(c.name?.trim() && !value.displayName.trim() ? { displayName: c.name.trim().slice(0, 60) } : {}),
+      });
+    } catch {
+      setError("Couldn't open your contacts here. Type their number instead.");
+    }
+  }
+
+  if ((value.phoneMasked || value.fromContact) && isAddress(value.walletAddress)) {
     return (
       <div className="animate-rise rounded-xl bg-naira-soft px-4 py-3.5">
         <p className="eyebrow text-naira">MiniPay account found</p>
-        <p className="mt-1 font-display text-[22px] leading-tight text-ink">{value.phoneMasked}</p>
+        <p className="mt-1 font-display text-[22px] leading-tight text-ink">
+          {value.phoneMasked || value.displayName || "From your contacts"}
+        </p>
         <p className="mt-1.5 text-[13px] leading-relaxed text-ink-2">
-          Payments go to the MiniPay account on this number. Once you sign, that is fixed —
-          if they change numbers, start a new schedule.
+          Payments go to {value.phoneMasked ? "the MiniPay account on this number" : "this contact's MiniPay account"}.
+          Once you sign, that is fixed — if they change numbers, start a new schedule.
         </p>
         <button
           type="button"
           className="mt-2 text-[13px] font-medium text-ink-2 underline"
-          onClick={() => set({ walletAddress: "", phoneMasked: "", phoneTyped: "" })}
+          onClick={() => set({ walletAddress: "", phoneMasked: "", phoneTyped: "", fromContact: false })}
         >
-          Use a different number
+          Choose someone else
         </button>
       </div>
     );
@@ -344,8 +382,11 @@ function PhoneField({
 
   return (
     <div>
+      <button type="button" className="btn-soft mb-4 w-full" onClick={pickContact}>
+        Choose from contacts
+      </button>
       <label className="label" htmlFor="recipient-phone">
-        Their phone number
+        Or type their phone number
       </label>
       <div className="flex gap-2">
         {/* Shows "🇳🇬 +234" so the row fits a 360px screen; the native list
@@ -375,7 +416,7 @@ function PhoneField({
           type="tel"
           inputMode="tel"
           autoComplete="tel"
-          placeholder={country.code === "NG" ? "0803 123 4567" : "Phone number"}
+          placeholder={country.code === "NG" ? "0803…" : "Number"}
           value={phone}
           onChange={(e) => {
             setPhone(e.target.value);

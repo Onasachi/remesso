@@ -182,11 +182,12 @@ export default function NewSchedulePage() {
       ...(phone
         ? // A number in the sentence: clear whatever was found before and let
           // the phone field look this one up.
-          { walletAddress: "", phoneMasked: "", phoneTyped: phone, phoneAutoFind: r.phoneAutoFind + 1 }
+          { walletAddress: "", phoneMasked: "", fromContact: false, phoneTyped: phone, phoneAutoFind: r.phoneAutoFind + 1 }
         : {
             walletAddress: d.destination ?? r.walletAddress,
             // A drafted address replaces whatever number was found for it.
             phoneMasked: d.destination ? "" : r.phoneMasked,
+            fromContact: d.destination ? false : r.fromContact,
           }),
       // MiniPay offers only its own three; a drafted USA₮ or wARS is dropped.
       token: token && (!inMiniPay || token.miniPayVisible) ? token : r.token,
