@@ -11,7 +11,7 @@ import { ensureSession } from "./supabase";
 
 export type Draft = {
   amount: string | null;
-  token: "USDT" | "USDC" | "cUSD" | null;
+  token: "USDT" | "USDC" | "USDm" | null;
   intervalSeconds: number | null;
   maxRuns: number | null;
   destination: `0x${string}` | null;

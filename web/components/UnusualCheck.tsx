@@ -31,7 +31,7 @@ export function UnusualCheck({
 }) {
   const { data: schedules } = useSchedules();
 
-  // Dollar amounts across assets are comparable at 1:1 — USDT, USDC and cUSD
+  // Dollar amounts across assets are comparable at 1:1 — USDT, USDC and USDm
   // are all dollar stablecoins, which is the same assumption the balance strip
   // already makes. wFIAT schedules are left out: 50,000 wARS read as $50,000
   // would make every dollar amount after it look small.

@@ -62,14 +62,19 @@ export default function SchedulesPage() {
         </div>
 
         {/* One row per asset the sender can fund with. Tapping one changes
-            which allowance is quoted below; the total above never changes. */}
-        <div className="mt-4 flex gap-2" role="tablist" aria-label="Asset">
-          {/* wFIAT only when held: six tiles do not fit a phone, and a MiniPay
-              sender — who can hold none of them — should not see three
-              permanent zeroes. */}
-          {balances
-            .filter(({ token: t, balance }) => t.currency === "USD" || (balance ?? 0n) > 0n)
-            .map(({ token: t, balance }) => {
+            which allowance is quoted below; the total above never changes.
+            Every asset shows, held or not: a sender deciding whether to try
+            pesos or USA₮ has to see they are on offer before holding any.
+            Inside MiniPay only its own three (USDT, USDC, USDm) — its rules
+            forbid offering any other token there.
+            Seven tiles do not fit a phone, so the row scrolls sideways
+            inside itself rather than widening the page. */}
+        <div
+          className="-mx-1 mt-4 flex gap-2 overflow-x-auto px-1 pb-1 [scrollbar-width:none]"
+          role="tablist"
+          aria-label="Asset"
+        >
+          {balances.filter(({ token: t }) => !inMiniPay || t.miniPayVisible).map(({ token: t, balance }) => {
             const on = t.symbol === token.symbol;
             return (
               <button
@@ -78,7 +83,7 @@ export default function SchedulesPage() {
                 role="tab"
                 aria-selected={on}
                 onClick={() => setToken(t)}
-                className={`tile min-h-0 flex-1 px-3 py-2.5 ${on ? "tile-on" : ""}`}
+                className={`tile min-h-0 min-w-[5.5rem] flex-1 shrink-0 px-3 py-2.5 ${on ? "tile-on" : ""}`}
               >
                 <span className={`block text-[12px] font-medium ${on ? "text-clay-deep" : "text-ink-3"}`}>
                   {t.symbol}
@@ -334,7 +339,7 @@ function Landing() {
       <ul className="mt-8 divide-y divide-line/70 border-y border-line/70">
         {[
           ["You stay in control", "Nothing moves outside the amount, rhythm and person you signed."],
-          ["They see it in MiniPay", "Paid in USDT, USDC or cUSD — the balances MiniPay actually shows."],
+          ["They see it in MiniPay", "Paid in USDT, USDC or USDm — the balances MiniPay actually shows."],
           ["Stop it any time", "Pause or cancel from your wallet. No calls, no forms."],
         ].map(([title, body]) => (
           <li key={title} className="py-4">

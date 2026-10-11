@@ -191,7 +191,7 @@ export default function ScheduleDetailPage() {
               <p className="truncate text-[13px] text-ink-2">
                 {isBank
                   ? `${recipient?.account_name} · ${recipient?.account_number}`
-                  : recipientLabel(null, recipient?.wallet_address)}
+                  : recipient?.phone_masked || recipientLabel(null, recipient?.wallet_address)}
               </p>
             </div>
           </div>
@@ -230,8 +230,13 @@ export default function ScheduleDetailPage() {
             these payments, and so they can check against what they were given
             before the next transfer goes out. Never rendered when it is the
             sender's own wallet: MiniPay's rules forbid showing the user their
-            own address, truncated forms included. */}
-        {!isBank && recipient?.wallet_address && !isOwnWallet && (
+            own address, truncated forms included. Inside MiniPay it is never
+            shown at all — the rule covers every address, and a recipient
+            found by phone number is named by that number instead. */}
+        {!isBank && recipient?.phone_masked && (
+          <Row label="Paid to">MiniPay · {recipient.phone_masked}</Row>
+        )}
+        {!isBank && recipient?.wallet_address && !isOwnWallet && !inMiniPay && !recipient?.phone_masked && (
           <Row label="Paid to">
             <CopyValue
               value={recipient.wallet_address}

@@ -18,7 +18,7 @@ Three things an agent can do, and they are independent:
 |---|---|---|
 | **Be paid** by a schedule | an address | gas, a balance, an account, any software |
 | **Pay** for a service | USDC, USD₮ or USA₮ on Celo | CELO — the facilitator pays settlement gas |
-| **Pay** on a schedule | USDC/USDT/cUSD or wARS/wBRL/wCOP **and** ~0.06 CELO | — you submit these two transactions yourself |
+| **Pay** on a schedule | USDC/USDT/USDm/USA₮ or wARS/wBRL/wCOP **and** ~0.06 CELO | — you submit these two transactions yourself |
 
 ## Addresses and endpoints
 
@@ -150,7 +150,7 @@ If an endpoint and the contract disagree, the contract is right.
   USD₮'s is `0x0E2A3e05bc9A16F5292A6170456A710cb89C6f72`. Pricing against an
   adapter is an error of 10¹². USD₮'s symbol is also literally `USD₮`, not
   `USDT`.
-- **Decimals are not uniform.** USDC, USD₮ and USA₮ are 6dp; cUSD and Ripio's
+- **Decimals are not uniform.** USDC, USD₮ and USA₮ are 6dp; USDm (formerly cUSD) and Ripio's
   wARS, wBRL and wCOP are 18dp. A wFIAT amount is pesos or reais, not dollars.
 - **v2 uses headers, not the body.** The price list arrives in
   `PAYMENT-REQUIRED`, the payment goes back in `PAYMENT-SIGNATURE`, the receipt

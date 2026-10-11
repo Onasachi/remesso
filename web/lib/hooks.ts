@@ -276,7 +276,7 @@ export function useAllowance(token: `0x${string}` = USDT.address) {
 }
 
 /// Balance of the schedule's funding asset — USDT by default, but a Direct
-/// schedule may be funded in USDC or cUSD.
+/// schedule may be funded in USDC or USDm.
 export function useUsdtBalance(token: `0x${string}` = USDT.address) {
   const { address } = useAccount();
   return useReadContract({
@@ -294,7 +294,7 @@ export function useUsdtBalance(token: `0x${string}` = USDT.address) {
 /// line, and honest as long as it is labelled "USD" rather than pretending to
 /// quote a market. wFIAT is left out of the total: a peso is not a dollar,
 /// and converting would mean quoting a rate here. `totalUsd6` is at 6dp so
-/// cUSD's 18dp does not have to be carried through the display path.
+/// USDm's 18dp does not have to be carried through the display path.
 export function useBalances() {
   const { address } = useAccount();
   const reads = useReadContracts({

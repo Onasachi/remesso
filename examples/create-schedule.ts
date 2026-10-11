@@ -27,7 +27,7 @@
 /// default:
 ///   TO=0x…            who gets paid                        (required)
 ///   AMOUNT=0.05       per transfer, in whole tokens        (required)
-///   TOKEN=USDT        USDT | USDC | cUSD | wARS | wBRL | wCOP  (default USDT)
+///   TOKEN=USDT        USDT | USDC | USDm | USAT | wARS | wBRL | wCOP  (default USDT)
 ///   EVERY=week        week | fortnight | month | quarter   (default week)
 ///   RUNS=2            how many transfers                   (default 2)
 ///   TRIGGER=remesso   allow early sending                  (default: none)
@@ -42,14 +42,17 @@ const RPC = Deno.env.get("CELO_RPC_URL") ?? "https://forno.celo.org";
 const EXECUTOR = (Deno.env.get("EXECUTOR") ??
   "0x288b7cDD10e069eA64D4984c3E5fa0D9c5816009") as `0x${string}`;
 
-/// Decimals are NOT uniform: cUSD is 18dp while USDT and USDC are 6dp, so a
+/// Decimals are NOT uniform: USDm is 18dp while USDT and USDC are 6dp, so a
 /// fixed 6 is wrong by 10^12 for a third of this table. Addresses are the
 /// identity — several Celo tokens have fee-currency adapters reporting the
 /// same symbol with different decimals.
 const TOKENS: Record<string, { address: `0x${string}`; decimals: number }> = {
   USDT: { address: "0x48065fbBE25f71C9282ddf5e1cD6D6A887483D5e", decimals: 6 },
   USDC: { address: "0xcebA9300f2b948710d2653dD7B07f33A8B32118C", decimals: 6 },
+  // Mento's dollar, formerly cUSD — still accepted under the old name.
+  USDM: { address: "0x765DE816845861e75A25fCA122bb6898B8B1282a", decimals: 18 },
   CUSD: { address: "0x765DE816845861e75A25fCA122bb6898B8B1282a", decimals: 18 },
+  USAT: { address: "0xD2ab3C9A02DBBAB236BfEC45D1d755DF4267F771", decimals: 6 },
   // Ripio's local-currency stablecoins, allowed on V4 2026-10-06. 18dp, and
   // not dollars: amounts are pesos and reais.
   WARS: { address: "0x0DC4F92879B7670e5f4e4e6e3c801D229129D90D", decimals: 18 },

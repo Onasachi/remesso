@@ -6,7 +6,9 @@ import { isAddress } from "viem";
 import { fetchBanks, verifyAccount, type AccountDetails } from "@/lib/api";
 import { BANK_PAYOUTS_ENABLED, CNGN_RAILS_ENABLED, DIRECT_TOKENS, type TokenInfo } from "@/lib/config";
 import { isMiniPay } from "@/lib/wagmi";
-import { useAllowedDirectTokens } from "@/lib/hooks";
+import { useAllowedDirectTokens, useIsMiniPay } from "@/lib/hooks";
+import { ensureSession } from "@/lib/supabase";
+import { toE164 } from "@/lib/phone";
 import { ripioRampUrl } from "@/lib/ripio";
 import { useAccount } from "wagmi";
 import type { PayoutKind } from "@/lib/types";
@@ -20,6 +22,9 @@ export type RecipientDraft = {
   accountName: string;
   /// Direct rail only: which stablecoin the recipient actually receives.
   token: TokenInfo;
+  /// Set when the wallet came from a phone number (MiniPay): the masked
+  /// number the sender recognises, shown and saved in place of the address.
+  phoneMasked: string;
 };
 
 export const emptyRecipient: RecipientDraft = {
@@ -30,6 +35,7 @@ export const emptyRecipient: RecipientDraft = {
   accountNumber: "",
   accountName: "",
   token: DIRECT_TOKENS[0], // USDT — the one every MiniPay user already holds
+  phoneMasked: "",
 };
 
 export function recipientIsComplete(r: RecipientDraft): boolean {
@@ -47,7 +53,10 @@ export function RecipientStep({
   value: RecipientDraft;
   onChange: (r: RecipientDraft) => void;
 }) {
-  const allowed = useAllowedDirectTokens();
+  const inMiniPay = useIsMiniPay();
+  // MiniPay lists only USDT, USDC and USDm, and its rules forbid offering
+  // anything else inside it. USA₮ and the wFIAT stay on offer everywhere else.
+  const allowed = useAllowedDirectTokens().filter((t) => !inMiniPay || t.miniPayVisible);
   const { address: sender } = useAccount();
   const set = (patch: Partial<RecipientDraft>) => onChange({ ...value, ...patch });
   const addressInvalid = Boolean(value.walletAddress) && !isAddress(value.walletAddress);
@@ -140,7 +149,7 @@ export function RecipientStep({
         {/* The honest reason the cNGN option is second, not first. */}
         {value.payoutType === "wallet" && (
           <p className="notice-warn mt-3">
-            MiniPay only shows USDT, USDC and cUSD. Someone paid in cNGN will see nothing
+            MiniPay only shows USDT, USDC and USDm. Someone paid in cNGN will see nothing
             in MiniPay, and it has no way to add a token. Choose Stablecoin unless they use
             a different wallet.
           </p>
@@ -152,7 +161,9 @@ export function RecipientStep({
         )}
       </div>
 
-      {value.payoutType !== "ngn_bank" ? (
+      {value.payoutType !== "ngn_bank" && inMiniPay ? (
+        <PhoneField value={value} set={set} sender={sender} />
+      ) : value.payoutType !== "ngn_bank" ? (
         <div>
           <label className="label" htmlFor="recipient-address">
             Their wallet address
@@ -185,6 +196,147 @@ export function RecipientStep({
         </div>
       ) : (
         <BankFields value={value} set={set} />
+      )}
+    </div>
+  );
+}
+
+/// The recipient as a phone number — the only way to name one inside MiniPay.
+///
+/// MiniPay forbids typing or pasting an address and forbids showing one, so
+/// the number is resolved on our server (ODIS + MiniPay's attestations) and
+/// the wallet it maps to goes into the draft without ever being rendered.
+/// The schedule still pins that wallet at signing: if they later move their
+/// number to a new MiniPay account, this schedule keeps paying the old one.
+function PhoneField({
+  value,
+  set,
+  sender,
+}: {
+  value: RecipientDraft;
+  set: (p: Partial<RecipientDraft>) => void;
+  sender?: string;
+}) {
+  const [phone, setPhone] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [notFound, setNotFound] = useState(false);
+
+  // A wallet set by a payment link or a drafted request rather than a
+  // number. Not shown (it is an address), only acknowledged, with a way back
+  // to a number.
+  const fromLink = isAddress(value.walletAddress) && !value.phoneMasked;
+
+  async function find() {
+    setError(null);
+    setNotFound(false);
+    const e164 = toE164(phone);
+    if (!e164) {
+      setError("Enter the full number with its country code, like +234 803 123 4567.");
+      return;
+    }
+    setBusy(true);
+    try {
+      const token = await ensureSession();
+      const res = await fetch("/api/resolve-phone", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+        body: JSON.stringify({ phone: e164 }),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(json.error ?? "Could not look up that number. Try again.");
+      if (!json.found) {
+        setNotFound(true);
+        return;
+      }
+      if (sender && json.address.toLowerCase() === sender.toLowerCase()) {
+        setError("That is your own number. Enter the number of the person you are paying.");
+        return;
+      }
+      set({ walletAddress: json.address, phoneMasked: json.masked });
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (value.phoneMasked && isAddress(value.walletAddress)) {
+    return (
+      <div className="animate-rise rounded-xl bg-naira-soft px-4 py-3.5">
+        <p className="eyebrow text-naira">MiniPay account found</p>
+        <p className="mt-1 font-display text-[22px] leading-tight text-ink">{value.phoneMasked}</p>
+        <p className="mt-1.5 text-[13px] leading-relaxed text-ink-2">
+          Payments go to the MiniPay account on this number. Once you sign, that is fixed —
+          if they change numbers, start a new schedule.
+        </p>
+        <button
+          type="button"
+          className="mt-2 text-[13px] font-medium text-ink-2 underline"
+          onClick={() => set({ walletAddress: "", phoneMasked: "" })}
+        >
+          Use a different number
+        </button>
+      </div>
+    );
+  }
+
+  if (fromLink) {
+    return (
+      <div className="rounded-xl bg-sand/70 px-4 py-3.5 text-[13px] text-ink-2">
+        <p className="font-medium text-ink">Their wallet is already filled in</p>
+        <button
+          type="button"
+          className="mt-1.5 font-medium underline"
+          onClick={() => set({ walletAddress: "" })}
+        >
+          Pay a phone number instead
+        </button>
+      </div>
+    );
+  }
+
+  const inviteText = encodeURIComponent(
+    "I want to send you money every month with Remesso. Get MiniPay so it arrives straight to your phone: https://minipay.opera.com",
+  );
+
+  return (
+    <div>
+      <label className="label" htmlFor="recipient-phone">
+        Their phone number
+      </label>
+      <div className="flex gap-2">
+        <input
+          id="recipient-phone"
+          className="field flex-1"
+          type="tel"
+          inputMode="tel"
+          autoComplete="tel"
+          placeholder="+234 803 123 4567"
+          value={phone}
+          onChange={(e) => {
+            setPhone(e.target.value);
+            setError(null);
+            setNotFound(false);
+          }}
+          onKeyDown={(e) => e.key === "Enter" && find()}
+        />
+        <button type="button" className="btn-ink shrink-0 px-4" disabled={busy || !phone.trim()} onClick={find}>
+          {busy ? "Finding…" : "Find"}
+        </button>
+      </div>
+      {error ? (
+        <p className="hint text-danger">{error}</p>
+      ) : notFound ? (
+        <p className="notice-warn mt-3">
+          No MiniPay account uses this number.{" "}
+          <a href={`https://api.whatsapp.com/send?text=${inviteText}`} className="font-medium underline">
+            Invite them on WhatsApp
+          </a>
+          , then try again once they have joined.
+        </p>
+      ) : (
+        <p className="hint">The number they use for MiniPay, with the country code.</p>
       )}
     </div>
   );

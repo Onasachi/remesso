@@ -126,7 +126,7 @@ export function triggerProblem(t: TermsDraft): string | null {
   return null;
 }
 
-/// Parsed at the funding token's own scale — cUSD is 18dp while USDT and USDC
+/// Parsed at the funding token's own scale — USDm is 18dp while USDT and USDC
 /// are 6dp, so a fixed 6 would be wrong by 10^12 for a third of the assets.
 export function amountInUnits(t: TermsDraft, decimals: number): bigint | null {
   try {

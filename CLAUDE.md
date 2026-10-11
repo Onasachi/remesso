@@ -28,6 +28,9 @@ deno test --allow-env --allow-read --allow-net supabase/functions/_shared/x402.t
 # history merge — how the chain is allowed ahead of the `runs` table in the UI
 deno test --unstable-sloppy-imports web/lib/history.test.ts
 
+# phone numbers — E.164 normalisation and masking for MiniPay recipients
+deno test --unstable-sloppy-imports web/lib/phone.test.ts
+
 # is .env complete and coherent? proves the SSH key by round-tripping it
 deno run --allow-env --allow-read --allow-net scripts/check-env.ts
 
@@ -126,9 +129,9 @@ These each cost real time to find. None are visible from the code alone.
 
 ## Two rails
 
-`Direct` forwards the funding asset itself — sender funds USDT, USDC or cUSD and
+`Direct` forwards the funding asset itself — sender funds USDT, USDC, USDm (formerly cUSD) or USA₮ and
 the recipient receives that same asset. No swap, no floor, no pool. This exists
-because **MiniPay displays only USDm (cUSD), USDC and USDT**: a recipient paid
+because **MiniPay displays only USDm, USDC and USDT**: a recipient paid
 in cNGN sees nothing and cannot add a custom token.
 
 The swap rails (`Wallet`, `BankRedemption`) still convert to cNGN and remain the
@@ -157,7 +160,7 @@ Nothing is deleted: existing schedules of any kind still render, and a skipped
 schedule simply stays due rather than accruing failed runs. As of 2026-09-28
 all six V4 schedules are `Direct`/USDT, so nothing is currently refused.
 
-**Decimals are not uniform.** USDT and USDC are 6dp, cUSD is 18dp, cNGN is 6dp —
+**Decimals are not uniform.** USDT, USDC and USA₮ are 6dp, USDm (formerly cUSD) is 18dp, cNGN is 6dp —
 all verified on-chain. `lib/config.ts` holds the map; never hardcode 6.
 
 ## Ripio wFIAT on the Direct rail — live 2026-10-06
@@ -186,6 +189,36 @@ What a NEW schedule may use is read from the contract (`directTokenAllowed`),
 not from our token lists: the form's picker and `/agent` both do this, so
 nothing is offered before the contract takes it. MiniPay shows none of the
 wFIAT; the form warns the recipient needs another wallet.
+
+## MiniPay: recipients are phone numbers — live 2026-10-11
+
+MiniPay's listing rules forbid typing or pasting an address ("no arbitrary
+withdrawals") and forbid SHOWING one, truncated forms included. So inside
+MiniPay the send form asks for the recipient's phone number, and the browser
+keeps every address feature (paste, copy, all seven tokens) outside it.
+
+- `POST /api/resolve-phone` (Vercel route, Node runtime — `@celo/identity`
+  pulls web3 1.x, which does not load under Deno) normalises to E.164
+  (`web/lib/phone.ts`; no country is ever guessed), asks ODIS PnP for the
+  obfuscated identifier, and reads `FederatedAttestations.lookupAttestations`
+  trusting **only MiniPay's issuer `0x7888…7FBc`**. Newest attestation wins.
+- The address goes back to the browser (the wallet must sign it into
+  `createSchedule`) and is never rendered. Only `recipients.phone_masked`
+  (`+234 706 ••• 1245`) is stored; the full number is stored and logged nowhere.
+- Metered BEFORE ODIS by `note_phone_lookup()` — 20 per session per day.
+  Each lookup spends paid quota and answers "whose wallet is this number".
+- The schedule still pins one address. A recipient who moves their number to
+  a new MiniPay wallet keeps receiving at the old one; the form says so.
+- Inside MiniPay only USDT/USDC/USDm are offered (`miniPayVisible`) — its rules
+  forbid any other token there.
+
+**Quota is prepaid and runs out silently into a 503.** Key
+`ODIS_QUOTA_PRIVATE_KEY` (Vercel, server-only; `~/.remesso/keys/odis.json`,
+`0x7D44d82dB13EfF00ba7152A1a05611E692E50b4f`) — not the executor, not the
+agent-spend key. Topped up 2026-10-11: 0.1998 USDm into `OdisPayments`
+(`0xAE6B…D0CB`, `payInCUSD`, USDm only) bought **199 lookups — 0.001 USDm
+each**. Check with `getPnpQuotaStatus`; top up by swapping USDT -> USDm (1bps
+pool) and paying again. Gas at ~200 gwei: budget ~0.1 CELO for the four txs.
 
 ## Self identity verification — optional, gates nothing
 

@@ -7,8 +7,8 @@ and a floor rate if anything is being converted. It then runs unattended. No
 one holds the sender's keys, and no one can move their money outside the
 envelope they signed: the contract enforces it, not our code.
 
-Today it pays in **stablecoins** — the recipient receives USDT, USDC or cUSD,
-the assets MiniPay actually displays — and, since 2026-10-06, in **pesos and
+Today it pays in **stablecoins** — the recipient receives USDT, USDC or USDm (formerly cUSD),
+the assets MiniPay actually displays, or USA₮ — and, since 2026-10-06, in **pesos and
 reais**: Ripio's wARS, wBRL and wCOP, so a remittance to Argentina, Brazil or
 Colombia never has to pass through the dollar (see
 [Local currencies](#local-currencies-pesos-and-reais)). The naira rails (cNGN to a wallet, or
@@ -59,7 +59,7 @@ Everything below was verified on-chain and against live docs, most recently
 | ERC-8004 agent | `9879`, held by the executor `0x3c754AD31e802D5fA65487f460dED65Aba749Cd1` — the wallet that sends the agent's transactions. `9867` is the same identity held by the cold owner. Registry `0x8004A169FB4a3325136EB29fA0ceB6D2e539a432`; metadata is a `data:` URI in the token, so it cannot be changed after the fact |
 | Self Agent ID | token `191`, agent `0x5C3EBb0084233156ba51a5C2dfD42d88d5a74CA6`, registry `0xaC3DF9ABf80d0F5c020C06B04Cced27763355944` |
 | cNGN (Celo mainnet) | `0xF6829D7393dAe24509eb1E52eE8e572e2E271a4f` — **6 decimals** |
-| USDT / USDC / cUSD | `0x48065fbbe…483d5e` 6dp · `0xcebA9300f…C6f33A8B32118C` 6dp · `0x765DE8168…8B1282a` **18dp** |
+| USDT / USDC / USDm | `0x48065fbbe…483d5e` 6dp · `0xcebA9300f…C6f33A8B32118C` 6dp · `0x765DE8168…8B1282a` **18dp** |
 | wARS / wBRL / wCOP (Ripio) | `0x0DC4F928…129D90D` · `0xD76f5Faf…E4390e0` · `0x8a1D45e1…91e2D76` — all **18dp**, allowed on V4 2026-10-06 |
 | Uniswap SwapRouter02 | `0x5615CDAb10dc425a742d643d949a7F474C01abc4` |
 | cNGN/USDT pool | `0x6519d56eb0a69fc0338657784c783b169b8f7d32` — 0.01% tier |

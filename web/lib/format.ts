@@ -22,7 +22,7 @@ function toUnits(v: bigint | string | number): bigint {
 /// Format base units for display.
 ///
 /// `decimals` is the token's own scale and must be passed — USDT and USDC are
-/// 6dp while cUSD is 18dp, so a hardcoded 6 is wrong for a third of the assets
+/// 6dp while USDm is 18dp, so a hardcoded 6 is wrong for a third of the assets
 /// this app accepts.
 export function formatUnits(
   v: bigint | string | number,

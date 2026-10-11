@@ -23,8 +23,15 @@ import { wagmiConfig } from "@/lib/wagmi";
 export function useApprovalCover(token: TokenInfo) {
   const { data: schedules } = useSchedules();
   const { data: allowance } = useAllowance(token.address);
+  // Only schedules on the current contract. The allowance read is to
+  // EXECUTOR_ADDRESS, so a V1/V3 schedule can never draw on it, and those can
+  // never run again anyway — counting them told a sender with nothing live to
+  // approve 104 USDT for schedules that will never move a cent.
   const active = (schedules ?? []).filter(
-    (s) => s.status === "active" && tokenFor(s.token_address).symbol === token.symbol,
+    (s) =>
+      s.status === "active" &&
+      s.executor_address?.toLowerCase() === EXECUTOR_ADDRESS.toLowerCase() &&
+      tokenFor(s.token_address).symbol === token.symbol,
   );
   const amounts = active.map((s) => BigInt(s.amount_in));
   const largest = amounts.length ? amounts.reduce((a, b) => (b > a ? b : a)) : undefined;

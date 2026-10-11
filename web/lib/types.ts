@@ -15,6 +15,8 @@ export type Recipient = {
   account_number: string | null;
   account_name: string | null;
   bank_verified_at: string | null;
+  /// Masked number the sender paid (MiniPay). Never the full number.
+  phone_masked?: string | null;
   created_at: string;
 };
 

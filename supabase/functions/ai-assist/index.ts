@@ -27,7 +27,7 @@ const CORS = {
 
 /// Mirrors the frontend's Direct rail. Symbols only — the frontend owns the
 /// address map, and duplicating addresses here is how the two drift apart.
-const TOKENS = ["USDT", "USDC", "cUSD"] as const;
+const TOKENS = ["USDT", "USDC", "USDm"] as const;
 type Token = typeof TOKENS[number];
 
 /// Must stay a subset of what the picker offers, or the draft cannot be applied.
@@ -43,7 +43,7 @@ const PARSE_SYSTEM = `You convert a remittance request into JSON. Reply with a J
 
 Fields:
   amount        string decimal, per transfer, e.g. "50". null if unstated.
-  token         one of USDT, USDC, cUSD. null if unstated.
+  token         one of USDT, USDC, USDm (Mento's dollar, formerly cUSD). null if unstated.
   interval      one of 5m, weekly, fortnightly, monthly, quarterly. null if unstated.
   maxRuns       integer number of transfers, or null for "until I stop".
   destination   a 0x... Ethereum address if one appears verbatim, else null.
@@ -90,7 +90,7 @@ const DOUBT_QUESTIONS = {
     criteria: {
       USDT: "US dollar stablecoin USDT, also written Tether or USD₮.",
       USDC: "US dollar stablecoin USDC.",
-      cUSD: "Celo dollar, written cUSD or USDm.",
+      USDm: "Celo dollar, written USDm or by its old name cUSD.",
       unstated: "The text names no currency, or names one not listed here.",
     },
   },
@@ -242,7 +242,9 @@ async function parseSchedule(text: string) {
   // Clamp every field to something the form already accepts. Anything the model
   // returned that is not recognised becomes `missing`, which the UI asks for —
   // far better than a plausible-looking guess the sender might not check.
-  const token = TOKENS.find((t) => t.toLowerCase() === str(out.token)?.toLowerCase()) ?? null;
+  // "cUSD" is the old name; a model trained on it will keep answering with it.
+  const said = str(out.token)?.toLowerCase() === "cusd" ? "usdm" : str(out.token)?.toLowerCase();
+  const token = TOKENS.find((t) => t.toLowerCase() === said) ?? null;
   const intervalKey = str(out.interval)?.toLowerCase() ?? "";
   const intervalSeconds = INTERVALS[intervalKey] ?? null;
 

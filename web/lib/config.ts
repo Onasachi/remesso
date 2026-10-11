@@ -25,7 +25,7 @@ export type TokenInfo = {
 };
 
 /// Decimals are pinned beside every address on purpose. They are NOT uniform:
-/// USDT and USDC are 6dp, cUSD is 18dp. Assuming one for the other is a factor
+/// USDT, USDC and USA₮ are 6dp, USDm is 18dp. Assuming one for the other is a factor
 /// of 10^12 — the same trap cNGN (6dp) and Mento's NGNm (18dp) set.
 /// All four verified on-chain 2026-09-17.
 export const USDT: TokenInfo = {
@@ -45,13 +45,26 @@ export const USDC: TokenInfo = {
   miniPayVisible: true,
 };
 
-/// On-chain symbol is "USDm"; everyone still calls it cUSD.
+/// Mento's dollar, formerly cUSD. Its on-chain symbol is "USDm" and MiniPay
+/// shows it under that name, so that is what we call it too — a sender
+/// looking for "cUSD" in their wallet would not find it.
 export const CUSD: TokenInfo = {
   address: "0x765DE816845861e75A25fCA122bb6898B8B1282a",
-  symbol: "cUSD",
+  symbol: "USDm",
   currency: "USD",
   decimals: 18,
   miniPayVisible: true,
+};
+
+/// Tether's US-regulated dollar (Anchorage-issued), 6dp. Its EIP-712 domain is
+/// "Tether America USD" v1 and an 18dp fee adapter reports the same symbol, so
+/// the address is the identity. MiniPay does not list it.
+export const USAT: TokenInfo = {
+  address: "0xD2ab3C9A02DBBAB236BfEC45D1d755DF4267F771",
+  symbol: "USA₮",
+  currency: "USD",
+  decimals: 6,
+  miniPayVisible: false,
 };
 
 export const CNGN: TokenInfo = {
@@ -95,7 +108,7 @@ export const WCOP: TokenInfo = {
 /// recipient receives the same asset, unswapped. The contract's allowlist
 /// decides which a NEW schedule may use (`useAllowedDirectTokens`); this list
 /// is what we can name and format, including for schedules already signed.
-export const DIRECT_TOKENS: TokenInfo[] = [USDT, USDC, CUSD, WARS, WBRL, WCOP];
+export const DIRECT_TOKENS: TokenInfo[] = [USDT, USDC, CUSD, USAT, WARS, WBRL, WCOP];
 
 const BY_ADDRESS: Record<string, TokenInfo> = Object.fromEntries(
   [...DIRECT_TOKENS, CNGN].map((t) => [t.address.toLowerCase(), t]),

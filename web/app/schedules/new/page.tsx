@@ -112,7 +112,9 @@ export default function NewSchedulePage() {
       ? !recipient.displayName.trim()
         ? "Give them a name to continue"
         : recipient.payoutType !== "ngn_bank" && !isAddress(recipient.walletAddress)
-          ? "Enter their wallet address to continue"
+          ? inMiniPay
+            ? "Find their MiniPay number to continue"
+            : "Enter their wallet address to continue"
           : recipient.payoutType === "ngn_bank" && !recipientIsComplete(recipient)
             ? "Verify the bank account to continue"
             : null
@@ -178,6 +180,8 @@ export default function NewSchedulePage() {
       payoutType: "direct",
       displayName: d.recipientName ?? r.displayName,
       walletAddress: d.destination ?? r.walletAddress,
+      // A drafted address replaces whatever number was found for it.
+      phoneMasked: d.destination ? "" : r.phoneMasked,
       token: token ?? r.token,
     }));
     setTerms((t) => ({
@@ -231,6 +235,7 @@ export default function NewSchedulePage() {
           bank_code: recipient.payoutType === "ngn_bank" ? recipient.bankCode : null,
           account_number: recipient.payoutType === "ngn_bank" ? recipient.accountNumber : null,
           account_name: recipient.payoutType === "ngn_bank" ? recipient.accountName : null,
+          phone_masked: recipient.payoutType === "ngn_bank" ? null : recipient.phoneMasked || null,
           bank_verified_at:
             recipient.payoutType === "ngn_bank" ? new Date().toISOString() : null,
         })
@@ -528,7 +533,9 @@ function Review({
             ? `${recipient.accountName} · ${recipient.accountNumber}`
             : converts
               ? "Converted to cNGN in their wallet"
-              : `As ${token.symbol}, straight to their wallet`}
+              : recipient.phoneMasked
+                ? `As ${token.symbol}, to the MiniPay account on ${recipient.phoneMasked}`
+                : `As ${token.symbol}, straight to their wallet`}
         </p>
       </div>
 
@@ -626,7 +633,7 @@ const CONTRACT_ERRORS: Record<string, string> = {
   TokenNotAllowed:
     "That asset is not enabled for direct transfers. Choose one of the assets offered.",
   WrongTokenForPayoutType:
-    "Converted payouts are funded in USDT only. Either fund this schedule with USDT, or switch the recipient to a direct transfer to send USDC or cUSD as-is.",
+    "Converted payouts are funded in USDT only. Either fund this schedule with USDT, or switch the recipient to a direct transfer to send USDC or USDm as-is.",
   ScheduleExpired: "Pick an expiry date in the future.",
   ScheduleLifetimeTooLong: "A schedule can run for at most one year. Pick an earlier expiry date.",
   InvalidDestination: "That recipient address cannot receive payments.",

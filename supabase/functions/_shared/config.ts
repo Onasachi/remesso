@@ -21,7 +21,7 @@ export const CELO = {
 ///
 /// The contract's own allowlist is the authority — this list only lets an
 /// endpoint say "USDT" and mean an address, and reject a symbol nothing here
-/// can pay. Decimals are not uniform (cUSD and every wFIAT are 18dp) and are
+/// can pay. Decimals are not uniform (USDm and every wFIAT are 18dp) and are
 /// never assumed. Mirrors `web/lib/config.ts`.
 ///
 /// `unitsPerUsd` scales the backend's dollar cap into each token's own units.
@@ -40,7 +40,8 @@ export const CELO = {
 export const DIRECT_TOKENS = [
   { symbol: "USDT", address: "0x48065fbbe25f71c9282ddf5e1cd6d6a887483d5e", decimals: 6, unitsPerUsd: 1 },
   { symbol: "USDC", address: "0xcebA9300f2b948710d2653dD7B07f33A8B32118C", decimals: 6, unitsPerUsd: 1 },
-  { symbol: "cUSD", address: "0x765DE816845861e75A25fCA122bb6898B8B1282a", decimals: 18, unitsPerUsd: 1 },
+  { symbol: "USDm", address: "0x765DE816845861e75A25fCA122bb6898B8B1282a", decimals: 18, unitsPerUsd: 1 },
+  { symbol: "USA₮", address: "0xD2ab3C9A02DBBAB236BfEC45D1d755DF4267F771", decimals: 6, unitsPerUsd: 1 },
   { symbol: "wARS", address: "0x0DC4F92879B7670e5f4e4e6e3c801D229129D90D", decimals: 18, unitsPerUsd: 1500 },
   { symbol: "wBRL", address: "0xD76f5Faf6888e24D9F04Bf92a0c8B921FE4390e0", decimals: 18, unitsPerUsd: 5 },
   { symbol: "wCOP", address: "0x8a1D45e102e886510e891d2Ec656a708991e2D76", decimals: 18, unitsPerUsd: 3200 },
