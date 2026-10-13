@@ -65,7 +65,7 @@ export default function SchedulesPage() {
             which allowance is quoted below; the total above never changes.
             Every asset shows, held or not: a sender deciding whether to try
             pesos or USA₮ has to see they are on offer before holding any.
-            Inside MiniPay only its own three (USDT, USDC, USDm) — its rules
+            Inside MiniPay only its own four (USDT, USDC, USDm, USA₮) — its rules
             forbid offering any other token there.
             Seven tiles do not fit a phone, so the row scrolls sideways
             inside itself rather than widening the page. */}
@@ -345,7 +345,7 @@ function Landing() {
   const fiat = beyondMiniPay.some((t) => t.currency !== "USD");
   const features: Array<[string, string]> = [
     ["You stay in control", "Nothing moves outside the amount, rhythm and person you signed."],
-    ["They see it in MiniPay", "Paid in USDT, USDC or USDm — the balances MiniPay actually shows."],
+    ["They see it in MiniPay", "Paid in USDT, USDC, USDm or USA₮ — the balances MiniPay actually shows."],
     ...(beyondMiniPay.length
       ? [[
           "More currencies on the web",

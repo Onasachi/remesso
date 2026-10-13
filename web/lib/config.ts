@@ -58,13 +58,18 @@ export const CUSD: TokenInfo = {
 
 /// Tether's US-regulated dollar (Anchorage-issued), 6dp. Its EIP-712 domain is
 /// "Tether America USD" v1 and an 18dp fee adapter reports the same symbol, so
-/// the address is the identity. MiniPay does not list it.
+/// the address is the identity.
+///
+/// MiniPay supports it as of 13 Oct 2026: the wallet's own Manual deposit
+/// screen lists "Supported tokens: USDT, USDC, USDm, USAT". MiniPay's developer
+/// docs (token table, FAQ) had not caught up that day and still named three —
+/// the app is what recipients see, so it is what we follow.
 export const USAT: TokenInfo = {
   address: "0xD2ab3C9A02DBBAB236BfEC45D1d755DF4267F771",
   symbol: "USA₮",
   currency: "USD",
   decimals: 6,
-  miniPayVisible: false,
+  miniPayVisible: true,
 };
 
 export const CNGN: TokenInfo = {

@@ -69,7 +69,7 @@ of ours, so nothing is offered before the contract accepts it.
 | **USD₮** (USDT) | US dollar | `0x48065fbBE25f71C9282ddf5e1cD6D6A887483D5e` | 6 | ✅ | ✅ | ✅ |
 | **USDC** | US dollar | `0xcebA9300f2b948710d2653dD7B07f33A8B32118C` | 6 | ✅ | ✅ | ✅ |
 | **USDm** (formerly cUSD) | US dollar | `0x765DE816845861e75A25fCA122bb6898B8B1282a` | 18 | ✅ | ✅ | — |
-| **USA₮** | US dollar | `0xD2ab3C9A02DBBAB236BfEC45D1d755DF4267F771` | 6 | — | ✅ | ✅ (default) |
+| **USA₮** | US dollar | `0xD2ab3C9A02DBBAB236BfEC45D1d755DF4267F771` | 6 | ✅ | ✅ | ✅ (default) |
 | **wARS** (Ripio) | Argentine peso | `0x0DC4F92879B7670e5f4e4e6e3c801D229129D90D` | 18 | — | ✅ | — |
 | **wBRL** (Ripio) | Brazilian real | `0xD76f5Faf6888e24D9F04Bf92a0c8B921FE4390e0` | 18 | — | ✅ | — |
 | **wCOP** (Ripio) | Colombian peso | `0x8a1D45e102e886510e891d2Ec656a708991e2D76` | 18 | — | ✅ | — |
@@ -112,8 +112,9 @@ Remesso runs inside MiniPay as a Mini App, built to MiniPay's own rules.
   a WhatsApp invite instead.
 - **No address on screen, anywhere.** Inside MiniPay a recipient is shown by
   name or masked number — never an address, truncated or not.
-- **MiniPay's tokens only.** Inside MiniPay we offer exactly USDT, USDC and
-  USDm, and call USDm by MiniPay's name for it.
+- **MiniPay's tokens only.** Inside MiniPay we offer exactly the four MiniPay
+  supports — USDT, USDC, USDm and **USA₮** (added the day MiniPay's own
+  deposit screen listed it) — and call USDm by MiniPay's name for it.
 - **The assistant understands numbers too.** "Send 20 USDT to +234 803 123
   4567 every month" fills the whole form. The phone number is cut out in the
   browser before the sentence goes to the language model — the model sees
@@ -262,7 +263,7 @@ users yet, and we do not count any of the payments below as volume.
   extension.
 - ERC-8004 agent #9879 held by the agent wallet.
 - MiniPay: contact picker, phone numbers through ODIS with a 245-country picker,
-  no addresses on screen, MiniPay's three tokens only, USDm naming, phone
+  no addresses on screen, MiniPay's four tokens only (USA₮ included), USDm naming, phone
   numbers kept away from the AI model.
 - Web: every token on the landing page and the form, read from the contract.
 - x402 v2 verified with the official SDK in USA₮.

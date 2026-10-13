@@ -69,7 +69,7 @@ export function RecipientStep({
   onChange: (r: RecipientDraft) => void;
 }) {
   const inMiniPay = useIsMiniPay();
-  // MiniPay lists only USDT, USDC and USDm, and its rules forbid offering
+  // MiniPay lists only USDT, USDC, USDm and USA₮, and its rules forbid offering
   // anything else inside it. USA₮ and the wFIAT stay on offer everywhere else.
   const allowed = useAllowedDirectTokens().filter((t) => !inMiniPay || t.miniPayVisible);
   const { address: sender } = useAccount();
@@ -164,7 +164,7 @@ export function RecipientStep({
         {/* The honest reason the cNGN option is second, not first. */}
         {value.payoutType === "wallet" && (
           <p className="notice-warn mt-3">
-            MiniPay only shows USDT, USDC and USDm. Someone paid in cNGN will see nothing
+            MiniPay only shows USDT, USDC, USDm and USA₮. Someone paid in cNGN will see nothing
             in MiniPay, and it has no way to add a token. Choose Stablecoin unless they use
             a different wallet.
           </p>

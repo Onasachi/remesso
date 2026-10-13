@@ -260,5 +260,6 @@ function Chips({
 /// a confident-sounding mistake is irreversible, so the browser resolves it
 /// from a list it already trusts.
 export function tokenFromSymbol(symbol: Draft["token"]) {
-  return DIRECT_TOKENS.find((t) => t.symbol === symbol) ?? null;
+  // The assistant answers in ASCII ("USAT"); the token is named "USA₮".
+  return DIRECT_TOKENS.find((t) => t.symbol.replace("₮", "T") === symbol) ?? null;
 }

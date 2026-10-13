@@ -7,8 +7,8 @@ and a floor rate if anything is being converted. It then runs unattended. No
 one holds the sender's keys, and no one can move their money outside the
 envelope they signed: the contract enforces it, not our code.
 
-Today it pays in **stablecoins** — the recipient receives USDT, USDC or USDm (formerly cUSD),
-the assets MiniPay actually displays, or USA₮ — and, since 2026-10-06, in **pesos and
+Today it pays in **stablecoins** — the recipient receives USDT, USDC, USDm (formerly cUSD)
+or USA₮, the assets MiniPay actually displays — and, since 2026-10-06, in **pesos and
 reais**: Ripio's wARS, wBRL and wCOP, so a remittance to Argentina, Brazil or
 Colombia never has to pass through the dollar (see
 [Local currencies](#local-currencies-pesos-and-reais)). The naira rails (cNGN to a wallet, or

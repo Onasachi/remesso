@@ -214,8 +214,11 @@ keeps every address feature (paste, copy, all seven tokens) outside it.
   Each lookup spends paid quota and answers "whose wallet is this number".
 - The schedule still pins one address. A recipient who moves their number to
   a new MiniPay wallet keeps receiving at the old one; the form says so.
-- Inside MiniPay only USDT/USDC/USDm are offered (`miniPayVisible`) — its rules
-  forbid any other token there.
+- Inside MiniPay only USDT/USDC/USDm/USA₮ are offered (`miniPayVisible`) — its
+  rules forbid any other token there. USA₮ joined on 2026-10-13, on the
+  evidence of MiniPay's own Manual deposit screen ("Supported tokens: USDT,
+  USDC, USDm, USAT"); MiniPay's developer docs still listed three that day.
+  The app is what a recipient sees, so it is what we follow.
 - **"Choose from contacts" comes first**: `minipay_requestContact` opens
   MiniPay's own picker and returns `{name, address}` — MiniPay resolves the
   wallet, so no number leaves the phone and no ODIS quota is spent. Its docs
