@@ -255,6 +255,23 @@ export async function getSchedule(onchainId: bigint): Promise<OnchainSchedule> {
   }) as OnchainSchedule;
 }
 
+const erc20ReadAbi = parseAbi([
+  "function balanceOf(address) view returns (uint256)",
+  "function allowance(address,address) view returns (uint256)",
+]);
+
+/// What a sender holds of `token` and what they let this executor move — the
+/// two numbers `runnability()` compares with a payment, read separately so the
+/// pre-flight agent can say by how much a payment falls short, not just that
+/// it does.
+export async function walletPosition(token: Address, owner: Address): Promise<{ balance: bigint; allowance: bigint }> {
+  const [balance, allowance] = await Promise.all([
+    publicClient.readContract({ address: token, abi: erc20ReadAbi, functionName: "balanceOf", args: [owner] }),
+    publicClient.readContract({ address: token, abi: erc20ReadAbi, functionName: "allowance", args: [owner, CELO.executor] }),
+  ]);
+  return { balance, allowance };
+}
+
 /// One past the highest schedule id this contract has issued.
 ///
 /// The upper bound for finding schedules created without the app — see

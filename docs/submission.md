@@ -60,6 +60,35 @@ How a payment happens:
 | Capabilities (machine-readable, free) | `GET https://engaboljiqudghvzmebq.supabase.co/functions/v1/agent` |
 | Agent card | https://remesso.crackedstudios.xyz/.well-known/agent.json |
 
+### What the agent decides — the pre-flight check
+
+Sending a payment that is due is the deterministic part, and should be: the
+contract decides whether it may go. The judgement is in what comes before it.
+Every 30 minutes, for each payment due in the next day, the agent runs a loop:
+
+1. **Observe**: it reads from Celo mainnet the sender's balance of the payout
+   token and how much they have allowed Remesso to move. For a peso or real
+   payment it also reads the live Uniswap rate and compares it with its own
+   reading from a day earlier.
+2. **Decide**: it works out whether this payment will be skipped and why (no
+   money, or no permission), whether the payment after it will be, and whether
+   a peso payment's dollar value has moved by 3% (info) or 8% (warning). A
+   shortfall becomes urgent inside six hours.
+3. **Act**: it posts a notice in the sender's app that says by how much the
+   payment falls short, with the fix attached: "Add money" in MiniPay, or
+   "Allow payments again".
+4. **Verify**: on every later pass it checks again and closes its own notice
+   once the sender has fixed the problem, or when the schedule is cancelled
+   on-chain.
+
+The result is that a payment gets fixed before it is due, rather than failing
+and being explained afterwards. The agent advises and never touches the money
+path. The decision rules are a pure function pinned by tests
+(`supabase/functions/_shared/preflight.ts`), and the words a sender reads are
+written in code, not by a model. It reads rates from the same sources as our
+paid `latam-rate` service, but does not buy from its own x402 endpoint: paying
+ourselves would put circular volume on our own `payTo`.
+
 Every transaction Remesso causes — each payment the agent sends and each
 transaction a sender signs in the app — carries an ERC-8021 attribution suffix
 with both `remesso` and our hackathon code `celo_5cd35ca55baf`, pinned
@@ -283,6 +312,8 @@ users yet, and we do not count any of the payments below as volume.
   listing all four paid services.
 - The `remesso-x402` skill, its script and its generated manifest, USA₮ by
   default.
+- The pre-flight agent: observe, decide, act and verify on every upcoming
+  payment, with notices in the app that carry their own fix.
 
 Commits from `a10658d` onward. The contract, the agent loop and x402 selling
 predate the hackathon and are described in the README.

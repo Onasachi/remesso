@@ -25,6 +25,9 @@ deno test --allow-env --allow-read --allow-write --allow-run --allow-net --allow
 # x402 builder-code — pins our 402 declaration to @x402/extensions' own output
 deno test --allow-env --allow-read --allow-net supabase/functions/_shared/x402.test.ts
 
+# pre-flight agent — what it tells a sender about an upcoming payment, and how urgently
+deno test supabase/functions/_shared/preflight.test.ts
+
 # history merge — how the chain is allowed ahead of the `runs` table in the UI
 deno test --unstable-sloppy-imports web/lib/history.test.ts
 
@@ -561,6 +564,28 @@ not the steady-state cost; do not quote that one), and createSchedule
 ~224,396 — at 202 gwei with CELO near $0.09 that is ~$0.0017, ~$0.0016 and
 ~$0.004. A one-cent payment therefore loses ~17% to gas. Re-measure before
 quoting; the number moves with the gas price and with CELO.
+
+## The pre-flight agent — advice before a payment, never the payment
+
+`preflight` (cron `remesso-preflight`, every 30 min) looks at each active V4
+schedule due within 26h. It reads balance and allowance on-chain
+(`walletPosition`) and, for wFIAT, the pool rate, which it records in
+`rate_snapshots` and compares with its own reading from 20–30h earlier. Then
+`_shared/preflight.ts` decides which `schedule_notices` to open, refresh or
+resolve. It closes its own notices once the problem is gone or the schedule
+is cancelled on-chain.
+
+- **Rules, no model.** `decide()` is pure and pinned by `preflight.test.ts`;
+  `web/lib/notices.ts` holds every sentence, the same split as failures.
+- **It cannot move money.** It calls no `executeRun`, sets no allowance, and
+  changes no schedule. `execute-due-runs` reads none of its tables.
+- **No rate claim without a reading of its own from a day ago.** The first day
+  after deploy it says nothing about rates. That is correct, not a bug.
+- **It does not buy from `latam-rate`**, though it reads the same sources:
+  paying our own x402 endpoint would put circular volume on `payTo`.
+- `?dry=1` observes and decides, writes nothing; `&hours=N` widens the window
+  in a dry run only. On 2026-10-13 a dry run found #8 (wARS) cancelled on-chain
+  while its row still said `active`. The chain wins, as it should.
 
 ## Invariants — do not break
 

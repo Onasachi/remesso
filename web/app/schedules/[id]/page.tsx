@@ -34,6 +34,7 @@ import { ReapproveButton } from "@/components/Reapprove";
 import { Amount, CopyValue, MINIPAY_DEPOSIT_URL, Row, Sheet, Skeleton } from "@/components/ui";
 import { one, type Run } from "@/lib/types";
 import { failureCopy } from "@/lib/failures";
+import { Notices } from "@/components/Notices";
 
 /// No trigger. `setTrigger(id, ZERO, 0)` withdraws a grant.
 const ZERO = "0x0000000000000000000000000000000000000000" as const;
@@ -214,6 +215,10 @@ export default function ScheduleDetailPage() {
           </p>
         </div>
       </section>
+
+      {/* Everything the pre-flight agent found about this schedule's next
+          payment, each with its fix. */}
+      <Notices scheduleId={schedule.id} />
 
       <dl className="mt-5 divide-y divide-line/70 border-y border-line/70">
         {converts && (

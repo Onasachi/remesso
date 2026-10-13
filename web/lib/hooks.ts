@@ -1,5 +1,7 @@
 "use client";
 
+import type { ScheduleNotice } from "./notices";
+
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
 import { useAccount, useReadContract, useReadContracts, useSimulateContract } from "wagmi";
@@ -406,6 +408,28 @@ export function useMiniPayState(): boolean | undefined {
 /// keep calling `isMiniPay()` directly; they only ever run on the client.
 export function useIsMiniPay(): boolean {
   return useMiniPayState() === true;
+}
+
+/// Open notices from the pre-flight agent (supabase/functions/preflight): what
+/// it found wrong with an upcoming payment. Read-only for the sender — the
+/// agent resolves a notice itself once the problem is fixed, so a notice that
+/// disappears is one that no longer applies.
+export function useNotices() {
+  const { address } = useAccount();
+  return useQuery({
+    queryKey: ["schedule-notices", address],
+    enabled: Boolean(address),
+    refetchInterval: 60_000,
+    queryFn: async () => {
+      const { data, error } = await supabase()
+        .from("schedule_notices")
+        .select("id, schedule_id, kind, severity, details, updated_at")
+        .is("resolved_at", null)
+        .order("updated_at", { ascending: false });
+      if (error) throw new Error(error.message);
+      return (data ?? []) as ScheduleNotice[];
+    },
+  });
 }
 
 /// Inbound "please pay me" requests addressed to this wallet.

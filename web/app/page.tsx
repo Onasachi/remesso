@@ -9,6 +9,7 @@ import { formatUnits, intervalLabel, relativeTime } from "@/lib/format";
 import { SchedulePill } from "@/components/StatusPill";
 import { IdentityCard } from "@/components/IdentityCard";
 import { PaymentRequests } from "@/components/PaymentRequests";
+import { Notices } from "@/components/Notices";
 import { ReapproveButton, useApprovalCover } from "@/components/Reapprove";
 import { ActionBar, Amount, MINIPAY_DEPOSIT_URL, Skeleton } from "@/components/ui";
 import { isConfigured, tokenFor, USDT, type TokenInfo } from "@/lib/config";
@@ -109,6 +110,10 @@ export default function SchedulesPage() {
           screen waiting on the sender. Below the balance, because "can I
           afford this" is the first thing they will ask of it. */}
       <PaymentRequests />
+
+      {/* The pre-flight agent's findings about upcoming payments. Allowance
+          problems are left to ApprovalStrip above, so nothing is said twice. */}
+      <Notices kinds={["balance_short", "rate_moved"]} />
 
       <section className="mt-8">
         <div className="mb-3 flex items-baseline justify-between">
