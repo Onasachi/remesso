@@ -169,7 +169,14 @@ no CELO**.
 | `trigger-run` | `POST /functions/v1/trigger-run` | 0.01 | Brings one payment of a schedule forward, only if its sender allowed early sends |
 
 - **Currencies:** USDC, USD₮ and **USA₮**, at the same price in each (all 6dp).
-- **Paid to:** `0xcDEA4Cc4191Ec9A5d8fD1a6B17e3F4C84E993Ae2`.
+- **Paid to (payTo):** `0xcDEA4Cc4191Ec9A5d8fD1a6B17e3F4C84E993Ae2` — the same
+  on every service and every currency, confirmed from the live 402s.
+- **How x402 activity is credited.** Attribution tags are not yet supported on
+  x402 settlements, so the hackathon credits x402 by this payTo address. It is
+  also Remesso's owner wallet and receives the 0.25% schedule commission, so
+  x402 payments are the ones Celo's facilitator (`0x0d74D5Ce…FB48`) submits as
+  `transferWithAuthorization`. Every one to date is our own test (listed under
+  Proof on mainnet).
 - **x402 v2 on the wire**, v1 still accepted: the price list rides in the
   `PAYMENT-REQUIRED` header, the payment in `PAYMENT-SIGNATURE`, the receipt in
   `PAYMENT-RESPONSE`. We moved to v2 after measuring that the official
@@ -183,10 +190,10 @@ no CELO**.
 - **Nobody pays for a failure.** `trigger-run` checks the schedule on-chain and
   answers 403 *before quoting a price* if the call could not succeed; the order
   is verify → run → settle, so a payment that reverts charges nothing (409).
-- **Builder code.** Every 402 declares the x402 `builder-code` extension
-  (`{"a":"remesso","s":["celo_5cd35ca55baf"]}`), verified identical to
-  `@x402/extensions`, so settlements will carry our tag as soon as Celo's
-  facilitator writes it.
+- **Builder code, ready for when tags arrive.** Every 402 already declares the
+  x402 `builder-code` extension (`{"a":"remesso","s":["celo_5cd35ca55baf"]}`),
+  verified identical to `@x402/extensions`, so settlements will carry our tag
+  once Celo's facilitator supports it. Until then, payTo is what counts.
 - **Verified with the official client.** `@x402/fetch` + `@x402/evm` 2.28.0 at
   default settings paid our endpoint in USA₮ on mainnet — USA₮ is inside the
   SDK's default spend controls on Celo, so agents need no extra configuration.
@@ -210,7 +217,9 @@ npx skills add crackedstudio/Remesso --skill remesso        # schedules, being p
   ```bash
   npm i @x402/fetch@2.28.0 @x402/evm@2.28.0 viem
   PAYER_KEY=0x… node scripts/pay.mjs --service naira-rate            # pays in USA₮
-  PAYER_KEY=0x… node scripts/pay.mjs --service naira-rate --asset USDC
+  PAYER_KEY=0x… node scripts/pay.mjs --service latam-rate --body '{"usd":250}'
+  PAYER_KEY=0x… node scripts/pay.mjs --service latam-route --body '{"country":"AR","amount":20000}'
+  PAYER_KEY=0x… node scripts/pay.mjs --service naira-rate --asset USDC  # opt out of USA₮
   ```
 
   It chooses the token by address, refuses any quote above `--max` (default
@@ -218,8 +227,8 @@ npx skills add crackedstudio/Remesso --skill remesso        # schedules, being p
   saying how to pay in USDC or USD₮ instead.
 - `manifest.json` — the payment terms as data: network `eip155:42220`, payee,
   facilitator, **`defaultAsset` = USA₮**, each token's address, decimals and
-  EIP-712 domain, and each service's price. It is **generated from the live
-  402**, never typed by hand, and `--check` fails if it drifts. An index of
+  EIP-712 domain, and all four services with their prices. It is **generated
+  from the live 402**, never typed by hand, and `--check` fails if it drifts. An index of
   both skills (`skills/manifest.json`) and a JSON Schema for the format
   (`skills/manifest.schema.json`) sit beside it.
 
@@ -239,7 +248,7 @@ users yet, and we do not count any of the payments below as volume.
 | USA₮ allowed on the contract (2026-10-11) | `0xf3292694…9e5a` |
 | ERC-8004 agent #9879 registered from the agent wallet | `0xc806f21d…bad5` |
 | **First peso payment by the agent:** a 1,000 wARS weekly schedule created outside the app was found and paid within 5 minutes, unprompted — 997.5 wARS to the recipient, 2.5 wARS fee | `0x4eaf6976…9cdc` |
-| x402 payment in USA₮ through the official SDK | `0x5780ab21…d38d` |
+| x402 payments in USA₮ through the official SDK (run twice) | `0x084c5027…ab39`, `0x5780ab21…d38d` |
 | x402 payment in USA₮ through the `remesso-x402` skill script | `0xf91d3465…d6f9`, `0x15167882…d6f8` |
 | `latam-rate` and `latam-route` paid in USA₮ through the skill script | `0x24d0ea8d…713a`, `0x86706193…d328` |
 | An outside developer installed `remesso-x402` from GitHub and paid in USA₮ on their own — with test funds we provided | `0xa5d6eceb…aca2` |
@@ -258,7 +267,10 @@ users yet, and we do not count any of the payments below as volume.
 - Web: every token on the landing page and the form, read from the contract.
 - x402 v2 verified with the official SDK in USA₮.
 - Two new paid services, `latam-rate` and `latam-route`, for pricing and
-  routing peso and real remittances on Celo.
+  routing peso and real remittances on Celo — a bad request is refused before
+  any price is quoted, and a source outage charges nothing.
+- The public agent document corrected to say x402 v2 (it still said v1) and
+  listing all four paid services.
 - The `remesso-x402` skill, its script and its generated manifest, USA₮ by
   default.
 
@@ -269,7 +281,8 @@ predate the hackathon and are described in the README.
 
 - **Unaudited.** `RemessoExecutorV4` is verified and live on mainnet but has
   not been audited. Start small.
-- **No independent users yet.** Every payment so far is ours or funded by us.
+- **No independent users yet.** Every payment so far — schedules and x402 —
+  is ours or funded by us, and none is claimed as volume.
 - **MiniPay listing pending.** The Mini App works in MiniPay's developer mode;
   ordinary MiniPay users need MiniPay's approval first.
 - **Naira bank payouts are built and switched off** pending regulatory advice;
