@@ -221,6 +221,12 @@ no CELO**.
   `PAYMENT-RESPONSE`. We moved to v2 after measuring that the official
   `@x402/fetch` refused v1 sellers — every agent using the standard SDK could
   not have paid us.
+- **Built on Textile's quotes.** `naira-rate`, `latam-rate` and `latam-route`
+  read Textile FX's live maker quotes (`api.textilecredit.com/tickers`), and the
+  pre-flight agent falls back to them when the Uniswap pool cannot answer. So we
+  can honestly say Remesso is built on Textile's quotes. We use them as prices,
+  never as a payment route. Every answer sets Textile beside the Uniswap pool,
+  because a maker can stop quoting one side and Textile has no wCOP pair.
 - **The LatAm services read the market, not a table.** On live data, 20,000
   ARS costs about $12.48 of USDT through the Uniswap pool; at $5,000 the wBRL
   pool loses 1.2% to price impact, so `latam-route` picks Textile's makers
