@@ -20,7 +20,7 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { CELO, directToken } from "../_shared/config.ts";
 import { getSchedule, walletPosition } from "../_shared/celo.ts";
-import { corridor, makerQuotes, poolQuote } from "../_shared/latam.ts";
+import { CORRIDORS, corridor, makerQuotes, poolQuote } from "../_shared/latam.ts";
 import { decide, dollarValueMovePct, type Notice, type NoticeKind } from "../_shared/preflight.ts";
 
 const db = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
@@ -55,7 +55,17 @@ Deno.serve(async (req) => {
     .limit(200);
   if (error) return json({ error: error.message }, 500);
 
+  // Every corridor's rate, every pass — not only when a peso payment is in
+  // view. A weekly wARS payment enters the window 26h out; reading only then
+  // would leave no day-old reading to compare with until its last hours.
   const rates = new Map<string, { now: number; movePct: number | null }>();
+  for (const c of CORRIDORS.filter((c) => c.poolFee !== null)) {
+    try {
+      rates.set(c.currency, await readRate(c.currency));
+    } catch {
+      // A source outage costs this pass its rate notices, nothing else.
+    }
+  }
   const decisions: Array<Record<string, unknown>> = [];
   let opened = 0, updated = 0, resolved = 0;
 
@@ -111,7 +121,8 @@ Deno.serve(async (req) => {
     }
   }
 
-  return json({ dry: DRY, checked: rows?.length ?? 0, opened, updated, resolved, decisions });
+  const ratesOut = Object.fromEntries([...rates].map(([k, v]) => [k, v]));
+  return json({ dry: DRY, checked: rows?.length ?? 0, opened, updated, resolved, rates: ratesOut, decisions });
 });
 
 /// The local-per-USD rate now (pool first, makers as fallback), recorded, and

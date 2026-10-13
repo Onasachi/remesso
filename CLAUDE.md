@@ -567,10 +567,12 @@ quoting; the number moves with the gas price and with CELO.
 
 ## The pre-flight agent — advice before a payment, never the payment
 
-`preflight` (cron `remesso-preflight`, every 30 min) looks at each active V4
-schedule due within 26h. It reads balance and allowance on-chain
-(`walletPosition`) and, for wFIAT, the pool rate, which it records in
-`rate_snapshots` and compares with its own reading from 20–30h earlier. Then
+`preflight` (cron `remesso-preflight`, every 30 min) first records the ARS and
+BRL pool rates in `rate_snapshots`. It records them on every pass, so a day-old
+reading exists before any peso payment comes into view. It then looks at each
+active V4 schedule due within 26h and reads balance and allowance on-chain
+(`walletPosition`). For wFIAT it compares the rate with its own reading from
+20–30h earlier. Then
 `_shared/preflight.ts` decides which `schedule_notices` to open, refresh or
 resolve. It closes its own notices once the problem is gone or the schedule
 is cancelled on-chain.
