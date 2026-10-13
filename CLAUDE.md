@@ -28,6 +28,9 @@ deno test --allow-env --allow-read --allow-net supabase/functions/_shared/x402.t
 # history merge — how the chain is allowed ahead of the `runs` table in the UI
 deno test --unstable-sloppy-imports web/lib/history.test.ts
 
+# review-screen amounts — small fees must not round to 0.00
+deno test --allow-env --unstable-sloppy-imports web/lib/format.test.ts
+
 # phone numbers — E.164 normalisation and masking for MiniPay recipients
 (cd web && deno test --unstable-sloppy-imports lib/phone.test.ts)   # from web/: needs its node_modules
 

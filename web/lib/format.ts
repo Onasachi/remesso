@@ -39,6 +39,18 @@ export function formatUnits(
   return `${neg ? "-" : ""}${grouped}${dp > 0 ? `.${frac}` : ""}`;
 }
 
+/// Like `formatUnits`, but never rounds a small amount away: every significant
+/// decimal up to `maxDp`, and at least `minDp`. For the lines a sender checks
+/// before signing — the fee and what the recipient receives. At 0.10 USDT the
+/// 0.25% fee is 0.00025 and the recipient gets 0.09975; two decimals showed
+/// "fee 0.00 · they receive 0.09", which read as a cent going missing.
+export function formatExact(v: bigint | string | number, decimals: number, minDp = 2, maxDp = 6): string {
+  const full = formatUnits(v, decimals, Math.min(decimals, maxDp));
+  const [whole, frac = ""] = full.split(".");
+  const trimmed = frac.replace(/0+$/, "").padEnd(minDp, "0");
+  return trimmed ? `${whole}.${trimmed}` : whole;
+}
+
 /// Parse a user-typed decimal into base units at the token's own scale, without
 /// going through a float — "0.1" as a Number is not exact, and at scale that is
 /// money quietly disappearing.

@@ -26,7 +26,7 @@ import {
 } from "@/lib/config";
 import { supabase, ensureSender } from "@/lib/supabase";
 import { useAllowance, useFeeBps, useMarketRate, useTriggerAddress, useUsdtBalance } from "@/lib/hooks";
-import { everyLabel, formatUnits, rateToNairaPerUsd, spanLabel } from "@/lib/format";
+import { everyLabel, formatExact, formatUnits, rateToNairaPerUsd, spanLabel } from "@/lib/format";
 import {
   RecipientStep,
   emptyRecipient,
@@ -560,10 +560,10 @@ function Review({
           <Row
             label="Remesso fee"
             sub={`${(feeBps / 100).toFixed(2)}% per transfer, fixed for this schedule. They receive ${
-              formatUnits(amountIn - (amountIn * BigInt(feeBps)) / 10_000n, token.decimals)
+              formatExact(amountIn - (amountIn * BigInt(feeBps)) / 10_000n, token.decimals)
             } ${token.symbol}.`}
           >
-            {formatUnits((amountIn * BigInt(feeBps)) / 10_000n, token.decimals)} {token.symbol}
+            {formatExact((amountIn * BigInt(feeBps)) / 10_000n, token.decimals)} {token.symbol}
           </Row>
         )}
         {terms.trigger.trim() && (
