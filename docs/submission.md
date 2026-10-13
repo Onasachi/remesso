@@ -6,6 +6,15 @@ Live on Celo mainnet · App: https://remesso.crackedstudios.xyz · Demo video: h
 
 ---
 
+## Hackathon tracks
+
+Agents on Open Rails (Loops House × Celo) — Remesso is entered in two tracks:
+
+| Track | Bounties | Why Remesso fits |
+|---|---|---|
+| **Stable Agents: LatAm** (Ripio × Celo) | 1st and 2nd place | Remittances to Argentina, Brazil and Colombia paid in Ripio's **wARS, wBRL and wCOP** by an agent on Celo mainnet — no conversion through dollars — with Ripio's ramp to buy and cash out, and two paid services, `latam-rate` and `latam-route`, that price and route peso and real payments. |
+| **Open Corridors: USA₮ with x402** | 1st and 2nd place | Four services sold over **x402** through Celo's facilitator, priced in **USA₮** (also USDC and USD₮), a published agent skill that **pays in USA₮ by default**, and USA₮ as a schedule currency — in a browser wallet and in MiniPay. |
+
 ## The problem
 
 Families split across borders pay each other on a rhythm — school fees every
@@ -277,14 +286,3 @@ users yet, and we do not count any of the payments below as volume.
 
 Commits from `a10658d` onward. The contract, the agent loop and x402 selling
 predate the hackathon and are described in the README.
-
-## Honest status
-
-- **Unaudited.** `RemessoExecutorV4` is verified and live on mainnet but has
-  not been audited. Start small.
-- **No independent users yet.** Every payment so far — schedules and x402 —
-  is ours or funded by us, and none is claimed as volume.
-- **MiniPay listing pending.** The Mini App works in MiniPay's developer mode;
-  ordinary MiniPay users need MiniPay's approval first.
-- **Naira bank payouts are built and switched off** pending regulatory advice;
-  everything settles in stablecoins today.
