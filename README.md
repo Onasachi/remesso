@@ -1,5 +1,7 @@
 # Remesso
 
+**Demo video:** https://youtu.be/ojKpB09juTA · **App:** https://remesso.crackedstudios.xyz
+
 Automated recurring stablecoin remittances on **Celo**.
 
 A sender authorises a remittance once — recipient, amount, cadence, expiry,
