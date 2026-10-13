@@ -137,6 +137,6 @@ facilitator supports it. Nothing to do on your side.
 - Scheduling, being paid, and the contract: the `remesso` skill
   (`npx skills add crackedstudio/Remesso --skill remesso`).
 - Capabilities, live: `GET https://engaboljiqudghvzmebq.supabase.co/functions/v1/agent`
-- Agent card: `https://remesso-3q67.vercel.app/.well-known/agent.json`
+- Agent card: `https://remesso.crackedstudios.xyz/.well-known/agent.json`
 - Identity: ERC-8004 agents 9867 and 9879 on `0x8004A169FB4a3325136EB29fA0ceB6D2e539a432`; Self Agent ID 191.
 - Remesso is live on mainnet and **unaudited**.

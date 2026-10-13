@@ -17,7 +17,7 @@ in their own wallet — a link can prefill, never pay.
 
 ## Nigeria — family support in dollars (USDT)
 
-**Link:** https://remesso-3q67.vercel.app/schedules/new?token=USDT&amount=20&every=month
+**Link:** https://remesso.crackedstudios.xyz/schedules/new?token=USDT&amount=20&every=month
 
 > Hi {name}! I built Remesso — it sends money to family on a schedule, on Celo.
 > You set it once (who, how much, how often) and it pays every month by itself;
@@ -25,13 +25,13 @@ in their own wallet — a link can prefill, never pay.
 > in their MiniPay balance.
 > If you already send money home every month, would you try it for your next
 > one? This opens it pre-filled with $20 monthly — change anything:
-> https://remesso-3q67.vercel.app/schedules/new?token=USDT&amount=20&every=month
+> https://remesso.crackedstudios.xyz/schedules/new?token=USDT&amount=20&every=month
 > Takes about 2 minutes with MetaMask or Valora on Celo. Tell me what confused
 > you — that's the most useful thing you can give me.
 
 ## Argentina — pesos (wARS)
 
-**Link:** https://remesso-3q67.vercel.app/schedules/new?token=WARS&amount=20000&every=month
+**Link:** https://remesso.crackedstudios.xyz/schedules/new?token=WARS&amount=20000&every=month
 **Get wARS:** https://ramp.ripio.com/?country=AR&chain=42220&token=WARS
 
 > ¡Hola {nombre}! Armé Remesso: envía plata a tu familia de forma automática,
@@ -41,13 +41,13 @@ in their own wallet — a link can prefill, never pay.
 > por dólares.
 > ¿Lo probarías para tu próximo envío? Este link lo abre ya completado con
 > $20.000 por mes (cambiá lo que quieras):
-> https://remesso-3q67.vercel.app/schedules/new?token=WARS&amount=20000&every=month
+> https://remesso.crackedstudios.xyz/schedules/new?token=WARS&amount=20000&every=month
 > Si no tenés wARS, se compran con transferencia en Ripio:
 > https://ramp.ripio.com/?country=AR&chain=42220&token=WARS
 
 ## Brazil — reais (wBRL)
 
-**Link:** https://remesso-3q67.vercel.app/schedules/new?token=WBRL&amount=100&every=month
+**Link:** https://remesso.crackedstudios.xyz/schedules/new?token=WBRL&amount=100&every=month
 
 > Oi {nome}! Criei o Remesso: ele envia dinheiro para a família de forma
 > automática, em reais, na rede Celo. Você configura uma vez (para quem,
@@ -56,11 +56,11 @@ in their own wallet — a link can prefill, never pay.
 > chega exatamente o que você enviou, sem passar por dólar.
 > Topa testar no seu próximo envio? Este link já abre preenchido com R$100 por
 > mês (mude o que quiser):
-> https://remesso-3q67.vercel.app/schedules/new?token=WBRL&amount=100&every=month
+> https://remesso.crackedstudios.xyz/schedules/new?token=WBRL&amount=100&every=month
 
 ## Colombia — pesos (wCOP)
 
-**Link:** https://remesso-3q67.vercel.app/schedules/new?token=WCOP&amount=80000&every=month
+**Link:** https://remesso.crackedstudios.xyz/schedules/new?token=WCOP&amount=80000&every=month
 
 > ¡Hola {nombre}! Hice Remesso: envía dinero a tu familia automáticamente, en
 > pesos colombianos, sobre Celo. Lo configuras una vez (a quién, cuánto, cada
@@ -68,7 +68,7 @@ in their own wallet — a link can prefill, never pay.
 > billetera. Es en wCOP — pesos 1 a 1 — sin pasar por dólares.
 > ¿Lo probarías en tu próximo envío? Este enlace lo abre con $80.000 al mes
 > (cambia lo que quieras):
-> https://remesso-3q67.vercel.app/schedules/new?token=WCOP&amount=80000&every=month
+> https://remesso.crackedstudios.xyz/schedules/new?token=WCOP&amount=80000&every=month
 
 ---
 

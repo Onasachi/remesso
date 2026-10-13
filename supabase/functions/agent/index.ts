@@ -26,7 +26,7 @@ const BASE = (Deno.env.get("SUPABASE_URL") ?? "").replace(/\/+$/, "");
 
 /// The app a payer actually opens. Separate from BASE: the functions host
 /// serves the API, the web origin serves the form a link has to land in.
-const WEB = (Deno.env.get("WEB_ORIGIN") ?? "https://remesso-3q67.vercel.app").replace(/\/+$/, "");
+const WEB = (Deno.env.get("WEB_ORIGIN") ?? "https://remesso.crackedstudios.xyz").replace(/\/+$/, "");
 
 /// The address a payer grants. Undefined rather than a throw if the key is
 /// missing: a capability document that 500s teaches a caller nothing.

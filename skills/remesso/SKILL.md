@@ -25,9 +25,9 @@ Three things an agent can do, and they are independent:
 | | |
 |---|---|
 | Contract | `RemessoExecutorV4` `0x288b7cDD10e069eA64D4984c3E5fa0D9c5816009` (Celo mainnet, 42220) |
-| Start here | `https://remesso-3q67.vercel.app/.well-known/agent.json` — every endpoint, the contract, the registrations |
+| Start here | `https://remesso.crackedstudios.xyz/.well-known/agent.json` — every endpoint, the contract, the registrations |
 | Capabilities | `GET https://engaboljiqudghvzmebq.supabase.co/functions/v1/agent` — prices and refusals, free |
-| This file | `https://remesso-3q67.vercel.app/skill.md` |
+| This file | `https://remesso.crackedstudios.xyz/skill.md` |
 | ERC-8004 | agent `9867`, registry `0x8004A169FB4a3325136EB29fA0ceB6D2e539a432` |
 | Proof of human | Self Agent ID `191`, soulbound, zero-knowledge passport proof |
 | Source | https://github.com/crackedstudio/Remesso |

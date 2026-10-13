@@ -18,7 +18,7 @@ npx skills add crackedstudio/Remesso
 | ERC-8004 agent | `9867` on Celo, registry `0x8004A169FB4a3325136EB29fA0ceB6D2e539a432` |
 | Proof of human | Self Agent ID `191`, soulbound, zero-knowledge passport proof |
 | Contract | `RemessoExecutorV4` `0x288b7cDD10e069eA64D4984c3E5fa0D9c5816009` (Celo, 42220) |
-| Start here | `https://remesso-3q67.vercel.app/.well-known/agent.json` |
+| Start here | `https://remesso.crackedstudios.xyz/.well-known/agent.json` |
 | Capabilities | `GET https://engaboljiqudghvzmebq.supabase.co/functions/v1/agent` |
 
 The ERC-8004 metadata is a `data:` URI embedded in the token, not a link to a
@@ -145,7 +145,7 @@ anyone can fill is an inbox nobody reads.
 already have a way to reach them:
 
 ```
-https://remesso-3q67.vercel.app/schedules/new?to=0xYourAddress&amount=5&every=week
+https://remesso.crackedstudios.xyz/schedules/new?to=0xYourAddress&amount=5&every=week
 ```
 
 Opening it fills their form in and says a link did it. `to`, `name`, `amount`,

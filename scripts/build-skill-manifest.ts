@@ -13,7 +13,7 @@
 /// what is live, for CI or a cron.
 
 const FUNCTIONS = "https://engaboljiqudghvzmebq.supabase.co/functions/v1";
-const APP = "https://remesso-3q67.vercel.app";
+const APP = "https://remesso.crackedstudios.xyz";
 const RAW = "https://raw.githubusercontent.com/crackedstudio/Remesso/main";
 const check = Deno.args.includes("--check");
 

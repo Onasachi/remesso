@@ -2,7 +2,7 @@
 
 **Send money home on a schedule, in the currency your family spends — signed once, carried out by an agent on Celo.**
 
-Live on Celo mainnet · App: https://remesso-3q67.vercel.app · Repo: https://github.com/crackedstudio/Remesso
+Live on Celo mainnet · App: https://remesso.crackedstudios.xyz · Repo: https://github.com/crackedstudio/Remesso
 
 ---
 
@@ -49,7 +49,7 @@ How a payment happens:
 | ERC-8004 identity held by the owner | agent #9867 |
 | Proof of a human behind it | Self Agent ID **#191** — soulbound, zero-knowledge passport proof |
 | Capabilities (machine-readable, free) | `GET https://engaboljiqudghvzmebq.supabase.co/functions/v1/agent` |
-| Agent card | https://remesso-3q67.vercel.app/.well-known/agent.json |
+| Agent card | https://remesso.crackedstudios.xyz/.well-known/agent.json |
 
 Every transaction Remesso causes — each payment the agent sends and each
 transaction a sender signs in the app — carries an ERC-8021 attribution suffix

@@ -16,7 +16,9 @@ import { quoteExactIn } from "./celo.ts";
 import { CELO } from "./config.ts";
 
 export const FEED = "https://api.textilecredit.com/tickers";
-const APP = "https://remesso-3q67.vercel.app";
+/// The web app's origin, for the schedule links this file builds. Read from
+/// WEB_ORIGIN like agent and request-payment, so a domain move is one secret.
+const APP = (Deno.env.get("WEB_ORIGIN") ?? "https://remesso.crackedstudios.xyz").replace(/\/+$/, "");
 
 /// Above this, two sources quoting the same pair are reported as disagreeing.
 const DISAGREE_BPS = 100;

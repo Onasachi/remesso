@@ -38,7 +38,7 @@ const db = createClient(
 );
 
 /// Where the link points. The app, not this function.
-const WEB = (Deno.env.get("WEB_ORIGIN") ?? "https://remesso-3q67.vercel.app").replace(/\/+$/, "");
+const WEB = (Deno.env.get("WEB_ORIGIN") ?? "https://remesso.crackedstudios.xyz").replace(/\/+$/, "");
 
 /// Cadences the form can actually display. A request for a rhythm the picker
 /// does not offer would arrive as a form the sender cannot read or change.

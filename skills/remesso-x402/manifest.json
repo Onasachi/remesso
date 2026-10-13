@@ -8,7 +8,7 @@
     "entry": "SKILL.md",
     "url": "https://raw.githubusercontent.com/crackedstudio/Remesso/main/skills/remesso-x402/SKILL.md"
   },
-  "homepage": "https://remesso-3q67.vercel.app",
+  "homepage": "https://remesso.crackedstudios.xyz",
   "repository": "https://github.com/crackedstudio/Remesso",
   "license": "MIT",
   "install": {
@@ -133,7 +133,7 @@
   ],
   "discovery": {
     "capabilities": "https://engaboljiqudghvzmebq.supabase.co/functions/v1/agent",
-    "agentCard": "https://remesso-3q67.vercel.app/.well-known/agent.json",
+    "agentCard": "https://remesso.crackedstudios.xyz/.well-known/agent.json",
     "erc8004": {
       "registry": "0x8004A169FB4a3325136EB29fA0ceB6D2e539a432",
       "agentIds": [
