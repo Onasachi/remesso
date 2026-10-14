@@ -111,6 +111,7 @@ of ours, so nothing is offered before the contract accepts it.
 | **wARS** (Ripio) | Argentine peso | `0x0DC4F92879B7670e5f4e4e6e3c801D229129D90D` | 18 | — | ✅ | — |
 | **wBRL** (Ripio) | Brazilian real | `0xD76f5Faf6888e24D9F04Bf92a0c8B921FE4390e0` | 18 | — | ✅ | — |
 | **wCOP** (Ripio) | Colombian peso | `0x8a1D45e102e886510e891d2Ec656a708991e2D76` | 18 | — | ✅ | — |
+| **cNGN** | Nigerian naira | `0xF6829D7393dAe24509eb1E52eE8e572e2E271a4f` | 6 | — | ✅ | — |
 
 Schedules use the **Direct** rail: the recipient receives exactly the token the
 sender funds with. No swap, no conversion, no price risk. A peso schedule pays
@@ -168,7 +169,7 @@ approves it; that submission is our next step.
 In any browser with a Celo wallet (MetaMask, Valora, Rabby…), Remesso offers
 everything MiniPay's rules leave out.
 
-- **All seven tokens**, including USA₮ and Ripio's pesos and reais. The landing
+- **All eight tokens**, including USA₮, cNGN and Ripio's pesos and reais. The landing
   page tells visitors so, with the list read live from the contract.
 - **Ripio on- and off-ramp.** Choosing wARS, wBRL or wCOP shows "Buy it with
   Ripio" (from a local bank account) and "Cash out at Ripio", prefilled with
@@ -178,8 +179,9 @@ everything MiniPay's rules leave out.
   page show a Nigerian recipient how to get naira into their bank account on
   Textile: swap USDT to cNGN on Celo, then Withdraw NGN (paid out by Noblocks).
   It is a link, as with Ripio. The recipient does it from their own wallet,
-  and Remesso never instructs a bank payout. A wallet that already holds cNGN sees it
-  on the home screen with "Withdraw to bank".
+  and Remesso never instructs a bank payout. A schedule can also pay in **cNGN**
+  directly. The home screen has "Get cNGN" (swap USDT on Textile) and
+  "Withdraw to bank" (Textile's Withdraw NGN).
 - **Wallet addresses**, typed or pasted, with a copy button on each schedule.
 - **Pay links.** `/schedules/new?to=…&amount=…&token=…&every=…` opens a
   prefilled form; the form says a link filled it in, and the sender still
@@ -297,6 +299,7 @@ users yet, and we do not count any of the payments below as volume.
 |---|---|
 | wARS, wBRL, wCOP allowed on the contract (2026-10-06) | `0x717cc22c…`, `0x482172a7…`, `0xbed93797…` |
 | USA₮ allowed on the contract (2026-10-11) | `0xf3292694…9e5a` |
+| cNGN allowed on the contract (2026-10-14) | `0x68ad32f6…3296` |
 | ERC-8004 agent #9879 registered from the agent wallet | `0xc806f21d…bad5` |
 | **First peso payment by the agent:** a 1,000 wARS weekly schedule created outside the app was found and paid within 5 minutes, unprompted — 997.5 wARS to the recipient, 2.5 wARS fee | `0x4eaf6976…9cdc` |
 | x402 payments in USA₮ through the official SDK (run twice) | `0x084c5027…ab39`, `0x5780ab21…d38d` |

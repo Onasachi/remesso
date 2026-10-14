@@ -181,9 +181,11 @@ the app opens on BNB Smart Chain. On the web home screen cNGN always has a tile,
 **cNGN on the Direct rail (2026-10-14).** cNGN is in both `DIRECT_TOKENS`
 lists: the recipient receives cNGN, with no swap, no redemption and no bank.
 The rail flags gate payout *types*, not tokens, so they do not stop it and
-stay off. The backend cap counts 1,300 cNGN per dollar (rounded down). The
-form offers cNGN only once V4's allowlist takes it, which needs the cold owner
-to call `setDirectToken(cNGN, true)`.
+stay off. The backend cap counts 1,300 cNGN per dollar (rounded down). V4's
+allowlist took it on 2026-10-14 (`0x68ad32f6…3296`, cold owner, tagged). The
+first `directTokenAllowed` read right after still said false: forno lag, true
+at the tx block. Redeployed `execute-due-runs`, `sync-schedules`,
+`trigger-run`, `preflight` and `agent`; `/agent` lists cNGN among assets.
 
 Nothing is deleted: existing schedules of any kind still render, and a skipped
 schedule simply stays due rather than accruing failed runs. As of 2026-09-28
