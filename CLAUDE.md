@@ -166,6 +166,16 @@ which stops every rail at once. The two callers are the only things that can
 decline. Set both flags to `"1"` (plus `NEXT_PUBLIC_CNGN_REDEMPTION_ADDRESS`
 for bank payouts) to bring naira back.
 
+**Naira cash-out without a naira rail — linked 2026-10-14.** Textile's app turns
+USDT on Celo into naira in a Nigerian bank: swap to cNGN, then "Withdraw NGN",
+paid out by Noblocks (₦0.9996/cNGN when checked). `web/lib/textile.ts` builds
+`app.textilecredit.com/s/swap?sell=USDT&buy=cNGN&chainId=42220`. The send form
+and the schedule page link it for USDT payouts, outside MiniPay only. The
+recipient does it on Textile with their own wallet. Like Ripio, it is a link,
+so Remesso instructs no naira payout and both flags stay off. Only USDT:
+USDC, USDm and USA₮ show "No supported swap pairs" there. Without `chainId`
+the app opens on BNB Smart Chain.
+
 Nothing is deleted: existing schedules of any kind still render, and a skipped
 schedule simply stays due rather than accruing failed runs. As of 2026-09-28
 all six V4 schedules are `Direct`/USDT, so nothing is currently refused.

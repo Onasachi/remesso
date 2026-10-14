@@ -22,6 +22,7 @@ import {
   useTriggerAddress,
 } from "@/lib/hooks";
 import { recipientLabel } from "@/lib/identity";
+import { textileNairaCashOut } from "@/lib/textile";
 import {
   countdown,
   everyLabel,
@@ -255,6 +256,21 @@ export default function ScheduleDetailPage() {
           </Row>
         )}
       </dl>
+
+      {/* How a Nigerian recipient of USDT gets naira into a bank: Textile's
+          swap to cNGN, then its Withdraw NGN. Theirs to do, on Textile, with
+          their own wallet; Remesso only links (lib/textile.ts). Not inside
+          MiniPay, which has its own cash-out and whose rules keep a Mini App
+          from sending people to withdraw elsewhere. */}
+      {!isBank && !inMiniPay && textileNairaCashOut(token) && (
+        <p className="hint mt-3">
+          Recipient in Nigeria? They can turn this USDT into naira in their bank account on{" "}
+          <a href={textileNairaCashOut(token)!} target="_blank" rel="noopener noreferrer" className="underline">
+            Textile
+          </a>
+          : swap it to cNGN, then Withdraw NGN. They do it from their own wallet.
+        </p>
+      )}
 
       {/* The contract's own answer, not our mirror of it. If these disagree, the
           contract is right and the sender needs to know which one is blocking. */}

@@ -9,6 +9,7 @@ import { isMiniPay } from "@/lib/wagmi";
 import { useAllowedDirectTokens, useIsMiniPay } from "@/lib/hooks";
 import { lookupPhone } from "@/lib/phoneLookup";
 import { countryOf, countryOptions, toE164, type CountryCode } from "@/lib/phone";
+import { textileNairaCashOut } from "@/lib/textile";
 import { ripioRampUrl } from "@/lib/ripio";
 import { useAccount } from "wagmi";
 import type { PayoutKind } from "@/lib/types";
@@ -173,8 +174,26 @@ export function RecipientStep({
             not them. */}
         {/* Naira news, so only beside a dollar payout: next to pesos it
             reads as if wARS were heading for a Nigerian bank. */}
+        {/* Outside MiniPay, a USDT payout can already reach a naira bank
+            account — by the recipient, on Textile (lib/textile.ts). Remesso
+            itself paying a bank is still the "coming soon". */}
         {!BANK_PAYOUTS_ENABLED && value.payoutType !== "wallet" && value.token.currency === "USD" && (
-          <p className="hint">Paying straight into a naira bank account is coming soon.</p>
+          !inMiniPay && textileNairaCashOut(value.token) ? (
+            <p className="hint">
+              Recipient in Nigeria? They can cash USDT out to a naira bank account on{" "}
+              <a href={textileNairaCashOut(value.token)!} target="_blank" rel="noopener noreferrer" className="underline">
+                Textile
+              </a>{" "}
+              — swap to cNGN, then Withdraw NGN.
+            </p>
+          ) : !inMiniPay && value.token.currency === "USD" ? (
+            <p className="hint">
+              Recipient in Nigeria who wants naira in a bank? Pay in USDT — it is the one Textile
+              cashes out to a Nigerian bank on Celo.
+            </p>
+          ) : (
+            <p className="hint">Paying straight into a naira bank account is coming soon.</p>
+          )
         )}
       </div>
 

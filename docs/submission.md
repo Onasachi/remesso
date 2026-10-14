@@ -174,6 +174,11 @@ everything MiniPay's rules leave out.
   Ripio" (from a local bank account) and "Cash out at Ripio", prefilled with
   country, Celo, token and wallet. We also bought wARS on Celo itself, through
   Uniswap's 0.01% USDT/wARS pool.
+- **Naira cash-out, linked.** For a USDT payment, the form and the schedule
+  page show a Nigerian recipient how to get naira into their bank account on
+  Textile: swap USDT to cNGN on Celo, then Withdraw NGN (paid out by Noblocks).
+  It is a link, as with Ripio. The recipient does it from their own wallet,
+  and Remesso never instructs a bank payout.
 - **Wallet addresses**, typed or pasted, with a copy button on each schedule.
 - **Pay links.** `/schedules/new?to=…&amount=…&token=…&every=…` opens a
   prefilled form; the form says a link filled it in, and the sender still
