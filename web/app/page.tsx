@@ -10,13 +10,15 @@ import { SchedulePill } from "@/components/StatusPill";
 import { IdentityCard } from "@/components/IdentityCard";
 import { PaymentRequests } from "@/components/PaymentRequests";
 import { Notices } from "@/components/Notices";
+import { BuyLocal } from "@/components/BuyLocal";
+import { ripioRampUrl } from "@/lib/ripio";
 import { ReapproveButton, useApprovalCover } from "@/components/Reapprove";
 import { ActionBar, Amount, MINIPAY_DEPOSIT_URL, Skeleton } from "@/components/ui";
 import { isConfigured, tokenFor, USDT, type TokenInfo } from "@/lib/config";
 import { one, type Schedule } from "@/lib/types";
 
 export default function SchedulesPage() {
-  const { isConnected } = useAccount();
+  const { isConnected, address } = useAccount();
   const { data: schedules, isPending, error } = useSchedules();
   // Which asset the balance strip is showing. The total is always the sum;
   // the switcher only changes which per-asset figure and allowance appear.
@@ -55,10 +57,18 @@ export default function SchedulesPage() {
               </p>
             )}
           </div>
-          {inMiniPay && (
+          {inMiniPay ? (
             <a href={MINIPAY_DEPOSIT_URL} className="btn-soft btn-sm">
               Add money
             </a>
+          ) : (
+            // A peso or real tile selected: buying it is one tap from its
+            // balance, the same place MiniPay's "Add money" sits.
+            ripioRampUrl("on", token, { address }) && (
+              <a href={ripioRampUrl("on", token, { address })!} target="_blank" rel="noopener noreferrer" className="btn-soft btn-sm">
+                Buy {token.symbol}
+              </a>
+            )
           )}
         </div>
 
@@ -103,6 +113,10 @@ export default function SchedulesPage() {
       </section>
 
       <ApprovalStrip token={token} />
+
+      {/* Before the schedules: a sender who holds no pesos gets them here,
+          not halfway through the send form. */}
+      <BuyLocal />
 
       <IdentityCard />
 
