@@ -22,7 +22,7 @@ import {
   useTriggerAddress,
 } from "@/lib/hooks";
 import { recipientLabel } from "@/lib/identity";
-import { textileNairaCashOut } from "@/lib/textile";
+import { TEXTILE_NAIRA_WITHDRAW, textileNairaCashOut } from "@/lib/textile";
 import {
   countdown,
   everyLabel,
@@ -269,6 +269,15 @@ export default function ScheduleDetailPage() {
             Textile
           </a>
           : swap it to cNGN, then Withdraw NGN. They do it from their own wallet.
+        </p>
+      )}
+      {!isBank && !inMiniPay && token.currency === "NGN" && recipient?.payout_type === "direct" && (
+        <p className="hint mt-3">
+          They receive cNGN and can{" "}
+          <a href={TEXTILE_NAIRA_WITHDRAW} target="_blank" rel="noopener noreferrer" className="underline">
+            withdraw it to a Nigerian bank on Textile
+          </a>
+          , from their own wallet.
         </p>
       )}
 

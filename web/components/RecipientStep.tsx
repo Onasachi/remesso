@@ -9,7 +9,7 @@ import { isMiniPay } from "@/lib/wagmi";
 import { useAllowedDirectTokens, useIsMiniPay } from "@/lib/hooks";
 import { lookupPhone } from "@/lib/phoneLookup";
 import { countryOf, countryOptions, toE164, type CountryCode } from "@/lib/phone";
-import { textileNairaCashOut } from "@/lib/textile";
+import { TEXTILE_NAIRA_WITHDRAW, TEXTILE_SWAP_TO_CNGN, textileNairaCashOut } from "@/lib/textile";
 import { ripioRampUrl } from "@/lib/ripio";
 import { useAccount } from "wagmi";
 import type { PayoutKind } from "@/lib/types";
@@ -157,6 +157,7 @@ export function RecipientStep({
                   that does.
                 </p>
                 <RipioLinks token={value.token} sender={sender} />
+                {value.token.currency === "NGN" && <CngnLinks />}
               </>
             )}
           </div>
@@ -621,6 +622,24 @@ function Choice({
         {subtitle}
       </span>
     </button>
+  );
+}
+
+/// cNGN's way in and out, both on Textile: swap USDT into it, and Withdraw NGN
+/// to a Nigerian bank. Links only (lib/textile.ts).
+function CngnLinks() {
+  return (
+    <p className="hint">
+      No cNGN yet?{" "}
+      <a href={TEXTILE_SWAP_TO_CNGN} target="_blank" rel="noopener noreferrer" className="underline">
+        Swap USDT for it on Textile
+      </a>
+      . They can{" "}
+      <a href={TEXTILE_NAIRA_WITHDRAW} target="_blank" rel="noopener noreferrer" className="underline">
+        withdraw it to a Nigerian bank
+      </a>{" "}
+      on Textile the same way.
+    </p>
   );
 }
 

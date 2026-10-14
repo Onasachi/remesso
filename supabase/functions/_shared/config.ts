@@ -45,6 +45,11 @@ export const DIRECT_TOKENS = [
   { symbol: "wARS", address: "0x0DC4F92879B7670e5f4e4e6e3c801D229129D90D", decimals: 18, unitsPerUsd: 1500 },
   { symbol: "wBRL", address: "0xD76f5Faf6888e24D9F04Bf92a0c8B921FE4390e0", decimals: 18, unitsPerUsd: 5 },
   { symbol: "wCOP", address: "0x8a1D45e102e886510e891d2Ec656a708991e2D76", decimals: 18, unitsPerUsd: 3200 },
+  // cNGN on the DIRECT rail: the recipient receives cNGN and nothing converts —
+  // no swap, no redemption, no bank. That is why the rail flags do not gate
+  // it (they gate payout types, rails.ts). ~1,363 NGN/USD on 14 Oct 2026,
+  // rounded DOWN like the others so the cap only ever gets stricter. 6dp.
+  { symbol: "cNGN", address: "0xF6829D7393dAe24509eb1E52eE8e572e2E271a4f", decimals: 6, unitsPerUsd: 1300 },
 ] as const;
 
 export type DirectToken = (typeof DIRECT_TOKENS)[number];

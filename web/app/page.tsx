@@ -12,7 +12,7 @@ import { PaymentRequests } from "@/components/PaymentRequests";
 import { Notices } from "@/components/Notices";
 import { BuyLocal } from "@/components/BuyLocal";
 import { ripioRampUrl } from "@/lib/ripio";
-import { TEXTILE_NAIRA_WITHDRAW } from "@/lib/textile";
+import { TEXTILE_NAIRA_WITHDRAW, TEXTILE_SWAP_TO_CNGN } from "@/lib/textile";
 import { ReapproveButton, useApprovalCover } from "@/components/Reapprove";
 import { ActionBar, Amount, MINIPAY_DEPOSIT_URL, Skeleton } from "@/components/ui";
 import { CNGN, isConfigured, tokenFor, USDT, type TokenInfo } from "@/lib/config";
@@ -92,9 +92,6 @@ export default function SchedulesPage() {
         >
           {balances
             .filter(({ token: t }) => !inMiniPay || t.miniPayVisible)
-            // cNGN pays no schedule while the naira rails are off, so its tile
-            // is for a wallet that already holds some — to see it and cash it out.
-            .filter(({ token: t, balance }) => t.symbol !== CNGN.symbol || (balance ?? 0n) > 0n)
             .map(({ token: t, balance }) => {
             const on = t.symbol === token.symbol;
             return (
@@ -122,7 +119,8 @@ export default function SchedulesPage() {
         </div>
       </section>
 
-      {token.symbol === CNGN.symbol ? <CngnWithdraw /> : <ApprovalStrip token={token} />}
+      <ApprovalStrip token={token} />
+      {token.symbol === CNGN.symbol && <CngnActions />}
 
       {/* Before the schedules: a sender who holds no pesos gets them here,
           not halfway through the send form. */}
@@ -196,19 +194,25 @@ export default function SchedulesPage() {
 ///   unused   nothing draws on this asset and nothing is approved — one quiet line
 ///   covered  the ceiling, under a disclosure: a returning sender came to
 ///            check on a payment, not to re-read the security model
-/// In place of the allowance strip when cNGN is selected: no schedule pays in
-/// it, so what a holder wants to know is how to get naira out of it.
-function CngnWithdraw() {
+/// Under the balance when cNGN is selected: how to get it, and how to turn it
+/// into naira in a bank. Both on Textile, from this wallet — links only.
+function CngnActions() {
   return (
     <div className="notice-info mt-3">
-      <p className="font-medium text-ink">Cash out cNGN to a Nigerian bank</p>
+      <p className="font-medium text-ink">cNGN — the naira on Celo</p>
       <p className="mt-0.5">
-        On Textile, Withdraw NGN sends your cNGN on Celo to a naira bank account, paid out by
-        Noblocks at about ₦1 per cNGN. You do it there, from this wallet; Remesso never holds it.
+        Get cNGN by swapping USDT on Textile. Withdraw NGN there sends cNGN to a Nigerian bank
+        account, paid out by Noblocks at about ₦1 per cNGN. You do both on Textile, from this
+        wallet; Remesso never holds it.
       </p>
-      <a href={TEXTILE_NAIRA_WITHDRAW} target="_blank" rel="noopener noreferrer" className="btn-soft btn-sm mt-2 inline-flex">
-        Withdraw to bank
-      </a>
+      <div className="mt-2 flex flex-wrap gap-2">
+        <a href={TEXTILE_SWAP_TO_CNGN} target="_blank" rel="noopener noreferrer" className="btn-soft btn-sm">
+          Get cNGN
+        </a>
+        <a href={TEXTILE_NAIRA_WITHDRAW} target="_blank" rel="noopener noreferrer" className="btn-soft btn-sm">
+          Withdraw to bank
+        </a>
+      </div>
     </div>
   );
 }
@@ -366,6 +370,7 @@ function EmptyState() {
 
 const CURRENCY_NAME: Record<string, string> = {
   USD: "US dollars",
+  NGN: "Nigerian naira",
   ARS: "Argentine pesos",
   BRL: "Brazilian reais",
   COP: "Colombian pesos",
@@ -396,7 +401,12 @@ function Landing() {
       ? [[
           "More currencies on the web",
           `With a browser wallet like MetaMask you can also send ${listOf(beyondMiniPay.map(describe))}` +
-            (fiat ? ", bought and cashed out at a local bank through Ripio." : "."),
+            (fiat
+              ? `, bought and cashed out at a local bank through ${listOf([
+                  ...(beyondMiniPay.some((t) => ["ARS", "BRL", "COP"].includes(t.currency)) ? ["Ripio"] : []),
+                  ...(beyondMiniPay.some((t) => t.currency === "NGN") ? ["Textile"] : []),
+                ])}.`
+              : "."),
         ] as [string, string]]
       : []),
     ["Stop it any time", "Pause or cancel from your wallet. No calls, no forms."],

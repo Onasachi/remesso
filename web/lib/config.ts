@@ -113,7 +113,11 @@ export const WCOP: TokenInfo = {
 /// recipient receives the same asset, unswapped. The contract's allowlist
 /// decides which a NEW schedule may use (`useAllowedDirectTokens`); this list
 /// is what we can name and format, including for schedules already signed.
-export const DIRECT_TOKENS: TokenInfo[] = [USDT, USDC, CUSD, USAT, WARS, WBRL, WCOP];
+// cNGN last, on the Direct rail: the recipient receives cNGN, nothing is
+// swapped or redeemed, and they cash it out themselves on Textile
+// (lib/textile.ts). Offered for a new schedule only once the contract's
+// allowlist takes it (useAllowedDirectTokens) — the naira RAILS stay off.
+export const DIRECT_TOKENS: TokenInfo[] = [USDT, USDC, CUSD, USAT, WARS, WBRL, WCOP, CNGN];
 
 const BY_ADDRESS: Record<string, TokenInfo> = Object.fromEntries(
   [...DIRECT_TOKENS, CNGN].map((t) => [t.address.toLowerCase(), t]),
