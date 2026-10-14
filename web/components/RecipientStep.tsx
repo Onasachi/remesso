@@ -227,7 +227,11 @@ export function RecipientStep({
                   <Icon name="visibility_off" size={18} className="shrink-0 text-amber" />
                   MiniPay won&rsquo;t show {value.token.symbol}. They need another wallet.
                 </p>
-                <VenueLinks token={value.token} sender={sender} />
+                <VenueLinks
+                  token={value.token}
+                  sender={sender}
+                  recipient={isAddress(value.walletAddress) ? value.walletAddress : undefined}
+                />
               </>
             )}
           </div>
@@ -677,11 +681,15 @@ function Choice({
 /// Where a local currency comes from and where it goes: pesos and reais
 /// through Ripio's hosted ramp, cNGN through Textile. Links only — the person
 /// does it there, and Remesso never sees the bank side of either leg.
-function VenueLinks({ token, sender }: { token: TokenInfo; sender?: string }) {
+///
+/// Each Ripio link carries the wallet it is about: buying lands in the
+/// SENDER's wallet (the one connected here), cashing out leaves from the
+/// RECIPIENT's (the address typed above, once it is a complete one).
+function VenueLinks({ token, sender, recipient }: { token: TokenInfo; sender?: string; recipient?: string }) {
   const ng = token.currency === "NGN";
   const venue = ng ? "Textile" : "Ripio";
   const buy = ng ? TEXTILE_SWAP_TO_CNGN : ripioRampUrl("on", token, { address: sender });
-  const out = ng ? TEXTILE_NAIRA_WITHDRAW : ripioRampUrl("off", token);
+  const out = ng ? TEXTILE_NAIRA_WITHDRAW : ripioRampUrl("off", token, { address: recipient });
   if (!buy || !out) return null;
   const chip =
     "flex min-h-9 items-center gap-1.5 rounded-full border border-line bg-surface px-3 text-[13px] text-ink-2 transition hover:border-ink-3 hover:text-ink";

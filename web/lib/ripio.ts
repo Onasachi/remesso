@@ -34,7 +34,9 @@ export function ripioRampUrl(
   });
   if (opts.amount && Number(opts.amount) > 0) q.set("amount", opts.amount);
   // Ripio validates it as an EVM address; one that is not would only earn the
-  // user an error page, so it is left out instead.
+  // user an error page, so it is left out instead. Read on both sides (their
+  // OpenRamp parser, checked 14 Oct 2026): required to buy — where the tokens
+  // land — and optional to cash out, where it names the wallet they leave.
   if (opts.address && /^0x[0-9a-fA-F]{40}$/.test(opts.address)) q.set("address", opts.address);
   // `/off-ramp`, not the `/offramp` in their note: that 308s to this.
   return `https://ramp.ripio.com/${side === "off" ? "off-ramp" : ""}?${q}`;

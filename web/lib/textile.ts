@@ -22,6 +22,11 @@ export function textileNairaCashOut(token: TokenInfo, amount?: string): string |
   return `https://app.textilecredit.com/s/swap?${q}`;
 }
 
+/// Textile takes no wallet in its links (checked in its app's code, 14 Oct
+/// 2026: the swap and withdraw pages read no address parameter). Both act on
+/// whichever wallet is connected there, so the page beside a Textile link
+/// says which one to connect.
+
 /// Textile's swap into cNGN on Celo, for someone who wants cNGN to send or to
 /// withdraw. USDT is the one dollar token Textile pairs with cNGN on Celo.
 export const TEXTILE_SWAP_TO_CNGN = "https://app.textilecredit.com/s/swap?sell=USDT&buy=cNGN&chainId=42220";

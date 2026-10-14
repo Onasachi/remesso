@@ -14,7 +14,7 @@ import { Icon } from "@/components/Icon";
 import { ripioRampUrl } from "@/lib/ripio";
 import { TEXTILE_NAIRA_WITHDRAW, TEXTILE_SWAP_TO_CNGN } from "@/lib/textile";
 import { ReapproveButton, useApprovalCover } from "@/components/Reapprove";
-import { ActionBar, Amount, MINIPAY_DEPOSIT_URL, Skeleton } from "@/components/ui";
+import { ActionBar, Amount, CopyValue, MINIPAY_DEPOSIT_URL, Skeleton } from "@/components/ui";
 import { CNGN, isConfigured, tokenFor, USDT, type TokenInfo } from "@/lib/config";
 import { flagOf, REGIONS, regionOf, type Region } from "@/lib/regions";
 import { one, type Schedule } from "@/lib/types";
@@ -218,7 +218,9 @@ export default function SchedulesPage() {
 function LocalActions({ token, address }: { token: TokenInfo; address?: string }) {
   const ng = token.symbol === CNGN.symbol;
   const buy = ng ? TEXTILE_SWAP_TO_CNGN : ripioRampUrl("on", token, { address });
-  const out = ng ? TEXTILE_NAIRA_WITHDRAW : ripioRampUrl("off", token);
+  // Ripio takes the wallet in the link, both ways; Textile cannot, so the
+  // caption names the wallet to connect there, with a copy button.
+  const out = ng ? TEXTILE_NAIRA_WITHDRAW : ripioRampUrl("off", token, { address });
   if (!buy || !out) return null;
   return (
     <>
@@ -234,8 +236,17 @@ function LocalActions({ token, address }: { token: TokenInfo; address?: string }
       </div>
       <p className="mt-1.5 flex items-center gap-1 text-[12px] text-ink-3">
         <Icon name="open_in_new" size={14} />
-        {ng ? "Via Textile · about ₦1 per cNGN" : "Via Ripio · your bank details stay with them"}
+        {ng ? "Via Textile · about ₦1 per cNGN" : "Via Ripio · this wallet is filled in for you"}
       </p>
+      {ng && address && (
+        <div className="mt-2 flex items-center justify-between gap-2 rounded-xl bg-sand/70 px-3 py-2 text-[12px] text-ink-2">
+          <span className="flex min-w-0 items-center gap-1.5">
+            <Icon name="account_balance_wallet" size={16} className="shrink-0 text-ink-3" />
+            <span className="truncate">On Textile, connect this same wallet</span>
+          </span>
+          <CopyValue value={address} display={`${address.slice(0, 6)}…${address.slice(-4)}`} />
+        </div>
+      )}
     </>
   );
 }
