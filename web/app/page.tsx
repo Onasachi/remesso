@@ -10,12 +10,13 @@ import { SchedulePill } from "@/components/StatusPill";
 import { IdentityCard } from "@/components/IdentityCard";
 import { PaymentRequests } from "@/components/PaymentRequests";
 import { Notices } from "@/components/Notices";
-import { BuyLocal } from "@/components/BuyLocal";
+import { Icon } from "@/components/Icon";
 import { ripioRampUrl } from "@/lib/ripio";
 import { TEXTILE_NAIRA_WITHDRAW, TEXTILE_SWAP_TO_CNGN } from "@/lib/textile";
 import { ReapproveButton, useApprovalCover } from "@/components/Reapprove";
 import { ActionBar, Amount, MINIPAY_DEPOSIT_URL, Skeleton } from "@/components/ui";
 import { CNGN, isConfigured, tokenFor, USDT, type TokenInfo } from "@/lib/config";
+import { flagOf, REGIONS, regionOf, type Region } from "@/lib/regions";
 import { one, type Schedule } from "@/lib/types";
 
 export default function SchedulesPage() {
@@ -24,6 +25,7 @@ export default function SchedulesPage() {
   // Which asset the balance strip is showing. The total is always the sum;
   // the switcher only changes which per-asset figure and allowance appear.
   const [token, setToken] = useState<TokenInfo>(USDT);
+  const [region, setRegion] = useState<Region>("usd");
   const { balances, totalUsd6 } = useBalances();
   const inMiniPay = useIsMiniPay();
 
@@ -58,73 +60,87 @@ export default function SchedulesPage() {
               </p>
             )}
           </div>
-          {inMiniPay ? (
+          {inMiniPay && (
             <a href={MINIPAY_DEPOSIT_URL} className="btn-soft btn-sm">
               Add money
             </a>
-          ) : token.symbol === CNGN.symbol ? (
-            <a href={TEXTILE_NAIRA_WITHDRAW} target="_blank" rel="noopener noreferrer" className="btn-soft btn-sm">
-              Withdraw to bank
-            </a>
-          ) : (
-            // A peso or real tile selected: buying it is one tap from its
-            // balance, the same place MiniPay's "Add money" sits.
-            ripioRampUrl("on", token, { address }) && (
-              <a href={ripioRampUrl("on", token, { address })!} target="_blank" rel="noopener noreferrer" className="btn-soft btn-sm">
-                Buy {token.symbol}
-              </a>
-            )
           )}
         </div>
 
-        {/* One row per asset the sender can fund with. Tapping one changes
-            which allowance is quoted below; the total above never changes.
-            Every asset shows, held or not: a sender deciding whether to try
-            pesos or USA₮ has to see they are on offer before holding any.
-            Inside MiniPay only its own four (USDT, USDC, USDm, USA₮) — its rules
-            forbid offering any other token there.
-            Seven tiles do not fit a phone, so the row scrolls sideways
-            inside itself rather than widening the page. */}
-        <div
-          className="-mx-1 mt-4 flex gap-2 overflow-x-auto px-1 pb-1 [scrollbar-width:none]"
-          role="tablist"
-          aria-label="Asset"
-        >
-          {balances
-            .filter(({ token: t }) => !inMiniPay || t.miniPayVisible)
-            .map(({ token: t, balance }) => {
-            const on = t.symbol === token.symbol;
-            return (
+        {/* Assets in three groups — Dollars, LatAm, Nigeria — one group on
+            screen at a time, so eight tiles never crowd a 360px phone. Every
+            asset shows, held or not: a sender deciding whether to try pesos
+            has to see they are on offer before holding any. Inside MiniPay
+            there are no tabs and only its own four dollars: its rules forbid
+            offering any other token there. Tapping a tile changes which
+            allowance and actions show below; the total never changes. */}
+        {!inMiniPay && (
+          <div className="seg mt-4 grid-cols-3" role="tablist" aria-label="Currency group">
+            {REGIONS.map((r) => (
               <button
-                key={t.symbol}
+                key={r.key}
                 type="button"
                 role="tab"
-                aria-selected={on}
-                onClick={() => setToken(t)}
-                className={`tile min-h-0 min-w-[5.5rem] flex-1 shrink-0 px-3 py-2.5 ${on ? "tile-on" : ""}`}
+                aria-selected={region === r.key}
+                onClick={() => {
+                  setRegion(r.key);
+                  const first = balances.find((b) => regionOf(b.token) === r.key);
+                  if (first) setToken(first.token);
+                }}
+                className={`seg-item ${region === r.key ? "seg-on" : ""}`}
               >
-                <span className={`block text-[12px] font-medium ${on ? "text-clay-deep" : "text-ink-3"}`}>
-                  {t.symbol}
-                </span>
-                {balance === undefined ? (
-                  <Skeleton className="mt-1 h-4 w-12" />
-                ) : (
-                  <span className="block text-[15px] font-medium text-ink">
-                    {formatUnits(balance, t.decimals)}
-                  </span>
-                )}
+                {r.icon && <Icon name={r.icon} size={18} />}
+                {r.flags && <span className="tracking-[-1px]">{r.flags}</span>}
+                <span>{r.label}</span>
               </button>
-            );
-          })}
-        </div>
+            ))}
+          </div>
+        )}
+        {(() => {
+          const shown = balances.filter(({ token: t }) =>
+            inMiniPay ? t.miniPayVisible : regionOf(t) === region,
+          );
+          return (
+            <div
+              className={`mt-2.5 grid gap-2 ${shown.length >= 4 ? "grid-cols-4" : "grid-cols-3"}`}
+              role="tablist"
+              aria-label="Asset"
+            >
+              {shown.map(({ token: t, balance }) => {
+                const on = t.symbol === token.symbol;
+                return (
+                  <button
+                    key={t.symbol}
+                    type="button"
+                    role="tab"
+                    aria-selected={on}
+                    onClick={() => setToken(t)}
+                    className={`tile min-w-0 px-3 py-2.5 ${on ? "tile-on" : ""}`}
+                  >
+                    <span className={`flex items-center gap-1 text-[12px] font-medium ${on ? "text-clay-deep" : "text-ink-3"}`}>
+                      {flagOf(t) && <span>{flagOf(t)}</span>}
+                      <span className="truncate">{t.symbol}</span>
+                    </span>
+                    {balance === undefined ? (
+                      <Skeleton className="mt-1 h-4 w-12" />
+                    ) : (
+                      <span className="block truncate text-[15px] font-medium text-ink">
+                        {formatUnits(balance, t.decimals)}
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          );
+        })()}
       </section>
 
       <ApprovalStrip token={token} />
-      {token.symbol === CNGN.symbol && <CngnActions />}
-
-      {/* Before the schedules: a sender who holds no pesos gets them here,
-          not halfway through the send form. */}
-      <BuyLocal />
+      {/* Getting the selected local currency in and out — a sender who holds
+          no pesos or cNGN gets them here, not halfway through the send form.
+          Links only; never inside MiniPay, which shows none of these. */}
+      {!inMiniPay && <LocalActions token={token} address={address} />}
 
       <IdentityCard />
 
@@ -163,6 +179,7 @@ export default function SchedulesPage() {
                   <Skeleton className="h-4 w-1/2" />
                   <Skeleton className="h-3 w-3/4" />
                 </div>
+                <Skeleton className="h-6 w-14 rounded-full" />
               </li>
             ))}
           </ul>
@@ -179,6 +196,7 @@ export default function SchedulesPage() {
 
       <ActionBar>
         <Link href="/schedules/new" className="btn-primary flex-1">
+          <Icon name="add" />
           {hasSchedules ? "New schedule" : "Set up your first schedule"}
         </Link>
       </ActionBar>
@@ -194,26 +212,31 @@ export default function SchedulesPage() {
 ///   unused   nothing draws on this asset and nothing is approved — one quiet line
 ///   covered  the ceiling, under a disclosure: a returning sender came to
 ///            check on a payment, not to re-read the security model
-/// Under the balance when cNGN is selected: how to get it, and how to turn it
-/// into naira in a bank. Both on Textile, from this wallet — links only.
-function CngnActions() {
+/// Under the tiles when a local currency is selected: buy it and cash it out.
+/// Pesos and reais through Ripio's hosted ramp, cNGN through Textile — both
+/// links, done there from this wallet; Remesso never sees the bank side.
+function LocalActions({ token, address }: { token: TokenInfo; address?: string }) {
+  const ng = token.symbol === CNGN.symbol;
+  const buy = ng ? TEXTILE_SWAP_TO_CNGN : ripioRampUrl("on", token, { address });
+  const out = ng ? TEXTILE_NAIRA_WITHDRAW : ripioRampUrl("off", token);
+  if (!buy || !out) return null;
   return (
-    <div className="notice-info mt-3">
-      <p className="font-medium text-ink">cNGN — the naira on Celo</p>
-      <p className="mt-0.5">
-        Get cNGN by swapping USDT on Textile. Withdraw NGN there sends cNGN to a Nigerian bank
-        account, paid out by Noblocks at about ₦1 per cNGN. You do both on Textile, from this
-        wallet; Remesso never holds it.
-      </p>
-      <div className="mt-2 flex flex-wrap gap-2">
-        <a href={TEXTILE_SWAP_TO_CNGN} target="_blank" rel="noopener noreferrer" className="btn-soft btn-sm">
-          Get cNGN
+    <>
+      <div className="mt-2 flex items-center gap-2">
+        <a href={buy} target="_blank" rel="noopener noreferrer" className="well-btn">
+          <Icon name={ng ? "swap_horiz" : "add"} size={18} />
+          {ng ? "Get cNGN" : `Buy ${token.symbol}`}
         </a>
-        <a href={TEXTILE_NAIRA_WITHDRAW} target="_blank" rel="noopener noreferrer" className="btn-soft btn-sm">
-          Withdraw to bank
+        <a href={out} target="_blank" rel="noopener noreferrer" className="well-btn">
+          <Icon name="account_balance" size={18} />
+          {ng ? "Withdraw" : "Cash out"}
         </a>
       </div>
-    </div>
+      <p className="mt-1.5 flex items-center gap-1 text-[12px] text-ink-3">
+        <Icon name="open_in_new" size={14} />
+        {ng ? "Via Textile · about ₦1 per cNGN" : "Via Ripio · your bank details stay with them"}
+      </p>
+    </>
   );
 }
 
@@ -255,8 +278,9 @@ function ApprovalStrip({ token }: { token: TokenInfo }) {
 
   if (allowance === 0n && !n) {
     return (
-      <p className="mt-3 flex min-h-11 items-center rounded-xl bg-sand/70 px-4 text-[13px] text-ink-2">
-        No schedules are paid in {token.symbol}.
+      <p className="mt-3 flex min-h-10 items-center gap-2 rounded-xl bg-sand/70 px-3 text-[13px] text-ink-2">
+        <Icon name="event_busy" size={18} className="text-ink-3" />
+        No schedules paid in {token.symbol}
       </p>
     );
   }
@@ -342,43 +366,25 @@ function Initial({ name, muted }: { name: string; muted?: boolean }) {
 
 function EmptyState() {
   return (
-    <div className="rounded-2xl border border-dashed border-line px-5 py-8">
-      <p className="font-display text-[22px] leading-tight text-ink">
-        Nothing set up yet.
-      </p>
-      <p className="mt-2 text-[14px] leading-relaxed text-ink-2">
-        A schedule is one decision you make once: who, how much, how often. After you
-        sign it, it runs by itself — and it can only ever do what you signed.
-      </p>
-      <ol className="mt-5 space-y-2.5 text-[14px] text-ink">
+    <div className="rounded-[20px] border border-dashed border-line px-5 py-6">
+      <p className="font-display text-[22px] leading-tight text-ink">Nothing set up yet.</p>
+      <p className="mt-1.5 text-[14px] text-ink-2">Set it once. It only does what you signed.</p>
+      <ol className="mt-5 grid grid-cols-3 gap-2">
         {[
-          "Pick the person and how they get paid",
-          "Set the amount and the rhythm",
-          "Sign once in your wallet",
-        ].map((step, i) => (
-          <li key={step} className="flex items-center gap-3">
-            <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-sand text-[12px] font-semibold text-ink-2">
-              {i + 1}
+          ["person_add", "Pick who"],
+          ["event_repeat", "Amount & rhythm"],
+          ["draw", "Sign once"],
+        ].map(([icon, label]) => (
+          <li key={label} className="flex flex-col items-center gap-2 text-center text-[13px] text-ink">
+            <span className="disc h-10 w-10">
+              <Icon name={icon} />
             </span>
-            {step}
+            {label}
           </li>
         ))}
       </ol>
     </div>
   );
-}
-
-const CURRENCY_NAME: Record<string, string> = {
-  USD: "US dollars",
-  NGN: "Nigerian naira",
-  ARS: "Argentine pesos",
-  BRL: "Brazilian reais",
-  COP: "Colombian pesos",
-};
-
-/// "a, b and c".
-function listOf(items: string[]): string {
-  return items.length < 2 ? items.join("") : `${items.slice(0, -1).join(", ")} and ${items.at(-1)}`;
 }
 
 /// Seen only outside MiniPay, or for the moment before MiniPay auto-connects.
@@ -387,30 +393,12 @@ function Landing() {
   const { connect, connectors, isPending } = useConnect();
   const injected = connectors.find((c) => c.id === "injected");
 
-  // What a browser wallet can send beyond MiniPay's three, read from the
-  // contract's allowlist like the send form — so this line can never promise
-  // a currency the contract would refuse, and USA₮ appears here the day it
-  // is allowed without anyone editing copy.
-  const beyondMiniPay = useAllowedDirectTokens().filter((t) => !t.miniPayVisible);
-  const describe = (t: TokenInfo) => `${t.symbol} (${CURRENCY_NAME[t.currency] ?? t.currency})`;
-  const fiat = beyondMiniPay.some((t) => t.currency !== "USD");
-  const features: Array<[string, string]> = [
-    ["You stay in control", "Nothing moves outside the amount, rhythm and person you signed."],
-    ["They see it in MiniPay", "Paid in USDT, USDC, USDm or USA₮ — the balances MiniPay actually shows."],
-    ...(beyondMiniPay.length
-      ? [[
-          "More currencies on the web",
-          `With a browser wallet like MetaMask you can also send ${listOf(beyondMiniPay.map(describe))}` +
-            (fiat
-              ? `, bought and cashed out at a local bank through ${listOf([
-                  ...(beyondMiniPay.some((t) => ["ARS", "BRL", "COP"].includes(t.currency)) ? ["Ripio"] : []),
-                  ...(beyondMiniPay.some((t) => t.currency === "NGN") ? ["Textile"] : []),
-                ])}.`
-              : "."),
-        ] as [string, string]]
-      : []),
-    ["Stop it any time", "Pause or cancel from your wallet. No calls, no forms."],
-  ];
+  // Both lists are read from the contract's allowlist like the send form, so
+  // neither can promise a currency the contract would refuse — and a token
+  // appears here the day it is allowed, without anyone editing copy.
+  const allowed = useAllowedDirectTokens();
+  const inMiniPay = allowed.filter((t) => t.miniPayVisible);
+  const local = allowed.filter((t) => !t.miniPayVisible);
 
   return (
     <div className="stagger mt-6">
@@ -419,21 +407,26 @@ function Landing() {
         <br />
         <span className="text-clay">on a schedule.</span>
       </h1>
-      <p className="mt-5 max-w-sm text-[16px] leading-relaxed text-ink-2">
-        Decide once who gets what and how often. Sign it in your wallet, and it runs on its
-        own — every week or every month, without you remembering.
+      <p className="mt-4 max-w-sm text-[16px] leading-relaxed text-ink-2">
+        Set it once in your wallet. It runs every week or month on its own.
       </p>
 
-      <ul className="mt-8 divide-y divide-line/70 border-y border-line/70">
-        {features.map(([title, body]) => (
-          <li key={title} className="py-4">
-            <p className="text-[15px] font-medium text-ink">{title}</p>
-            <p className="mt-0.5 text-[14px] leading-relaxed text-ink-2">{body}</p>
-          </li>
-        ))}
-      </ul>
+      <div className="mt-7 grid grid-cols-2 gap-2">
+        <Feature icon="shield_lock" title="You stay in control" body="Only what you signed moves." />
+        <Feature icon="pause_circle" title="Stop any time" body="Pause or cancel. No forms." />
+      </div>
 
-      <div className="mt-8">
+      <div className="mt-2 rounded-2xl border border-line/70 bg-surface">
+        <TokenRow icon="smartphone" tone="naira" title="Shows in MiniPay" tokens={inMiniPay} />
+        {local.length > 0 && (
+          <>
+            <div className="mx-3.5 h-px bg-line/70" />
+            <TokenRow icon="language" tone="clay" title="Local currencies on the web" tokens={local} />
+          </>
+        )}
+      </div>
+
+      <div className="mt-6">
         {/* No button until we know this is not MiniPay — see ConnectBar. */}
         {miniPay !== false ? (
           <p className="text-[14px] text-ink-3">Connecting to your wallet…</p>
@@ -443,9 +436,55 @@ function Landing() {
             disabled={!injected || isPending}
             onClick={() => injected && connect({ connector: injected })}
           >
+            <Icon name="account_balance_wallet" />
             {isPending ? "Connecting…" : injected ? "Connect wallet to begin" : "Open in MiniPay"}
           </button>
         )}
+      </div>
+    </div>
+  );
+}
+
+function Feature({ icon, title, body }: { icon: string; title: string; body: string }) {
+  return (
+    <div className="flex flex-col gap-2.5 rounded-2xl border border-line/70 bg-surface p-3.5">
+      <span className="disc h-9 w-9">
+        <Icon name={icon} />
+      </span>
+      <div>
+        <p className="text-[14px] font-medium text-ink">{title}</p>
+        <p className="mt-0.5 text-[12px] leading-snug text-ink-2">{body}</p>
+      </div>
+    </div>
+  );
+}
+
+function TokenRow({
+  icon,
+  tone,
+  title,
+  tokens,
+}: {
+  icon: string;
+  tone: "naira" | "clay";
+  title: string;
+  tokens: TokenInfo[];
+}) {
+  return (
+    <div className="flex items-center gap-3 p-3.5">
+      <span className={`disc h-9 w-9 ${tone === "naira" ? "bg-naira-soft text-naira" : ""}`}>
+        <Icon name={icon} />
+      </span>
+      <div className="min-w-0 flex-1">
+        <p className="text-[14px] font-medium text-ink">{title}</p>
+        <div className="mt-1.5 flex flex-wrap gap-1">
+          {tokens.map((t) => (
+            <span key={t.symbol} className="flex items-center gap-1 rounded-full bg-sand px-2 py-0.5 text-[12px] font-medium text-ink-2">
+              {flagOf(t) && <span>{flagOf(t)}</span>}
+              {t.symbol}
+            </span>
+          ))}
+        </div>
       </div>
     </div>
   );

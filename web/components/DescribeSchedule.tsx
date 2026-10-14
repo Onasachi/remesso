@@ -5,6 +5,7 @@ import { parseSchedule, type Draft } from "@/lib/ai";
 import { CNGN_RAILS_ENABLED, DIRECT_TOKENS } from "@/lib/config";
 import { TEST_INTERVALS_ENABLED } from "@/lib/format";
 import { findPhone } from "@/lib/phone";
+import { Icon } from "./Icon";
 
 /// Type the remittance in a sentence; the assistant fills the form in.
 ///
@@ -32,16 +33,17 @@ const COUNT_WORDS = [
 ];
 
 /// Shown before anything is typed, to teach the shape of a sentence that works.
+/// The chip says it short; a tap puts the whole sentence in the box.
 const STARTERS = [
-  "Send 5 USDT to 0x… every week for 8 transfers",
-  "Send 20 USDC to 0x… every month",
+  { icon: "view_week", label: "5 USDT · weekly · 8×", text: "Send 5 USDT to 0x… every week for 8 transfers" },
+  { icon: "calendar_month", label: "20 USDC · monthly", text: "Send 20 USDC to 0x… every month" },
 ];
 
 /// Inside MiniPay a recipient is a phone number — addresses are neither typed
 /// nor shown there — so the examples teach that shape instead.
 const PHONE_STARTERS = [
-  "Send 5 USDT to +234 803 123 4567 every week for 8 transfers",
-  "Send 20 USDC to +234 803 123 4567 every month",
+  { icon: "view_week", label: "5 USDT · weekly · 8×", text: "Send 5 USDT to +234 803 123 4567 every week for 8 transfers" },
+  { icon: "calendar_month", label: "20 USDC · monthly", text: "Send 20 USDC to +234 803 123 4567 every month" },
 ];
 
 export function DescribeSchedule({
@@ -61,6 +63,7 @@ export function DescribeSchedule({
   const [missing, setMissing] = useState<string[]>([]);
   const [unsure, setUnsure] = useState<string[]>([]);
   const [openEnded, setOpenEnded] = useState(false);
+  const [filled, setFilled] = useState(false);
 
   /// Append a phrase the parser understands and read the sentence again, so the
   /// sender never has to learn the wording.
@@ -79,6 +82,7 @@ export function DescribeSchedule({
     setMissing([]);
     setUnsure([]);
     setOpenEnded(false);
+    setFilled(false);
     try {
       // The number is cut out before the sentence leaves the browser: the
       // model needs to know a recipient was named, not who. It also keeps
@@ -97,6 +101,7 @@ export function DescribeSchedule({
       // simply did not say should be shown that the choice exists, rather than
       // discovering later that it renews indefinitely.
       setOpenEnded(r.missing.length === 0 && r.draft.maxRuns === null);
+      setFilled(true);
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -109,52 +114,73 @@ export function DescribeSchedule({
     : unsure.filter((u) => u !== "payout to a bank account");
 
   return (
-    <div className="mb-7 rounded-2xl bg-sand/70 p-4">
-      <label className="label" htmlFor="describe">
-        Or just say it
-      </label>
-      <textarea
-        id="describe"
-        className="field min-h-[76px] resize-none"
-        value={text}
-        placeholder={
-          phoneMode
-            ? "Send 20 USDT to +234 803 123 4567 every month for 6 months"
-            : "Send 20 USDT to 0x… every month for 6 months"
-        }
-        onChange={(e) => setText(e.target.value)}
-        onKeyDown={(e) => {
-          if (e.key === "Enter" && !e.shiftKey) {
-            e.preventDefault();
-            run();
-          }
-        }}
-      />
-      {!text.trim() ? (
-        <div className="mt-2.5 flex flex-wrap gap-2">
+    <div className="mb-6 rounded-[20px] bg-sand/70 p-3">
+      <div className="flex items-center gap-2.5 rounded-xl border border-line bg-surface py-1.5 pl-3 pr-1.5 transition focus-within:border-clay focus-within:ring-4 focus-within:ring-clay/15">
+        <Icon name="auto_awesome" className="text-clay" />
+        <label htmlFor="describe" className="sr-only">
+          Or just say it
+        </label>
+        <input
+          id="describe"
+          className="min-w-0 flex-1 bg-transparent py-2 text-[14px] text-ink outline-none placeholder:text-ink-3"
+          value={text}
+          placeholder="Or just say it…"
+          autoComplete="off"
+          onChange={(e) => {
+            setText(e.target.value);
+            setFilled(false);
+          }}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              e.preventDefault();
+              run();
+            }
+          }}
+        />
+        <button
+          type="button"
+          aria-label="Fill in the form"
+          disabled={busy || !text.trim()}
+          onClick={() => run()}
+          className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-[10px] text-paper transition ${
+            text.trim() ? "bg-ink hover:bg-ink/90" : "bg-line"
+          }`}
+        >
+          {busy ? (
+            <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-paper/30 border-t-paper" aria-hidden />
+          ) : (
+            <Icon name="arrow_upward" />
+          )}
+        </button>
+      </div>
+
+      {!text.trim() && (
+        <div className="mt-2 flex flex-wrap gap-1.5">
           {(phoneMode ? PHONE_STARTERS : STARTERS).map((example) => (
             <button
-              key={example}
+              key={example.label}
               type="button"
-              className="chip h-auto py-1.5 text-left leading-snug"
-              onClick={() => setText(example)}
+              className="flex min-h-8 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border border-line bg-surface px-3 text-[12px] text-ink-2 transition hover:border-ink-3 hover:text-ink"
+              onClick={() => setText(example.text)}
             >
-              {example}
+              <Icon name={example.icon} size={14} />
+              {example.label}
             </button>
           ))}
         </div>
-      ) : (
-        <button
-          type="button"
-          className="btn-ink mt-2.5 w-full"
-          disabled={busy}
-          onClick={() => run()}
-        >
-          {busy ? "Reading…" : "Fill in the form"}
-        </button>
       )}
 
-      {note && <p className="mt-3 text-[13px] leading-relaxed text-ink-2">{note}</p>}
+      {busy && (
+        <p className="mx-1 mt-2.5 animate-pulse2 text-[12px] text-clay-deep">Reading your sentence…</p>
+      )}
+      {filled && !busy && !error && (
+        <p className="mx-1 mt-2.5 flex items-center gap-1.5 text-[12px] text-naira">
+          <Icon name="check_circle" size={15} fill />
+          Filled in below. Check it, then continue.
+        </p>
+      )}
+
+      {note && <p className="mx-1 mt-2 text-[13px] leading-relaxed text-ink-2">{note}</p>}
 
       {/* Read one way by the parser, plausibly another way by a reader. Saying
           so is the point: the form below is already filled in, and a sender
@@ -217,8 +243,9 @@ export function DescribeSchedule({
 
       {error && <p className="notice-danger mt-3">{error}</p>}
 
-      <p className="mt-3 text-[12px] text-ink-3">
-        This only fills in the form. You check every detail and sign it yourself.
+      <p className="mx-1 mt-2 flex items-center gap-1.5 text-[12px] text-ink-3">
+        <Icon name="edit_note" size={14} />
+        Only fills the form. You sign.
       </p>
     </div>
   );

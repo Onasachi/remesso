@@ -684,6 +684,17 @@ every sender re-authorising, so it is a deliberate decision, not a default.
 
 ## Conventions
 
+**Icons are a self-hosted subset of Material Symbols Rounded**
+(`web/public/fonts/material-symbols-rounded.woff2`, about 43 KB, through
+`components/Icon.tsx`). It holds only the glyphs the app uses. A name missing
+from the subset renders as its letters ("arrow_back"). To add one, re-fetch the
+subset with the full list:
+`https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@20..48,300..500,0..1,0&icon_names=<comma list>`
+(send a browser User-Agent to get woff2), then save the woff2 it points to over
+the file. Tokens are grouped for people by `lib/regions.ts` (Dollars, LatAm,
+Nigeria), derived from `currency`. The design lives in Claude Design project
+`933d153d-0c34-44ad-864c-f7b9842415a5` ("Remesso Minimal").
+
 Comments explain *why*, especially where the code looks odd — those are usually
 load-bearing. Match the density already there; don't strip it.
 

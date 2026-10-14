@@ -5,6 +5,7 @@ import { riskCheck, type RiskState } from "@/lib/ai";
 import { tokenFor } from "@/lib/config";
 import { useSchedules } from "@/lib/hooks";
 import { one } from "@/lib/types";
+import { Icon } from "./Icon";
 
 /// A line above the signature when a draft is unlike anything this sender has
 /// done before.
@@ -74,24 +75,30 @@ export function UnusualCheck({
   // Said as facts the sender can check, not as a verdict they cannot argue
   // with. The model chose to speak; the reasons are ours.
   const reasons = [
-    !state.recipient_paid_before ? "you haven’t paid this person before" : null,
+    !state.recipient_paid_before ? { icon: "person_add", text: "New person" } : null,
     previous.length && state.amount_usd > Math.max(...previous)
-      ? "it’s more per transfer than any schedule you’ve set up"
+      ? { icon: "payments", text: "Your largest yet" }
       : null,
-    state.first_transfer_immediate ? "the first transfer leaves straight away" : null,
-  ].filter(Boolean);
+    state.first_transfer_immediate ? { icon: "bolt", text: "Leaves right away" } : null,
+  ].filter((r): r is { icon: string; text: string } => r !== null);
 
   return (
-    <div className="notice-warn mt-3">
-      <p className="font-medium">This one is different from your usual</p>
-      {reasons.length > 0 && (
-        <ul className="mt-1 list-disc space-y-0.5 pl-5">
-          {reasons.map((r) => <li key={r as string}>{r}</li>)}
-        </ul>
-      )}
-      <p className="mt-1.5">
-        Nothing is wrong — check the person and the amount, then carry on.
+    <div className="mt-3 rounded-xl bg-amber-soft px-3.5 py-3">
+      <p className="flex items-center gap-1.5 text-[13px] font-medium text-ink">
+        <Icon name="info" size={18} className="text-amber" />
+        Different from your usual
       </p>
+      {reasons.length > 0 && (
+        <div className="mt-2 flex flex-wrap gap-1.5">
+          {reasons.map((r) => (
+            <span key={r.text} className="flex items-center gap-1 rounded-full bg-surface/70 px-2.5 py-1 text-[12px] text-ink">
+              <Icon name={r.icon} size={14} />
+              {r.text}
+            </span>
+          ))}
+        </div>
+      )}
+      <p className="mt-2 text-[12px] text-ink-2">Nothing is wrong. Check the person and amount.</p>
     </div>
   );
 }

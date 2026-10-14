@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { ConnectBar } from "./ConnectBar";
+import { Icon } from "./Icon";
 
 /// The header is contextual rather than a tab bar. There are only two places to
 /// be — the list and one schedule — so on the list it is the wordmark, and
@@ -28,7 +29,7 @@ export function AppHeader() {
             className="-ml-2 flex min-h-11 items-center gap-1 rounded-xl pl-2 pr-3 text-[15px] font-medium text-ink transition hover:bg-sand active:scale-[0.98]"
             aria-label="Back"
           >
-            <Chevron />
+            <Icon name="chevron_left" size={22} />
             <span>{title}</span>
           </button>
         ) : (
@@ -41,19 +42,5 @@ export function AppHeader() {
         <ConnectBar compact={Boolean(title)} />
       </div>
     </header>
-  );
-}
-
-function Chevron() {
-  return (
-    <svg width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden>
-      <path
-        d="M12.5 4.5 7 10l5.5 5.5"
-        stroke="currentColor"
-        strokeWidth="1.8"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
   );
 }

@@ -5,6 +5,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useIdentity, useIsMiniPay, useSenderId } from "@/lib/hooks";
 import { startIdentityCheck, type IdentityStanding } from "@/lib/api";
 import { Pill } from "./StatusPill";
+import { Icon } from "./Icon";
 
 /// Optional identity check through Self. Blocks nothing: a sender who never
 /// verifies can do everything a verified one can. So it sits quietly on the
@@ -55,6 +56,32 @@ export function IdentityCard() {
   }
 
   const failed = latest && latest.status !== "pending";
+
+  // Never tried: one quiet row. Anything with a story to tell (a failure, a
+  // duplicate passport) keeps the full card below.
+  if (!latest) {
+    return (
+      <div className="mt-3 flex items-center gap-3 rounded-xl bg-sand py-2.5 pl-3 pr-2.5">
+        <span className="disc h-9 w-9 bg-surface">
+          <Icon name="verified_user" />
+        </span>
+        <div className="min-w-0 flex-1">
+          <p className="text-[14px] font-medium text-ink">Verify identity</p>
+          <p className="mt-px text-[12px] text-ink-2">Optional · passport stays on your phone</p>
+          {start.error && <p className="mt-1 text-[12px] text-danger">{start.error.message}</p>}
+        </div>
+        <button
+          type="button"
+          className="min-h-9 rounded-xl bg-surface px-3.5 text-sm font-semibold text-ink transition hover:bg-line/60 disabled:opacity-40"
+          disabled={start.isPending}
+          onClick={() => start.mutate()}
+        >
+          {start.isPending ? "…" : "Self"}
+        </button>
+      </div>
+    );
+  }
+
   return (
     <div className={`${latest?.status === "duplicate" ? "notice-warn" : "notice-info"} mt-3`}>
       <p className="font-medium text-ink">

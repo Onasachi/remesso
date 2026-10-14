@@ -42,6 +42,7 @@ import {
   type TermsDraft,
 } from "@/components/TermsStep";
 import { ActionBar, Amount, MINIPAY_DEPOSIT_URL, Row } from "@/components/ui";
+import { Icon } from "@/components/Icon";
 import { useIsMiniPay } from "@/lib/hooks";
 import { runsToCover } from "@/lib/allowance";
 import { isEmptyPayLink, parsePayLink, type PayLink } from "@/lib/payLink";
@@ -110,7 +111,7 @@ export default function NewSchedulePage() {
   const blocker =
     step === 0
       ? !recipient.displayName.trim()
-        ? "Give them a name to continue"
+        ? "Add a name to continue"
         : recipient.payoutType !== "ngn_bank" && !isAddress(recipient.walletAddress)
           ? inMiniPay
             ? "Find their MiniPay number to continue"
@@ -153,11 +154,12 @@ export default function NewSchedulePage() {
     }));
   }, []);
 
-  // The phase list and any error render at the foot of the page, under the
-  // action bar on a short screen. Bring them into view so a wallet prompt or
-  // a rejection is never something the sender has to scroll to discover.
+  // While signing, the progress replaces the review and starts at the top;
+  // an error still renders at the foot, under the action bar on a short
+  // screen, so bring it into view rather than leave it to be scrolled to.
   useEffect(() => {
-    if (busy || error) window.scrollTo({ top: document.body.scrollHeight, behavior: "smooth" });
+    if (busy) window.scrollTo({ top: 0, behavior: "smooth" });
+    else if (error) window.scrollTo({ top: document.body.scrollHeight, behavior: "smooth" });
   }, [busy, error]);
 
   if (!isConfigured()) {
@@ -362,6 +364,16 @@ export default function NewSchedulePage() {
     <div className="pb-bar">
       <Progress step={step} />
 
+      {busy ? (
+        <Signing
+          name={recipient.displayName}
+          amount={amountIn ? formatUnits(amountIn, fundingToken.decimals) : "—"}
+          symbol={fundingToken.symbol}
+          every={everyLabel(terms.intervalSeconds)}
+          phase={phase}
+          needsApproval={needsApproval}
+        />
+      ) : (
       <div key={step} className="animate-rise mt-6">
         {step === 0 && (
           <>
@@ -403,32 +415,6 @@ export default function NewSchedulePage() {
         )}
       </div>
 
-      {busy && (
-        <ol className="notice-info mt-4 space-y-2" aria-live="polite">
-          {PHASES.map((p, i) => {
-            // The approval phase only exists when one is needed; hide it
-            // rather than show a step that will be skipped.
-            if (p.key === "Approve" && !needsApproval) return null;
-            const state = i < phase ? "done" : i === phase ? "now" : "later";
-            return (
-              <li key={p.key} className={`flex items-center gap-2.5 ${state === "later" ? "text-ink-3" : "text-ink"}`}>
-                <span
-                  className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[11px] ${
-                    state === "done"
-                      ? "bg-naira text-surface"
-                      : state === "now"
-                        ? "bg-clay text-surface animate-pulse2"
-                        : "border border-line"
-                  }`}
-                  aria-hidden
-                >
-                  {state === "done" ? "✓" : ""}
-                </span>
-                {p.label}
-              </li>
-            );
-          })}
-        </ol>
       )}
 
       {error && (
@@ -437,15 +423,29 @@ export default function NewSchedulePage() {
         </div>
       )}
 
-      <ActionBar note={!busy && blocker ? blocker : undefined}>
+      <ActionBar
+        note={
+          !busy && blocker ? (
+            <span className="inline-flex items-center gap-1.5">
+              <Icon name={blockerIcon(blocker)} size={16} />
+              {blocker}
+            </span>
+          ) : undefined
+        }
+      >
         {step > 0 && (
-          <button className="btn-ghost px-4" disabled={Boolean(busy)} onClick={() => setStep(step - 1)} aria-label="Back">
-            Back
+          <button
+            className="btn-ghost w-12 shrink-0 rounded-full px-0"
+            disabled={Boolean(busy)}
+            onClick={() => setStep(step - 1)}
+            aria-label="Back"
+          >
+            <Icon name="arrow_back" />
           </button>
         )}
         {step < 2 ? (
           <button
-            className="btn-primary flex-1"
+            className="btn-primary flex-1 rounded-[20px]"
             disabled={!canContinue}
             onClick={() => {
               setStep(step + 1);
@@ -453,10 +453,21 @@ export default function NewSchedulePage() {
             }}
           >
             Continue
+            <Icon name="arrow_forward" />
           </button>
         ) : (
-          <button className="btn-primary flex-1" disabled={Boolean(busy)} onClick={authorise}>
-            {busy ? "Working…" : needsApproval ? "Allow & authorise" : "Authorise"}
+          <button className="btn-primary flex-1 rounded-[20px]" disabled={Boolean(busy)} onClick={authorise}>
+            {busy ? (
+              <>
+                <span className="h-4 w-4 animate-spin rounded-full border-2 border-surface/30 border-t-surface" aria-hidden />
+                {phase === 1 || phase === 2 ? "Waiting for your wallet…" : "Working…"}
+              </>
+            ) : (
+              <>
+                <Icon name="draw" />
+                {needsApproval ? "Allow & authorise" : "Authorise"}
+              </>
+            )}
           </button>
         )}
       </ActionBar>
@@ -464,8 +475,9 @@ export default function NewSchedulePage() {
   );
 }
 
-/// Three thin segments and a sentence. It reads at a glance on a 360px screen,
-/// where a row of labelled pills wraps.
+/// Three thin segments, the step's name with its icon, and "1 of 3". It reads
+/// at a glance on a 360px screen, where a row of labelled pills wraps.
+const STEP_ICONS = ["person", "payments", "fact_check"];
 function Progress({ step }: { step: number }) {
   return (
     <div className="mt-1">
@@ -479,13 +491,162 @@ function Progress({ step }: { step: number }) {
           />
         ))}
       </div>
-      <p className="mt-2.5 text-[13px] text-ink-2">
-        Step {step + 1} of {STEPS.length}
-        <span className="text-ink-3"> · </span>
-        <span className="font-medium text-ink">{STEPS[step]}</span>
+      <p className="mt-2.5 flex items-center justify-between text-[13px] text-ink-3">
+        <span className="flex items-center gap-1.5 font-medium text-ink">
+          <Icon name={STEP_ICONS[step]} size={17} className="text-clay-deep" />
+          {STEPS[step]}
+        </span>
+        <span>
+          {step + 1} of {STEPS.length}
+        </span>
       </p>
     </div>
   );
+}
+
+/// While `authorise` runs: what is being set up, and where it has got to.
+/// Replaces the review so the screen holds one thing — the wallet is about to
+/// ask for a signature, and the sender should know which one and why.
+const PHASE_ICONS: Record<string, { icon: string; hint: string; hintIcon: string }> = {
+  Preparing: { icon: "cloud_upload", hint: "A moment", hintIcon: "schedule" },
+  Approve: { icon: "account_balance_wallet", hint: "Check your wallet", hintIcon: "open_in_new" },
+  Sign: { icon: "draw", hint: "Check your wallet", hintIcon: "open_in_new" },
+  Confirming: { icon: "language", hint: "Usually a few seconds", hintIcon: "schedule" },
+};
+function Signing({
+  name,
+  amount,
+  symbol,
+  every,
+  phase,
+  needsApproval,
+}: {
+  name: string;
+  amount: string;
+  symbol: string;
+  every: string;
+  phase: number;
+  needsApproval: boolean;
+}) {
+  // The approval step only exists when one is needed; count what is shown.
+  const shown = PHASES.map((p, i) => ({ ...p, i })).filter((p) => p.key !== "Approve" || needsApproval);
+  const at = Math.max(0, shown.findIndex((p) => p.i === phase));
+  return (
+    <div className="mt-6 animate-rise" aria-live="polite">
+      <div className="flex items-center gap-3.5 rounded-[20px] bg-clay-soft/70 p-4">
+        <span className="disc h-11 w-11 bg-surface font-display text-[20px]">
+          {(name.trim() || "?").charAt(0).toUpperCase()}
+        </span>
+        <div className="min-w-0">
+          <p className="flex items-baseline gap-1">
+            <span className="font-display text-[28px] leading-none text-ink">{amount}</span>
+            <span className="text-[13px] font-medium text-ink-3">{symbol}</span>
+          </p>
+          <p className="mt-1 truncate text-[13px] text-ink-2">
+            to {name} · {every.replace(" (testing)", "").toLowerCase()}
+          </p>
+        </div>
+      </div>
+
+      <div className="card mt-4 px-4 py-[18px]">
+        <div className="flex items-center justify-between text-[12px] text-ink-3">
+          <span className="font-semibold uppercase tracking-[0.12em]">Setting it up</span>
+          <span>
+            {at + 1} of {shown.length}
+          </span>
+        </div>
+        <div className="mt-2.5 h-1 overflow-hidden rounded-full bg-sand">
+          <div
+            className="h-full rounded-full bg-clay transition-[width] duration-700 ease-out"
+            style={{ width: `${(at / shown.length) * 100}%` }}
+          />
+        </div>
+        <ol className="mt-4 space-y-1">
+          {shown.map((p, k) => {
+            const state = k < at ? "done" : k === at ? "now" : "later";
+            const meta = PHASE_ICONS[p.key];
+            return (
+              <li key={p.key} className="flex items-center gap-3 py-2">
+                <span
+                  className={`relative flex h-9 w-9 shrink-0 items-center justify-center rounded-full ${
+                    state === "done"
+                      ? "bg-naira text-surface"
+                      : state === "now"
+                        ? "bg-clay-soft text-clay-deep"
+                        : "border border-line text-ink-3"
+                  }`}
+                >
+                  {state === "now" && (
+                    <span className="absolute -inset-[3px] animate-spin rounded-full border-2 border-clay/20 border-t-clay" aria-hidden />
+                  )}
+                  <Icon name={state === "done" ? "check" : meta.icon} size={18} />
+                </span>
+                <div className="min-w-0 flex-1">
+                  <p className={`text-[14px] ${state === "later" ? "text-ink-3" : "text-ink"} ${state === "now" ? "font-medium" : ""}`}>
+                    {p.label}
+                  </p>
+                  {state === "now" && (
+                    <p className="mt-px flex items-center gap-1 text-[12px] text-clay-deep">
+                      <Icon name={meta.hintIcon} size={14} />
+                      {meta.hint}
+                    </p>
+                  )}
+                </div>
+              </li>
+            );
+          })}
+        </ol>
+      </div>
+      <p className="mx-1 mt-3.5 flex items-center gap-2 text-[12px] text-ink-3">
+        <Icon name="do_not_disturb_on" size={16} />
+        Keep this page open until it finishes
+      </p>
+    </div>
+  );
+}
+
+/// A review line: icon, label, and the value with an optional note under it.
+function IconRow({
+  icon,
+  label,
+  sub,
+  children,
+}: {
+  icon: string;
+  label: string;
+  sub?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="flex items-start gap-3 border-b border-line/70 py-3">
+      <Icon name={icon} size={18} className="mt-px text-ink-3" />
+      <dt className="min-w-0 flex-1 text-[14px] text-ink-2">{label}</dt>
+      <dd className="flex shrink-0 flex-col items-end text-right">
+        <span className="whitespace-nowrap text-[15px] text-ink">{children}</span>
+        {sub && <span className="text-[12px] text-ink-3">{sub}</span>}
+      </dd>
+    </div>
+  );
+}
+
+/// The glyph for a cadence, matching the tiles on step 2.
+function intervalIcon(seconds: number): string {
+  const days = seconds / 86400;
+  if (seconds < 3600) return "bolt";
+  if (days <= 7) return "view_week";
+  if (days <= 14) return "date_range";
+  if (days <= 31) return "calendar_month";
+  return "event_repeat";
+}
+
+/// The icon beside "why Continue is disabled".
+function blockerIcon(blocker: string): string {
+  if (/name/i.test(blocker)) return "badge";
+  if (/MiniPay number/i.test(blocker)) return "call";
+  if (/wallet address/i.test(blocker)) return "account_balance_wallet";
+  if (/bank/i.test(blocker)) return "account_balance";
+  if (/amount/i.test(blocker)) return "payments";
+  return "info";
 }
 
 function Review({
@@ -525,53 +686,67 @@ function Review({
   return (
     <div>
       {/* The headline: the number and the person. Everything below is detail. */}
-      <div className="rounded-2xl bg-clay-soft/70 px-5 py-6">
-        <p className="eyebrow text-clay-deep">{everyLabel(terms.intervalSeconds)}</p>
+      <div className="rounded-[20px] bg-clay-soft/70 p-5">
+        <p className="eyebrow flex items-center gap-1.5 text-clay-deep">
+          <Icon name={intervalIcon(terms.intervalSeconds)} size={15} />
+          {everyLabel(terms.intervalSeconds)}
+        </p>
         <Amount
           value={amountIn ? formatUnits(amountIn, token.decimals) : "—"}
           unit={token.symbol}
           size="hero"
           className="mt-2"
         />
-        <p className="mt-3 text-[16px] text-ink">
-          to <span className="font-medium">{recipient.displayName}</span>
-        </p>
-        <p className="text-[13px] text-ink-2">
-          {isBank
-            ? `${recipient.accountName} · ${recipient.accountNumber}`
-            : converts
-              ? "Converted to cNGN in their wallet"
-              : recipient.phoneMasked
-                ? `As ${token.symbol}, to the MiniPay account on ${recipient.phoneMasked}`
-                : `As ${token.symbol}, straight to their wallet`}
-        </p>
+        <div className="mt-3.5 flex items-center gap-2.5">
+          <span className="disc h-8 w-8 bg-surface font-display text-[16px]">
+            {(recipient.displayName.trim() || "?").charAt(0).toUpperCase()}
+          </span>
+          <div className="min-w-0">
+            <p className="text-[15px] text-ink">
+              to <span className="font-medium">{recipient.displayName}</span>
+            </p>
+            <p className="truncate text-[12px] text-ink-2">
+              {isBank
+                ? `${recipient.accountName} · ${recipient.accountNumber}`
+                : converts
+                  ? "Converted to cNGN in their wallet"
+                  : recipient.phoneMasked
+                    ? `${token.symbol} · MiniPay ${recipient.phoneMasked}`
+                    : `${token.symbol} · straight to their wallet`}
+            </p>
+          </div>
+        </div>
       </div>
 
-      <dl className="mt-2 divide-y divide-line/70 px-1">
+      <dl className="mt-2 px-1 [&>*:last-child]:border-b-0">
         {converts && (
-          <Row
+          <IconRow
+            icon="shield_lock"
             label="Rate floor"
-            sub={`${terms.floorPercent}% below today. A run below this is skipped, never forced.`}
+            sub={`${terms.floorPercent}% below today · skipped, never forced`}
           >
             {floorE6 ? `₦${rateToNairaPerUsd(floorE6).toFixed(0)} per USDT` : "—"}
-          </Row>
+          </IconRow>
         )}
         {feeBps !== undefined && feeBps > 0 && amountIn !== null && (
-          <Row
+          <IconRow
+            icon="percent"
             label="Remesso fee"
-            sub={`${(feeBps / 100).toFixed(2)}% per transfer, fixed for this schedule. They receive ${
-              formatExact(amountIn - (amountIn * BigInt(feeBps)) / 10_000n, token.decimals)
-            } ${token.symbol}.`}
+            sub={`${(feeBps / 100).toFixed(2)}% · they get ${formatExact(
+              amountIn - (amountIn * BigInt(feeBps)) / 10_000n,
+              token.decimals,
+            )}`}
           >
             {formatExact((amountIn * BigInt(feeBps)) / 10_000n, token.decimals)} {token.symbol}
-          </Row>
+          </IconRow>
         )}
         {terms.trigger.trim() && (
-          <Row
+          <IconRow
+            icon="fast_forward"
             label="Can send early"
             sub={`Up to ${terms.triggersLeft} ${
               terms.triggersLeft === "1" ? "transfer" : "transfers"
-            }, brought forward. Same amount, same person, and you can withdraw it any time.`}
+            } · withdraw any time`}
           >
             {/* A name when we are the one being allowed, the address when it is
                 somebody else. Showing hex to a sender who never typed any is
@@ -583,17 +758,25 @@ function Review({
                   {terms.trigger.slice(0, 6)}…{terms.trigger.slice(-4)}
                 </span>
               )}
-          </Row>
+          </IconRow>
         )}
-        <Row label="Transfers">{terms.maxRuns || "Until you stop it"}</Row>
-        <Row label="First one">{terms.startNow ? "Right away" : `In ${spanLabel(terms.intervalSeconds)}`}</Row>
-        <Row label="Expires">{new Date(`${terms.expiresAt}T12:00:00`).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}</Row>
-        <Row
+        <IconRow icon="repeat" label="Transfers">{terms.maxRuns || "Until you stop it"}</IconRow>
+        <IconRow icon="bolt" label="First one">
+          {terms.startNow ? "Right away" : `In ${spanLabel(terms.intervalSeconds)}`}
+        </IconRow>
+        <IconRow icon="event" label="Ends">
+          {new Date(`${terms.expiresAt}T12:00:00`).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}
+        </IconRow>
+        {/* Approve replaces an allowance rather than adding to it, so this is
+            this schedule's share on top of what is already allowed: other
+            schedules on the same asset keep theirs. */}
+        <IconRow
+          icon="lock"
           label="You allow"
-          sub={`Enough for ${allowanceRuns === 1 ? "this transfer" : `${allowanceRuns} transfers`} — the rest of this schedule. Added to what you have already allowed, so your other schedules keep theirs.`}
+          sub={`${allowanceRuns === 1 ? "This transfer" : `${allowanceRuns} transfers`} · covers this schedule only`}
         >
           {formatUnits(requiredAllowance, token.decimals)} {token.symbol}
-        </Row>
+        </IconRow>
       </dl>
 
       <UnusualCheck
@@ -621,10 +804,10 @@ function Review({
         </div>
       )}
 
-      <p className="mt-4 px-1 text-[13px] leading-relaxed text-ink-2">
-        Signing fixes the person, the amount, the rhythm{converts ? " and the floor rate" : ""} on
-        Celo. Remesso can only trigger a run inside those limits — it cannot change any of
-        them, and it cannot send anywhere else.
+      <p className="mt-4 flex items-start gap-2 px-1 text-[13px] leading-relaxed text-ink-2">
+        <Icon name="shield_lock" size={18} className="shrink-0 text-clay-deep" />
+        Fixed on Celo{converts ? ", floor rate included" : ""}. Remesso can only send inside
+        these limits.
       </p>
     </div>
   );

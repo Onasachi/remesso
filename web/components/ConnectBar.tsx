@@ -4,6 +4,7 @@ import { useAccount, useConnect, useDisconnect, useChainId, useSwitchChain } fro
 import { activeChain } from "@/lib/wagmi";
 import { useMiniPayState } from "@/lib/hooks";
 import { addressName } from "@/lib/identity";
+import { Icon } from "./Icon";
 
 export function ConnectBar({ compact = false }: { compact?: boolean }) {
   const { address, isConnected } = useAccount();
@@ -68,11 +69,8 @@ export function ConnectBar({ compact = false }: { compact?: boolean }) {
       </span>
       {/* MiniPay owns the session; disconnecting inside it just strands the app. */}
       {miniPay === false && !compact && (
-        <button
-          className="min-h-11 px-1 text-[13px] text-ink-3 transition hover:text-ink"
-          onClick={() => disconnect()}
-        >
-          Sign out
+        <button className="icon-btn" onClick={() => disconnect()} aria-label="Sign out" title="Sign out">
+          <Icon name="logout" />
         </button>
       )}
     </div>

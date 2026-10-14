@@ -5,12 +5,14 @@ import { useMarketRate, useTriggerAddress } from "@/lib/hooks";
 import {
   INTERVALS,
   SELECTABLE_INTERVALS,
+  TEST_INTERVAL,
   formatUnits,
   parseUnits,
   rateToNairaPerUsd,
 } from "@/lib/format";
 import { CNGN, type TokenInfo } from "@/lib/config";
 import { transfersBeforeExpiry } from "@/lib/allowance";
+import { Icon } from "./Icon";
 
 export type TermsDraft = {
   amount: string;          // decimal USDT as typed
@@ -142,6 +144,14 @@ export function amountInUnits(t: TermsDraft, decimals: number): bigint | null {
 const QUICK_AMOUNTS = ["10", "20", "50", "100"];
 const QUICK_COUNTS = ["6", "12", ""];
 
+/// The glyph on each cadence tile; a cadence missing here gets a calendar.
+const INTERVAL_ICON: Record<string, string> = {
+  Weekly: "view_week",
+  Fortnightly: "date_range",
+  Monthly: "calendar_month",
+  Quarterly: "event_repeat",
+};
+
 export function TermsStep({
   value,
   onChange,
@@ -163,6 +173,7 @@ export function TermsStep({
   // Until the sender edits the date themselves, it follows their answers. After
   // that it is theirs and nothing here moves it.
   const [dateIsTheirs, setDateIsTheirs] = useState(false);
+  const [editDate, setEditDate] = useState(false);
   const market = useMarketRate(converts ? (amount ?? 0n) : 0n);
 
   // A typed date can be anything at all, so it is checked where it is typed —
@@ -226,21 +237,40 @@ export function TermsStep({
 
       <div>
         <p className="label">How often</p>
-        <div className="grid grid-cols-2 gap-2">
-          {SELECTABLE_INTERVALS.map((i) => (
-            <button
-              key={i.seconds}
-              type="button"
-              onClick={() => set({ intervalSeconds: i.seconds })}
-              aria-pressed={value.intervalSeconds === i.seconds}
-              className={`tile min-h-12 text-center text-[15px] font-medium ${
-                value.intervalSeconds === i.seconds ? "tile-on" : ""
-              }`}
-            >
-              {i.label}
-            </button>
-          ))}
+        <div className="grid grid-cols-4 gap-2">
+          {INTERVALS.map((i) => {
+            const on = value.intervalSeconds === i.seconds;
+            return (
+              <button
+                key={i.seconds}
+                type="button"
+                onClick={() => set({ intervalSeconds: i.seconds })}
+                aria-pressed={on}
+                className={`tile flex min-w-0 flex-col items-center gap-1.5 px-1 pb-2.5 pt-3 ${on ? "tile-on" : ""}`}
+              >
+                <Icon name={INTERVAL_ICON[i.label] ?? "event"} size={22} className={on ? "text-clay-deep" : "text-ink-3"} />
+                <span className="text-[13px] font-medium text-ink">{i.label}</span>
+              </button>
+            );
+          })}
         </div>
+        {/* The five-minute cadence only exists behind its flag (format.ts),
+            and looks like what it is: a test, dashed, set apart. */}
+        {SELECTABLE_INTERVALS.length > INTERVALS.length && (
+          <button
+            type="button"
+            onClick={() => set({ intervalSeconds: TEST_INTERVAL.seconds })}
+            aria-pressed={value.intervalSeconds === TEST_INTERVAL.seconds}
+            className={`mt-2 inline-flex min-h-8 items-center gap-1.5 whitespace-nowrap rounded-full border border-dashed px-3 text-[12px] transition ${
+              value.intervalSeconds === TEST_INTERVAL.seconds
+                ? "border-clay bg-clay-soft text-clay-deep"
+                : "border-line bg-surface text-ink-2 hover:border-ink-3"
+            }`}
+          >
+            <Icon name="bolt" size={15} />
+            Every 5 min · testing
+          </button>
+        )}
       </div>
 
       {converts && (
@@ -287,13 +317,14 @@ export function TermsStep({
             <button
               key={n || "open"}
               type="button"
-              className={`chip ${!customCount && value.maxRuns === n ? "border-clay bg-clay-soft text-clay-deep" : ""}`}
+              className={`chip gap-1.5 whitespace-nowrap ${!customCount && value.maxRuns === n ? "border-clay bg-clay-soft text-clay-deep" : ""}`}
               onClick={() => {
                 setCustomCount(false);
                 set({ maxRuns: n });
               }}
             >
-              {n || "Until I stop it"}
+              <Icon name={n ? "tag" : "all_inclusive"} size={16} />
+              {n || "Until I stop"}
             </button>
           ))}
           <input
@@ -312,48 +343,70 @@ export function TermsStep({
           />
         </div>
         <CountVsExpiry value={value} set={set} />
-      </div>
 
-      <div>
-        <label className="label" htmlFor="expires">
-          Expires on
-        </label>
-        <input
-          id="expires"
-          type="date"
-          value={value.expiresAt}
-          min={isoDate(1)}
-          max={isoDate(364)}
-          className={`field ${problem ? "field-invalid" : ""}`}
-          onChange={(e) => {
-            setDateIsTheirs(true);
-            set({ expiresAt: e.target.value });
-          }}
-        />
+        {/* The end date, said as a date. Derived from the count until the
+            sender picks one; the date picker opens only when asked. */}
+        <div className="mt-3 flex items-center gap-3 rounded-xl bg-sand/70 py-2.5 pl-3 pr-2.5">
+          <Icon name="event" className="text-clay-deep" />
+          <div className="min-w-0 flex-1">
+            <p className="text-[14px] font-medium text-ink">
+              Ends{" "}
+              {value.expiresAt
+                ? new Date(`${value.expiresAt}T12:00:00`).toLocaleDateString("en-GB", {
+                    day: "numeric",
+                    month: "short",
+                    year: "numeric",
+                  })
+                : "—"}
+            </p>
+            <p className="mt-px text-[12px] text-ink-2">
+              {dateIsTheirs || !Number(value.maxRuns)
+                ? "Up to a year. Tap to end sooner."
+                : `After transfer ${value.maxRuns}. Tap to end sooner.`}
+            </p>
+          </div>
+          <button
+            type="button"
+            aria-label="Change end date"
+            aria-expanded={editDate}
+            onClick={() => setEditDate(!editDate)}
+            className="flex h-9 w-9 items-center justify-center rounded-[10px] bg-surface text-ink-2 transition hover:text-ink"
+          >
+            <Icon name="edit_calendar" size={18} />
+          </button>
+        </div>
+        {(editDate || problem) && (
+          <input
+            id="expires"
+            type="date"
+            aria-label="Ends on"
+            value={value.expiresAt}
+            min={isoDate(1)}
+            max={isoDate(364)}
+            className={`field mt-2 ${problem ? "field-invalid" : ""}`}
+            onChange={(e) => {
+              setDateIsTheirs(true);
+              set({ expiresAt: e.target.value });
+            }}
+          />
+        )}
         {problem && <p className="mt-2 text-[13px] text-danger">{problem}</p>}
-        <p className="hint">
-          {dateIsTheirs || !Number(value.maxRuns)
-            ? "Up to a year."
-            : `Set from your ${value.maxRuns} ${
-              Number(value.maxRuns) === 1 ? "transfer" : "transfers"
-            } — the day the last one lands. Change it to end sooner.`}{" "}
-          Your {converts ? "floor rate is" : "terms are"} fixed for the life of the
-          schedule, so it has to be re-confirmed rather than drift against the market
-          forever.
-        </p>
       </div>
 
-      <label className="flex items-center justify-between gap-4 rounded-xl border border-line bg-surface px-4 py-3.5">
-        <span className="text-[15px] text-ink">
-          Send the first one now
-          <span className="mt-0.5 block text-[13px] text-ink-2">
-            Otherwise the first transfer waits one full interval.
+      <div className="rounded-2xl border border-line bg-surface">
+        <label className="flex items-center gap-3 px-3.5 py-3">
+          <span className="disc h-8 w-8">
+            <Icon name="bolt" size={18} />
           </span>
-        </span>
-        <Switch checked={value.startNow} onChange={(v) => set({ startNow: v })} />
-      </label>
-
-      <EarlySending value={value} set={set} />
+          <span className="min-w-0 flex-1 text-[15px] text-ink">
+            Send the first one now
+            <span className="mt-px block text-[12px] text-ink-2">Otherwise it waits one interval</span>
+          </span>
+          <Switch checked={value.startNow} onChange={(v) => set({ startNow: v })} />
+        </label>
+        <div className="mx-3.5 h-px bg-line/70" />
+        <EarlySending value={value} set={set} />
+      </div>
     </div>
   );
 }
@@ -398,14 +451,15 @@ function EarlySending({
   }
 
   return (
-    <div className="rounded-xl border border-line bg-surface px-4 py-3.5">
-      <label className="flex items-center justify-between gap-4">
-        <span className="text-[15px] text-ink">
-          Let this be sent early
-          <span className="mt-0.5 block text-[13px] text-ink-2">
-            Something you authorise — an app, an assistant — can bring a transfer
-            forward. It still goes to the same person, for the same amount, and
-            stops when you say.
+    <div className="px-3.5 py-3">
+      <label className="flex items-center gap-3">
+        <span className="disc h-8 w-8">
+          <Icon name="fast_forward" size={18} />
+        </span>
+        <span className="min-w-0 flex-1 text-[15px] text-ink">
+          Allow early sends
+          <span className="mt-px block text-[12px] text-ink-2">
+            An app you trust can send sooner. Same person, same amount.
           </span>
         </span>
         <Switch checked={on} onChange={toggle} />

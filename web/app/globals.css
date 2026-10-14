@@ -2,6 +2,18 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Icons: Material Symbols Rounded, self-hosted like the text fonts — a subset
+   holding only the glyphs the app uses (public/fonts, ~43 KB). Adding an icon
+   means re-fetching the subset with its name in `icon_names`; a name missing
+   from it renders as its own letters, which is how a missed one shows. */
+@font-face {
+  font-family: "Material Symbols Rounded";
+  font-style: normal;
+  font-weight: 300 500;
+  font-display: block;
+  src: url("/fonts/material-symbols-rounded.woff2") format("woff2");
+}
+
 /* Palette as OKLCH channels; tailwind.config.ts wraps them in oklch() so
    opacity modifiers keep working. Every neutral is tinted a few degrees toward
    the teal hue — it is what makes the off-white and the ink read as one
@@ -163,6 +175,53 @@
   }
   .notice-good {
     @apply notice bg-naira-soft text-naira;
+  }
+}
+
+@layer components {
+  .icon {
+    font-family: "Material Symbols Rounded";
+    font-weight: normal;
+    font-style: normal;
+    line-height: 1;
+    letter-spacing: normal;
+    text-transform: none;
+    display: inline-block;
+    white-space: nowrap;
+    direction: ltr;
+    -webkit-font-smoothing: antialiased;
+    font-variation-settings: "opsz" 20, "wght" 400, "FILL" 0;
+    user-select: none;
+  }
+
+  /* A segmented control: the Dollars / LatAm / Nigeria switch. */
+  .seg {
+    @apply grid gap-1 rounded-[14px] bg-sand p-1;
+  }
+  .seg-item {
+    @apply flex min-h-[38px] items-center justify-center gap-1.5 rounded-[10px] text-[13px] font-medium
+           text-ink-2 transition duration-200;
+  }
+  .seg-on {
+    @apply bg-surface text-ink;
+    box-shadow: 0 1px 2px oklch(0.3 0.03 50 / 0.08), 0 2px 6px -2px oklch(0.3 0.03 50 / 0.12);
+  }
+
+  /* Flat action in a sand well — Buy / Cash out / Get cNGN. */
+  .well-btn {
+    @apply flex min-h-10 flex-1 items-center justify-center gap-1.5 rounded-xl bg-sand text-sm
+           font-semibold text-ink transition hover:bg-line/60 active:scale-[0.98];
+  }
+
+  /* Round icon-only button: back, sign out. */
+  .icon-btn {
+    @apply flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-ink-3 transition
+           hover:bg-sand hover:text-ink;
+  }
+
+  /* Circle holding an icon or an initial. */
+  .disc {
+    @apply flex shrink-0 items-center justify-center rounded-full bg-clay-soft text-clay-deep;
   }
 }
 

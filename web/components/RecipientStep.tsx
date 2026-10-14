@@ -11,6 +11,8 @@ import { lookupPhone } from "@/lib/phoneLookup";
 import { countryOf, countryOptions, toE164, type CountryCode } from "@/lib/phone";
 import { TEXTILE_NAIRA_WITHDRAW, TEXTILE_SWAP_TO_CNGN, textileNairaCashOut } from "@/lib/textile";
 import { ripioRampUrl } from "@/lib/ripio";
+import { countryOf as tokenCountry, flagOf, REGIONS, regionOf } from "@/lib/regions";
+import { Icon } from "./Icon";
 import { useAccount } from "wagmi";
 import type { PayoutKind } from "@/lib/types";
 
@@ -83,14 +85,17 @@ export function RecipientStep({
         <label className="label" htmlFor="recipient-name">
           Who is this for?
         </label>
-        <input
-          id="recipient-name"
-          className="field"
-          placeholder="Mum"
-          autoComplete="off"
-          value={value.displayName}
-          onChange={(e) => set({ displayName: e.target.value })}
-        />
+        <div className="flex items-center gap-2.5 rounded-xl border border-line bg-surface px-4 transition focus-within:border-clay focus-within:ring-4 focus-within:ring-clay/15">
+          <Icon name="person" className="text-ink-3" />
+          <input
+            id="recipient-name"
+            className="min-w-0 flex-1 bg-transparent py-3 text-[15px] text-ink outline-none placeholder:text-ink-3"
+            placeholder="Mum"
+            autoComplete="off"
+            value={value.displayName}
+            onChange={(e) => set({ displayName: e.target.value })}
+          />
+        </div>
       </div>
 
       <div>
@@ -126,38 +131,103 @@ export function RecipientStep({
 
         {value.payoutType === "direct" && (
           <div className={CNGN_RAILS_ENABLED ? "mt-4" : ""}>
-            <p className="label">What should they receive?</p>
-            <div className="grid grid-cols-3 gap-2">
-              {allowed.map((t) => (
-                <button
-                  key={t.symbol}
-                  type="button"
-                  onClick={() => set({ token: t })}
-                  className={`tile min-h-11 text-center text-[15px] font-medium ${
-                    value.token.symbol === t.symbol ? "tile-on" : ""
-                  }`}
-                  aria-pressed={value.token.symbol === t.symbol}
-                >
-                  {t.symbol}
-                </button>
-              ))}
-            </div>
+            <p className="mb-3 text-sm font-medium text-ink">What should they receive?</p>
+            {/* Grouped the way people think about it — dollars, then local
+                money by country — and each group says whether MiniPay shows
+                it, which is the question that decides whether the recipient
+                sees the payment at all. Only what the contract allows. */}
+            {REGIONS.map((r) => {
+              const tokens = allowed.filter((t) => regionOf(t) === r.key);
+              if (!tokens.length) return null;
+              const usd = r.key === "usd";
+              return (
+                <div key={r.key} className={usd ? "" : "mt-4"}>
+                  <div className="mb-2 flex items-center justify-between">
+                    <span className="eyebrow flex items-center gap-1.5">
+                      <Icon name={usd ? "paid" : "public"} size={15} />
+                      {r.long}
+                    </span>
+                    {usd ? (
+                      <span className="flex items-center gap-1 text-[12px] font-medium text-naira">
+                        <Icon name="smartphone" size={15} fill />
+                        In MiniPay
+                      </span>
+                    ) : (
+                      r.key === "latam" && (
+                        <span className="flex items-center gap-1 text-[12px] text-ink-3">
+                          <Icon name="visibility_off" size={15} />
+                          Not in MiniPay
+                        </span>
+                      )
+                    )}
+                  </div>
+                  <div className={`grid gap-2 ${usd ? "grid-cols-4" : "grid-cols-3"}`}>
+                    {tokens.map((t) => {
+                      const on = value.token.symbol === t.symbol;
+                      return usd ? (
+                        <button
+                          key={t.symbol}
+                          type="button"
+                          onClick={() => set({ token: t })}
+                          className={`tile min-h-11 px-1 text-center text-[15px] font-medium ${on ? "tile-on" : ""}`}
+                          aria-pressed={on}
+                        >
+                          {t.symbol}
+                        </button>
+                      ) : (
+                        <button
+                          key={t.symbol}
+                          type="button"
+                          onClick={() => set({ token: t })}
+                          className={`tile flex min-w-0 items-center gap-2 px-2.5 py-2 ${on ? "tile-on" : ""}`}
+                          aria-pressed={on}
+                        >
+                          <span className="text-[18px] leading-none">{flagOf(t)}</span>
+                          <span className="flex min-w-0 flex-col">
+                            <span className="text-[15px] font-medium text-ink">{t.symbol}</span>
+                            <span className={`truncate text-[11px] ${on ? "text-clay-deep" : "text-ink-3"}`}>
+                              {tokenCountry(t)}
+                            </span>
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })}
+
             {value.token.miniPayVisible ? (
-              <p className="hint">
-                You send {value.token.symbol}, they receive {value.token.symbol}. No conversion,
-                and it appears in their MiniPay balance straight away.
-              </p>
-            ) : (
-              // Same honesty as the cNGN warning below: MiniPay shows none of
-              // the wFIAT, and has no way to add a token.
               <>
-                <p className="notice-warn mt-3">
-                  You send {value.token.symbol}, they receive {value.token.symbol}, with no
-                  conversion. MiniPay does not show {value.token.symbol}, so they need a wallet
-                  that does.
+                <p className="mt-3 flex items-center gap-2 text-[13px] text-ink-2">
+                  <Icon name="check_circle" size={18} fill className="text-naira" />
+                  Arrives in their MiniPay as {value.token.symbol}
                 </p>
-                <RipioLinks token={value.token} sender={sender} />
-                {value.token.currency === "NGN" && <CngnLinks />}
+                {/* Naira in a bank, for a Nigerian recipient of USDT: theirs
+                    to do on Textile (lib/textile.ts). Not inside MiniPay,
+                    which has its own cash-out. */}
+                {!inMiniPay && textileNairaCashOut(value.token) && (
+                  <a
+                    href={textileNairaCashOut(value.token)!}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="mt-2 inline-flex min-h-8 items-center gap-1.5 rounded-full border border-line bg-surface px-3 text-[12px] text-ink-2 transition hover:border-ink-3 hover:text-ink"
+                  >
+                    <span>🇳🇬</span>
+                    Naira to a bank? They cash out on Textile
+                    <Icon name="open_in_new" size={14} />
+                  </a>
+                )}
+              </>
+            ) : (
+              // MiniPay shows none of the local-currency tokens and cannot add
+              // one, so a recipient there would see nothing arrive.
+              <>
+                <p className="mt-3 flex items-center gap-2 rounded-xl bg-amber-soft px-3 py-2.5 text-[13px] text-ink">
+                  <Icon name="visibility_off" size={18} className="shrink-0 text-amber" />
+                  MiniPay won&rsquo;t show {value.token.symbol}. They need another wallet.
+                </p>
+                <VenueLinks token={value.token} sender={sender} />
               </>
             )}
           </div>
@@ -170,31 +240,6 @@ export function RecipientStep({
             in MiniPay, and it has no way to add a token. Choose Stablecoin unless they use
             a different wallet.
           </p>
-        )}
-        {/* The reason is in the README; the sender only needs to know it is
-            not them. */}
-        {/* Naira news, so only beside a dollar payout: next to pesos it
-            reads as if wARS were heading for a Nigerian bank. */}
-        {/* Outside MiniPay, a USDT payout can already reach a naira bank
-            account — by the recipient, on Textile (lib/textile.ts). Remesso
-            itself paying a bank is still the "coming soon". */}
-        {!BANK_PAYOUTS_ENABLED && value.payoutType !== "wallet" && value.token.currency === "USD" && (
-          !inMiniPay && textileNairaCashOut(value.token) ? (
-            <p className="hint">
-              Recipient in Nigeria? They can cash USDT out to a naira bank account on{" "}
-              <a href={textileNairaCashOut(value.token)!} target="_blank" rel="noopener noreferrer" className="underline">
-                Textile
-              </a>{" "}
-              — swap to cNGN, then Withdraw NGN.
-            </p>
-          ) : !inMiniPay && value.token.currency === "USD" ? (
-            <p className="hint">
-              Recipient in Nigeria who wants naira in a bank? Pay in USDT — it is the one Textile
-              cashes out to a Nigerian bank on Celo.
-            </p>
-          ) : (
-            <p className="hint">Paying straight into a naira bank account is coming soon.</p>
-          )
         )}
       </div>
 
@@ -223,11 +268,14 @@ export function RecipientStep({
           {addressInvalid ? (
             <p className="hint text-danger">That doesn&rsquo;t look like a complete address.</p>
           ) : isAddress(value.walletAddress) ? (
-            <p className="hint text-naira">Looks right.</p>
+            <p className="hint flex items-center gap-1.5 text-naira">
+              <Icon name="check_circle" size={16} fill />
+              Looks right. Fixed once you sign.
+            </p>
           ) : (
-            <p className="hint">
-              Ask them to share it from their wallet. Once you sign, this address is fixed —
-              changing it later means a new schedule, which is the point.
+            <p className="hint flex items-center gap-1.5">
+              <Icon name="lock" size={16} className="text-ink-3" />
+              Fixed once you sign
             </p>
           )}
         </div>
@@ -478,7 +526,7 @@ function PasteButton({ onPaste }: { onPaste: (text: string) => void }) {
   return (
     <button
       type="button"
-      className="absolute right-1.5 top-1/2 -translate-y-1/2 rounded-lg bg-sand px-3 py-1.5 text-[13px] font-medium text-ink-2 transition hover:bg-line/70 active:scale-95"
+      className="absolute right-1.5 top-1/2 flex -translate-y-1/2 items-center gap-1 rounded-lg bg-sand px-2.5 py-1.5 text-[13px] font-medium text-ink-2 transition hover:bg-line/70 active:scale-95"
       onClick={async () => {
         try {
           const t = (await navigator.clipboard.readText()).trim();
@@ -492,6 +540,7 @@ function PasteButton({ onPaste }: { onPaste: (text: string) => void }) {
         }
       }}
     >
+      <Icon name={done ? "check" : "content_paste"} size={16} />
       {done ? "Pasted" : "Paste"}
     </button>
   );
@@ -625,41 +674,27 @@ function Choice({
   );
 }
 
-/// cNGN's way in and out, both on Textile: swap USDT into it, and Withdraw NGN
-/// to a Nigerian bank. Links only (lib/textile.ts).
-function CngnLinks() {
+/// Where a local currency comes from and where it goes: pesos and reais
+/// through Ripio's hosted ramp, cNGN through Textile. Links only — the person
+/// does it there, and Remesso never sees the bank side of either leg.
+function VenueLinks({ token, sender }: { token: TokenInfo; sender?: string }) {
+  const ng = token.currency === "NGN";
+  const venue = ng ? "Textile" : "Ripio";
+  const buy = ng ? TEXTILE_SWAP_TO_CNGN : ripioRampUrl("on", token, { address: sender });
+  const out = ng ? TEXTILE_NAIRA_WITHDRAW : ripioRampUrl("off", token);
+  if (!buy || !out) return null;
+  const chip =
+    "flex min-h-9 items-center gap-1.5 rounded-full border border-line bg-surface px-3 text-[13px] text-ink-2 transition hover:border-ink-3 hover:text-ink";
   return (
-    <p className="hint">
-      No cNGN yet?{" "}
-      <a href={TEXTILE_SWAP_TO_CNGN} target="_blank" rel="noopener noreferrer" className="underline">
-        Swap USDT for it on Textile
+    <div className="mt-2 flex flex-wrap gap-2">
+      <a href={buy} target="_blank" rel="noopener noreferrer" className={chip}>
+        <Icon name="add" size={16} />
+        Buy {token.symbol} · {venue}
       </a>
-      . They can{" "}
-      <a href={TEXTILE_NAIRA_WITHDRAW} target="_blank" rel="noopener noreferrer" className="underline">
-        withdraw it to a Nigerian bank
-      </a>{" "}
-      on Textile the same way.
-    </p>
-  );
-}
-
-/// Where the pesos come from and where they go: Ripio's hosted ramp, in and
-/// out of a local bank account. Absent for any token Ripio does not ramp.
-function RipioLinks({ token, sender }: { token: TokenInfo; sender?: string }) {
-  const buy = ripioRampUrl("on", token, { address: sender });
-  const cashOut = ripioRampUrl("off", token);
-  if (!buy || !cashOut) return null;
-  return (
-    <p className="hint">
-      No {token.symbol} yet?{" "}
-      <a href={buy} target="_blank" rel="noopener noreferrer" className="underline">
-        Buy it with Ripio
-      </a>{" "}
-      from a local bank account. They can{" "}
-      <a href={cashOut} target="_blank" rel="noopener noreferrer" className="underline">
-        cash out at Ripio
-      </a>{" "}
-      the same way.
-    </p>
+      <a href={out} target="_blank" rel="noopener noreferrer" className={chip}>
+        <Icon name="account_balance" size={16} />
+        They cash out · {venue}
+      </a>
+    </div>
   );
 }
