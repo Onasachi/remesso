@@ -178,7 +178,8 @@ everything MiniPay's rules leave out.
   page show a Nigerian recipient how to get naira into their bank account on
   Textile: swap USDT to cNGN on Celo, then Withdraw NGN (paid out by Noblocks).
   It is a link, as with Ripio. The recipient does it from their own wallet,
-  and Remesso never instructs a bank payout.
+  and Remesso never instructs a bank payout. A wallet that already holds cNGN sees it
+  on the home screen with "Withdraw to bank".
 - **Wallet addresses**, typed or pasted, with a copy button on each schedule.
 - **Pay links.** `/schedules/new?to=…&amount=…&token=…&every=…` opens a
   prefilled form; the form says a link filled it in, and the sender still

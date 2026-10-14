@@ -297,10 +297,15 @@ export function useUsdtBalance(token: `0x${string}` = USDT.address) {
 /// quote a market. wFIAT is left out of the total: a peso is not a dollar,
 /// and converting would mean quoting a rate here. `totalUsd6` is at 6dp so
 /// USDm's 18dp does not have to be carried through the display path.
+/// Every asset the home screen shows a balance for: what a schedule can pay
+/// in, plus cNGN — not payable while the naira rails are off, but a wallet
+/// holding it should see it and be able to cash it out (lib/textile.ts).
+const HELD_TOKENS: TokenInfo[] = [...DIRECT_TOKENS, CNGN];
+
 export function useBalances() {
   const { address } = useAccount();
   const reads = useReadContracts({
-    contracts: DIRECT_TOKENS.map((t) => ({
+    contracts: HELD_TOKENS.map((t) => ({
       address: t.address,
       abi: erc20Abi,
       functionName: "balanceOf" as const,
@@ -309,7 +314,7 @@ export function useBalances() {
     query: { enabled: Boolean(address), refetchInterval: 20_000 },
   });
 
-  const balances: Array<{ token: TokenInfo; balance?: bigint }> = DIRECT_TOKENS.map((token, i) => {
+  const balances: Array<{ token: TokenInfo; balance?: bigint }> = HELD_TOKENS.map((token, i) => {
     const r = reads.data?.[i];
     return { token, balance: r?.status === "success" ? (r.result as bigint) : undefined };
   });

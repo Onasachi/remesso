@@ -174,7 +174,10 @@ and the schedule page link it for USDT payouts, outside MiniPay only. The
 recipient does it on Textile with their own wallet. Like Ripio, it is a link,
 so Remesso instructs no naira payout and both flags stay off. Only USDT:
 USDC, USDm and USA₮ show "No supported swap pairs" there. Without `chainId`
-the app opens on BNB Smart Chain.
+the app opens on BNB Smart Chain. A wallet already holding cNGN gets a cNGN tile on
+the web home screen, shown only while the balance is above 0 (it pays no
+schedule). It has "Withdraw to bank", which links
+`app.textilecredit.com/s/sell?chainId=42220`, Textile's Withdraw NGN.
 
 Nothing is deleted: existing schedules of any kind still render, and a skipped
 schedule simply stays due rather than accruing failed runs. As of 2026-09-28

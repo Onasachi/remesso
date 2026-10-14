@@ -21,3 +21,10 @@ export function textileNairaCashOut(token: TokenInfo, amount?: string): string |
   if (amount && Number(amount) > 0) q.set("amount", amount);
   return `https://app.textilecredit.com/s/swap?${q}`;
 }
+
+/// Textile's "Withdraw NGN" for cNGN already held on Celo — the second step of
+/// the cash-out above, for a wallet that has cNGN already. Same terms: a link,
+/// done on Textile with the holder's own wallet. Checked 14 Oct 2026: opens
+/// "Withdraw NGN · From your cNGN balance on Celo", offer from Noblocks.
+/// Textile ignores an amount here, so none is passed.
+export const TEXTILE_NAIRA_WITHDRAW = "https://app.textilecredit.com/s/sell?chainId=42220";

@@ -12,9 +12,10 @@ import { PaymentRequests } from "@/components/PaymentRequests";
 import { Notices } from "@/components/Notices";
 import { BuyLocal } from "@/components/BuyLocal";
 import { ripioRampUrl } from "@/lib/ripio";
+import { TEXTILE_NAIRA_WITHDRAW } from "@/lib/textile";
 import { ReapproveButton, useApprovalCover } from "@/components/Reapprove";
 import { ActionBar, Amount, MINIPAY_DEPOSIT_URL, Skeleton } from "@/components/ui";
-import { isConfigured, tokenFor, USDT, type TokenInfo } from "@/lib/config";
+import { CNGN, isConfigured, tokenFor, USDT, type TokenInfo } from "@/lib/config";
 import { one, type Schedule } from "@/lib/types";
 
 export default function SchedulesPage() {
@@ -61,6 +62,10 @@ export default function SchedulesPage() {
             <a href={MINIPAY_DEPOSIT_URL} className="btn-soft btn-sm">
               Add money
             </a>
+          ) : token.symbol === CNGN.symbol ? (
+            <a href={TEXTILE_NAIRA_WITHDRAW} target="_blank" rel="noopener noreferrer" className="btn-soft btn-sm">
+              Withdraw to bank
+            </a>
           ) : (
             // A peso or real tile selected: buying it is one tap from its
             // balance, the same place MiniPay's "Add money" sits.
@@ -85,7 +90,12 @@ export default function SchedulesPage() {
           role="tablist"
           aria-label="Asset"
         >
-          {balances.filter(({ token: t }) => !inMiniPay || t.miniPayVisible).map(({ token: t, balance }) => {
+          {balances
+            .filter(({ token: t }) => !inMiniPay || t.miniPayVisible)
+            // cNGN pays no schedule while the naira rails are off, so its tile
+            // is for a wallet that already holds some — to see it and cash it out.
+            .filter(({ token: t, balance }) => t.symbol !== CNGN.symbol || (balance ?? 0n) > 0n)
+            .map(({ token: t, balance }) => {
             const on = t.symbol === token.symbol;
             return (
               <button
@@ -112,7 +122,7 @@ export default function SchedulesPage() {
         </div>
       </section>
 
-      <ApprovalStrip token={token} />
+      {token.symbol === CNGN.symbol ? <CngnWithdraw /> : <ApprovalStrip token={token} />}
 
       {/* Before the schedules: a sender who holds no pesos gets them here,
           not halfway through the send form. */}
@@ -186,6 +196,23 @@ export default function SchedulesPage() {
 ///   unused   nothing draws on this asset and nothing is approved — one quiet line
 ///   covered  the ceiling, under a disclosure: a returning sender came to
 ///            check on a payment, not to re-read the security model
+/// In place of the allowance strip when cNGN is selected: no schedule pays in
+/// it, so what a holder wants to know is how to get naira out of it.
+function CngnWithdraw() {
+  return (
+    <div className="notice-info mt-3">
+      <p className="font-medium text-ink">Cash out cNGN to a Nigerian bank</p>
+      <p className="mt-0.5">
+        On Textile, Withdraw NGN sends your cNGN on Celo to a naira bank account, paid out by
+        Noblocks at about ₦1 per cNGN. You do it there, from this wallet; Remesso never holds it.
+      </p>
+      <a href={TEXTILE_NAIRA_WITHDRAW} target="_blank" rel="noopener noreferrer" className="btn-soft btn-sm mt-2 inline-flex">
+        Withdraw to bank
+      </a>
+    </div>
+  );
+}
+
 function ApprovalStrip({ token }: { token: TokenInfo }) {
   const { allowance, active, covers, stuck, low } = useApprovalCover(token);
   const n = active.length;
