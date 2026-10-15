@@ -57,9 +57,13 @@ and `SUPABASE_SERVICE_ROLE_KEY` itself and rejects them as reserved, failing the
 whole command. Regenerate it with:
 
 ```bash
-grep -vE '^(SUPABASE_(URL|ANON_KEY|SERVICE_ROLE_KEY)|TESTING_)' .env \
+grep -vE '^(SUPABASE_(URL|ANON_KEY|SERVICE_ROLE_KEY)|TESTING_|YOUR_AGENT_VAULT_)' .env \
   | grep -E '^[A-Z0-9_]+=' > .env.functions
 ```
+
+`YOUR_AGENT_VAULT_API_KEY` is excluded too. It is the Agent Vault (Self agent
+card payments) key for the Claude Code MCP server in `~/.claude.json`, and no
+Edge Function uses it.
 
 `TESTING_*` is excluded deliberately. Those hold a funded wallet key used only by
 `scripts/e2e-agent-test.ts`, which runs locally — no Edge Function reads them,

@@ -307,7 +307,7 @@ cd ..
 supabase db push
 supabase functions deploy execute-due-runs sync-schedules preflight trigger-run \
   rate-service latam-rate latam-route agent request-payment ai-assist self-verify self-webhook
-grep -vE '^(SUPABASE_(URL|ANON_KEY|SERVICE_ROLE_KEY)|TESTING_)' .env \
+grep -vE '^(SUPABASE_(URL|ANON_KEY|SERVICE_ROLE_KEY)|TESTING_|YOUR_AGENT_VAULT_)' .env \
   | grep -E '^[A-Z0-9_]+=' > .env.functions
 supabase secrets set --env-file .env.functions
 
