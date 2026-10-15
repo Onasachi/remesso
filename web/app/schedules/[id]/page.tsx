@@ -275,7 +275,7 @@ export default function ScheduleDetailPage() {
         <p className="hint mt-3">
           They receive cNGN and can{" "}
           <a href={TEXTILE_NAIRA_WITHDRAW} target="_blank" rel="noopener noreferrer" className="underline">
-            withdraw it to a Nigerian bank on Textile
+            withdraw it to their own Nigerian bank account on Textile
           </a>
           , from their own wallet.
         </p>

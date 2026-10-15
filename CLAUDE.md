@@ -178,6 +178,15 @@ the app opens on BNB Smart Chain. On the web home screen cNGN always has a tile,
 "Get cNGN" (Textile swap USDT→cNGN) and "Withdraw to bank"
 (`app.textilecredit.com/s/sell?chainId=42220`, Textile's Withdraw NGN).
 
+**Recipients cash out to their own bank, never to a sender's choice of
+account (Textile, 2026-10-15, `docs/textile-ramp-answers.md`).** Busha and
+Noblocks require the bank account to belong to the customer selling, Celo has
+no Ramp API provider (Noblocks there is an iframe in Textile's app), and USDT
+must be swapped to cNGN first. So a sender paying naira straight into someone
+else's bank account is not available through Textile, and it is not on the
+roadmap. Keep the link-out: the recipient receives tokens and withdraws them
+themselves.
+
 **cNGN on the Direct rail (2026-10-14).** cNGN is in both `DIRECT_TOKENS`
 lists: the recipient receives cNGN, with no swap, no redemption and no bank.
 The rail flags gate payout *types*, not tokens, so they do not stop it and
