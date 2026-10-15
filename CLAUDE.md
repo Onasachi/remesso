@@ -185,7 +185,9 @@ stay off. The backend cap counts 1,300 cNGN per dollar (rounded down). V4's
 allowlist took it on 2026-10-14 (`0x68ad32f6…3296`, cold owner, tagged). The
 first `directTokenAllowed` read right after still said false: forno lag, true
 at the tx block. Redeployed `execute-due-runs`, `sync-schedules`,
-`trigger-run`, `preflight` and `agent`; `/agent` lists cNGN among assets.
+`trigger-run`, `preflight` and `agent`; `/agent` lists cNGN among assets. First
+cNGN runs, 2026-10-14: schedule #11, 2 × 1,500 cNGN, each split 1,496.25 to
+the recipient and 3.75 fee (`0x90423b80…8bd0`, `0xb8051faa…fce9`).
 
 Nothing is deleted: existing schedules of any kind still render, and a skipped
 schedule simply stays due rather than accruing failed runs. As of 2026-09-28

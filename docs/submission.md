@@ -300,6 +300,7 @@ users yet, and we do not count any of the payments below as volume.
 | wARS, wBRL, wCOP allowed on the contract (2026-10-06) | `0x717cc22c…`, `0x482172a7…`, `0xbed93797…` |
 | USA₮ allowed on the contract (2026-10-11) | `0xf3292694…9e5a` |
 | cNGN allowed on the contract (2026-10-14) | `0x68ad32f6…3296` |
+| **First cNGN payments by the agent:** schedule #11, 1,500 cNGN every 5 minutes (testing), twice. 1,496.25 cNGN to the recipient and a 3.75 cNGN fee each time | `0x90423b80…8bd0`, `0xb8051faa…fce9` |
 | ERC-8004 agent #9879 registered from the agent wallet | `0xc806f21d…bad5` |
 | **First peso payment by the agent:** a 1,000 wARS weekly schedule created outside the app was found and paid within 5 minutes, unprompted — 997.5 wARS to the recipient, 2.5 wARS fee | `0x4eaf6976…9cdc` |
 | x402 payments in USA₮ through the official SDK (run twice) | `0x084c5027…ab39`, `0x5780ab21…d38d` |
