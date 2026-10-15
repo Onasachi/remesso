@@ -4,7 +4,7 @@
 once, carried out by an agent on Celo.**
 
 [App](https://remesso.crackedstudios.xyz) ·
-[Demo video](https://youtu.be/ojKpB09juTA) ·
+[Demo video](https://youtu.be/AD8JhgAlb9c) ·
 [Agent document](https://engaboljiqudghvzmebq.supabase.co/functions/v1/agent) ·
 [Hackathon write-up](docs/submission.md)
 
