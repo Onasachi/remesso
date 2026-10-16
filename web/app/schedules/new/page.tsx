@@ -19,12 +19,15 @@ const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000" as const;
 import {
   CNGN,
   CNGN_REDEMPTION_ADDRESS,
+  CURRENT_EXECUTOR,
   EXECUTOR_ADDRESS,
+  isRemessoTrigger,
+  minRunUnits,
   USDT,
   isConfigured,
   type TokenInfo,
 } from "@/lib/config";
-import { supabase, ensureSender } from "@/lib/supabase";
+import { supabase, ensureSender, functionError } from "@/lib/supabase";
 import { useAllowance, useFeeBps, useMarketRate, useTriggerAddress, useUsdtBalance } from "@/lib/hooks";
 import { everyLabel, formatExact, formatUnits, rateToNairaPerUsd, spanLabel } from "@/lib/format";
 import {
@@ -122,7 +125,9 @@ export default function NewSchedulePage() {
       : step === 1
         ? !amountIn
           ? "Enter an amount to continue"
-          : expiryProblem(terms) ?? triggerProblem(terms)
+          : amountIn < minRunUnits(fundingToken)
+            ? `Each transfer must be at least ${formatUnits(minRunUnits(fundingToken), fundingToken.decimals)} ${fundingToken.symbol}`
+            : expiryProblem(terms) ?? triggerProblem(terms)
         : null;
   const canContinue = blocker === null;
 
@@ -220,6 +225,19 @@ export default function NewSchedulePage() {
         ? (CNGN_REDEMPTION_ADDRESS as `0x${string}`)
         : (recipient.walletAddress as `0x${string}`);
 
+    // The grant as signed. On the swap rails V5 takes no third-party trigger
+    // — one picks the swap's moment and its slippage bound — so only the
+    // sender or Remesso may send those early. Said here, not as a revert.
+    const grantedTrigger = (terms.trigger.trim() || ZERO_ADDRESS) as `0x${string}`;
+    if (
+      recipient.payoutType !== "direct" &&
+      grantedTrigger !== ZERO_ADDRESS &&
+      grantedTrigger.toLowerCase() !== CURRENT_EXECUTOR
+    ) {
+      setError("Only Remesso can send a naira payout early. Turn off the other address.");
+      return;
+    }
+
     if (!destination) {
       setError("No destination address. Bank payouts are not configured.");
       return;
@@ -262,16 +280,15 @@ export default function NewSchedulePage() {
         .insert({
           sender_id: senderId,
           recipient_id: recipientRow.id,
-          // Schedule ids are per-contract, so a row is only identified by the
-          // pair. Without this a redeploy collides with the old contract's ids.
-          executor_address: EXECUTOR_ADDRESS,
+          // No `executor_address`, `status` or `onchain_id`: those are written
+          // by confirm-schedule from the chain, never by the app (migration
+          // 20261016000001). The row arrives pending and inert.
           token_address: fundingToken.address,
           amount_in: amountIn.toString(),
           interval_seconds: terms.intervalSeconds,
           min_rate_e6: floorE6.toString(),
           max_runs: terms.maxRuns ? Number(terms.maxRuns) : 0,
           expires_at: terms.expiresAt ? new Date(`${terms.expiresAt}T23:59:59Z`).toISOString() : null,
-          status: "pending_authorization",
           label: recipient.displayName.trim(),
         })
         .select("id")
@@ -315,8 +332,8 @@ export default function NewSchedulePage() {
           recipient.payoutType === "direct" ? ZERO_ADDRESS : CNGN.address,
           // The sender's grant, if they made one. Empty is the default and
           // means only the cadence ever runs this schedule.
-          (terms.trigger.trim() || ZERO_ADDRESS) as `0x${string}`,
-          terms.trigger.trim() ? Number(terms.triggersLeft) : 0,
+          grantedTrigger,
+          grantedTrigger === ZERO_ADDRESS ? 0 : Number(terms.triggersLeft),
         ],
         ...txOverrides(),
       });
@@ -333,21 +350,14 @@ export default function NewSchedulePage() {
       });
       if (!created) throw new Error("Transaction confirmed but no ScheduleCreated event was found");
 
-      const onchainId = created.args.id.toString();
-
+      // The server binds the row to the schedule, reading the same event from
+      // the chain and checking it names this sender. The schedule exists
+      // on-chain either way; if this fails, sync-schedules adopts it later.
       setBusy("Confirming");
-      const { error: uErr } = await sb
-        .from("schedules")
-        .update({
-          onchain_id: onchainId,
-          authorized_tx_hash: hash,
-          status: "active",
-          next_run_at: terms.startNow
-            ? new Date().toISOString()
-            : new Date(Date.now() + terms.intervalSeconds * 1000).toISOString(),
-        })
-        .eq("id", scheduleRow.id);
-      if (uErr) throw new Error(uErr.message);
+      const { error: uErr } = await sb.functions.invoke("confirm-schedule", {
+        body: { schedule: scheduleRow.id, txHash: hash },
+      });
+      if (uErr) throw new Error(await functionError(uErr));
 
       await queryClient.invalidateQueries({ queryKey: ["schedules"] });
       router.push(`/schedules/${scheduleRow.id}?created=1`);
@@ -751,7 +761,7 @@ function Review({
             {/* A name when we are the one being allowed, the address when it is
                 somebody else. Showing hex to a sender who never typed any is
                 asking them to verify a string they have no way to check. */}
-            {triggerAddress && terms.trigger.toLowerCase() === triggerAddress.toLowerCase()
+            {isRemessoTrigger(terms.trigger, triggerAddress)
               ? "Remesso"
               : (
                 <span className="mono text-[13px]">
@@ -836,6 +846,9 @@ const CONTRACT_ERRORS: Record<string, string> = {
   ScheduleInactive: "That schedule has already finished.",
   ScheduleIsCancelled: "That schedule was cancelled.",
   NotScheduleOwner: "This schedule belongs to a different wallet.",
+  InvalidTrigger:
+    "That address can't be allowed to send early. Use Remesso, or for a naira payout, nobody else.",
+  FirstRunAfterExpiry: "It ends before the first transfer — pick a later end date.",
 };
 
 function friendly(msg: string): string {

@@ -10,7 +10,7 @@ import {
   parseUnits,
   rateToNairaPerUsd,
 } from "@/lib/format";
-import { CNGN, type TokenInfo } from "@/lib/config";
+import { CNGN, CURRENT_EXECUTOR, isRemessoTrigger, type TokenInfo } from "@/lib/config";
 import { transfersBeforeExpiry } from "@/lib/allowance";
 import { Icon } from "./Icon";
 
@@ -23,7 +23,7 @@ export type TermsDraft = {
   startNow: boolean;
   /// Who else may pull a transfer early, and how many times. Empty and "0" —
   /// the default — means only the cadence runs this schedule, exactly as V3
-  /// behaved. See `runNow` in RemessoExecutorV4.
+  /// behaved. See `runNow` in RemessoExecutorV5.
   trigger: string;
   triggersLeft: string;
 };
@@ -105,8 +105,9 @@ export function expiryProblem(terms: TermsDraft): string | null {
 
 /// Why this trigger grant cannot be signed, or null.
 ///
-/// Set by the "Let this be sent early" switch, which fills in our own
-/// executor's address so a sender never handles one. The address field behind
+/// Set by the "Let this be sent early" switch, which fills in V5's
+/// CURRENT_EXECUTOR sentinel so a sender never handles an address — and so
+/// rotating our key moves the grant rather than leaving it with an old one. The address field behind
 /// "use a different address" is for someone pointing at their own agent.
 ///
 /// A grant is a pull on the sender's wallet. It is bounded — one transfer, to
@@ -442,12 +443,11 @@ function EarlySending({
   const grantCount = () => String(Number(value.maxRuns) || 65535);
 
   const on = Boolean(value.trigger);
-  const mine = trigger && value.trigger.toLowerCase() === trigger.toLowerCase();
+  const mine = isRemessoTrigger(value.trigger, trigger);
 
   function toggle(next: boolean) {
     if (!next) return set({ trigger: "", triggersLeft: "0" });
-    if (!trigger) return; // address not read yet; the switch stays off
-    set({ trigger, triggersLeft: grantCount() });
+    set({ trigger: CURRENT_EXECUTOR, triggersLeft: grantCount() });
   }
 
   return (

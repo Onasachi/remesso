@@ -17,7 +17,7 @@ npx skills add crackedstudio/Remesso
 |---|---|
 | ERC-8004 agent | `9867` on Celo, registry `0x8004A169FB4a3325136EB29fA0ceB6D2e539a432` |
 | Proof of human | Self Agent ID `191`, soulbound, zero-knowledge passport proof |
-| Contract | `RemessoExecutorV4` `0x288b7cDD10e069eA64D4984c3E5fa0D9c5816009` (Celo, 42220) |
+| Contract | `RemessoExecutorV5` `0x3C357af3300f383Ea49B6D6ED8e084199a92bEd8` (Celo, 42220) |
 | Start here | `https://remesso.crackedstudios.xyz/.well-known/agent.json` |
 | Capabilities | `GET https://engaboljiqudghvzmebq.supabase.co/functions/v1/agent` |
 
@@ -218,8 +218,15 @@ cannot be repeated within 60 seconds, it stops at the granted count, and the
 payer can withdraw the grant at any moment with `setTrigger(id, 0, 0)`.
 
 No CELO for gas? `POST /functions/v1/trigger-run` does the same thing for 0.01
-USDC and the facilitator pays the gas — provided the payer named **our**
-executor (`0x3c754AD31e802D5fA65487f460dED65Aba749Cd1`) as the trigger.
+USDC and the facilitator pays the gas — provided the payer granted **Remesso**:
+on V5 that is the sentinel `0x0000000000000000000000000000000000000001`
+(`CURRENT_EXECUTOR`), which follows our executor through a key rotation. The
+executor's own address is refused as a trigger. The payment is settled before
+the run is sent, after a simulation, so a run that would revert charges nothing.
+
+On V5 an early send uses up the next scheduled slot: if it is due next week and
+you collect today, the one after comes a week after next week, not a week from
+today. A collection on a payment that is already due costs no grant.
 
 ---
 
@@ -242,5 +249,5 @@ The naira rails (cNGN to a wallet, or to a Nigerian bank account) are built and
 switched off pending the regulatory work in the README. Today everything
 settles in stablecoins.
 
-`RemessoExecutorV4` is **unaudited**. It holds a spending allowance the moment
+`RemessoExecutorV5` is **unaudited**. It holds a spending allowance the moment
 a payer approves it. That is worth knowing before you point real money at it.

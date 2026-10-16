@@ -25,7 +25,7 @@
 /// to page and no reorg to unwind. That is the right trade at a few hundred
 /// schedules. Past that, index `ScheduleCreated` instead.
 import { createClient } from "npm:@supabase/supabase-js@2";
-import { CELO } from "../_shared/config.ts";
+import { CELO, runAmountProblem } from "../_shared/config.ts";
 import { getSchedule, nextScheduleId } from "../_shared/celo.ts";
 import { CNGN_RAILS_ENABLED, PAYOUT_DIRECT } from "../_shared/rails.ts";
 
@@ -45,6 +45,19 @@ const BATCH = 25;
 const MIN_INTERVAL = 300;
 
 const PAYOUT_NAME = ["wallet", "ngn_bank", "direct"] as const;
+
+/// How long a skipped id is left alone before it is read again.
+const SKIP_RECHECK_MS = 24 * 60 * 60 * 1000;
+
+/// Remember that `id` was looked at and not adopted, and why.
+async function noteSkip(id: bigint, reason: string) {
+  await db.from("schedule_sync_skips").upsert({
+    executor_address: CELO.executor.toLowerCase(),
+    onchain_id: String(id),
+    reason: reason.slice(0, 200),
+    checked_at: new Date().toISOString(),
+  });
+}
 
 Deno.serve(async () => {
   if (!CELO.executor) return json({ error: "no executor configured" }, 500);
@@ -67,6 +80,19 @@ Deno.serve(async () => {
   if (error) return json({ error: error.message }, 500);
 
   const mirrored = new Set((known ?? []).map((r) => String(r.onchain_id)));
+
+  // Ids skipped recently are not "missing", they are decided. Without this a
+  // skipped id stays unmirrored forever and is re-read first on every tick, so
+  // 25 of them — cheap to create — filled every batch and no new schedule was
+  // ever found again (solidity-auditor scan 2026-10-16). Rechecked after a day,
+  // because some reasons (the rails flag, the cap) can change.
+  const { data: skips } = await db
+    .from("schedule_sync_skips")
+    .select("onchain_id")
+    .eq("executor_address", CELO.executor.toLowerCase())
+    .gt("checked_at", new Date(Date.now() - SKIP_RECHECK_MS).toISOString());
+  for (const r of skips ?? []) mirrored.add(String(r.onchain_id));
+
   const missing: bigint[] = [];
   for (let i = 1n; i < upper && missing.length < BATCH; i++) {
     if (!mirrored.has(String(i))) missing.push(i);
@@ -85,20 +111,34 @@ Deno.serve(async () => {
       // that it has to re-derive its way out of on every tick.
       if (s.cancelled || !s.active) {
         results.push({ id: String(id), skipped: "not active" });
+        await noteSkip(id, "not active");
         continue;
       }
       if (s.expiresAt !== 0n && s.expiresAt * 1000n < BigInt(Date.now())) {
         results.push({ id: String(id), skipped: "expired" });
+        await noteSkip(id, "expired");
         continue;
       }
       if (!CNGN_RAILS_ENABLED && s.payoutType !== PAYOUT_DIRECT) {
         // The same refusal execute-due-runs makes. Mirroring it would only
         // create a row that is skipped every minute from now on.
         results.push({ id: String(id), skipped: "cngn_rails_disabled" });
+        await noteSkip(id, "cngn_rails_disabled");
         continue;
       }
       if (Number(s.interval) < MIN_INTERVAL) {
         results.push({ id: String(id), skipped: `interval ${s.interval}s below the ${MIN_INTERVAL}s floor` });
+        await noteSkip(id, `interval ${s.interval}s below the ${MIN_INTERVAL}s floor`);
+        continue;
+      }
+
+      // Too small to pay for its own gas, too large for the backend cap, or
+      // in an asset we cannot scale: the cron refuses each of these, so a
+      // mirrored row would only collect a failed run every backoff period.
+      const problem = runAmountProblem(s.token, s.amountIn);
+      if (problem) {
+        results.push({ id: String(id), skipped: problem });
+        await noteSkip(id, problem);
         continue;
       }
 

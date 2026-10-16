@@ -24,7 +24,7 @@ Three things an agent can do, and they are independent:
 
 | | |
 |---|---|
-| Contract | `RemessoExecutorV4` `0x288b7cDD10e069eA64D4984c3E5fa0D9c5816009` (Celo mainnet, 42220) |
+| Contract | `RemessoExecutorV5` `0x3C357af3300f383Ea49B6D6ED8e084199a92bEd8` (Celo mainnet, 42220) |
 | Start here | `https://remesso.crackedstudios.xyz/.well-known/agent.json` — every endpoint, the contract, the registrations |
 | Capabilities | `GET https://engaboljiqudghvzmebq.supabase.co/functions/v1/agent` — prices and refusals, free |
 | This file | `https://remesso.crackedstudios.xyz/skill.md` |
@@ -124,7 +124,8 @@ TO=0xRecipient AMOUNT=0.05 TOKEN=USDT EVERY=week RUNS=2 TRIGGER=remesso \
 PAYER_KEY=... deno run --allow-env --allow-net create-schedule.ts
 ```
 
-`TRIGGER=remesso` lets Remesso's executor bring a payment forward on request —
+`TRIGGER=remesso` grants the `CURRENT_EXECUTOR` sentinel (`0x…0001`), which
+lets Remesso's executor — whichever key that is — bring a payment forward on request —
 worth setting, because a schedule created directly on-chain is discovered by a
 sync that runs every five minutes, and until then only a trigger can move it.
 
@@ -136,7 +137,7 @@ costs the payer exactly 0.05; the recipient receives 0.049875.
 Every claim in this file is checkable, and the contract is the only authority.
 
 ```bash
-cast call 0x288b7cDD10e069eA64D4984c3E5fa0D9c5816009 \
+cast call 0x3C357af3300f383Ea49B6D6ED8e084199a92bEd8 \
   "getSchedule(uint256)" <id> --rpc-url https://forno.celo.org
 # runnability(uint256)                     is a payment due, funded, allowed
 # triggerability(uint256,address)          may `caller` collect early
@@ -175,7 +176,7 @@ If an endpoint and the contract disagree, the contract is right.
 
 ## Limits, measured rather than claimed
 
-`RemessoExecutorV4` is **live on mainnet and unaudited**. It holds a spending
+`RemessoExecutorV5` is **live on mainnet and unaudited**. It holds a spending
 allowance the moment a payer approves it. That is worth knowing before pointing
 real money at it.
 

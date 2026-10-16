@@ -47,3 +47,6 @@ supabase/.temp/
 # Left behind by running a Deno script inside the npm workspace. The web app
 # has no Deno dependencies; this is not its lockfile.
 web/deno.lock
+
+# solidity-auditor scan output: per-scan runs and the findings ledger.
+.solidity-auditor/

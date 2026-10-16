@@ -138,7 +138,31 @@ export const LIMITS = {
   maxRunAmountUsdt: Number(Deno.env.get("MAX_RUN_AMOUNT_USDT") ?? 1000),
   /// Abort a run if the pool cannot fill it inside this bound.
   maxAcceptableImpactBps: 150,
+  /// Refuse runs below this, in dollars. A run costs the executor ~$0.002 in
+  /// gas whatever its size, and 0.25% of anything under ~$0.70 does not cover
+  /// it — so a one-unit schedule was a way to make us pay gas forever
+  /// (solidity-auditor scan 2026-10-16). $1 keeps every run above break-even.
+  minRunAmountUsd: Number(Deno.env.get("MIN_RUN_AMOUNT_USD") ?? 1),
 };
+
+/// Why the backend will not run `amountIn` of `token`, or null if it will.
+///
+/// One check for every caller that moves money — the cron, a paid trigger and
+/// the sync that adopts schedules — so a rule cannot hold on one path and be
+/// missing from another (the paid trigger skipped all of these before
+/// 2026-10-16). An asset missing from the table is refused, never assumed 6dp.
+export function runAmountProblem(token: string | null | undefined, amountIn: bigint): string | null {
+  const asset = directToken(token ?? CELO.usdt);
+  if (!asset) return `funding asset ${token} is not in the backend token list`;
+  const unit = 10n ** BigInt(asset.decimals);
+  const cap = BigInt(LIMITS.maxRunAmountUsdt) * BigInt(asset.unitsPerUsd);
+  if (amountIn > cap * unit) return `amount exceeds backend cap of ${cap} ${asset.symbol}`;
+  // `unitsPerUsd` is rounded down, so this minimum is a little under a dollar
+  // for the peso tokens — the lenient direction for a floor.
+  const min = BigInt(LIMITS.minRunAmountUsd) * BigInt(asset.unitsPerUsd);
+  if (amountIn < min * unit) return `amount is below the backend minimum of ${min} ${asset.symbol}`;
+  return null;
+}
 
 export function requireEnv(): void {
   const missing = [

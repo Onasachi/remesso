@@ -63,7 +63,7 @@ export async function GET() {
 
       contracts: [
         {
-          name: "RemessoExecutorV4",
+          name: "RemessoExecutorV5",
           address: process.env.NEXT_PUBLIC_REMESSO_EXECUTOR_ADDRESS ?? null,
           chainId: Number(process.env.NEXT_PUBLIC_CHAIN_ID ?? 42220),
           role: "enforces every mandate; the authority on what may move",

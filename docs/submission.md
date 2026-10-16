@@ -30,7 +30,7 @@ until when. From then on **Remesso's agent** carries it out on Celo mainnet —
 every week or every month — without asking again.
 
 The agent can only do what was signed. The mandate lives in our contract,
-`RemessoExecutorV4` (`0x288b7cDD10e069eA64D4984c3E5fa0D9c5816009`, verified),
+`RemessoExecutorV5` (`0x3C357af3300f383Ea49B6D6ED8e084199a92bEd8`, verified),
 and **nobody — not the agent, not us, not the contract owner — can redirect,
 resize or extend a payment**. The sender can pause, resume or cancel at any
 time from their wallet. Money never sits with us: each payment moves straight
@@ -53,7 +53,7 @@ How a payment happens:
 
 | | |
 |---|---|
-| Agent wallet (sends every payment) | `0x3c754AD31e802D5fA65487f460dED65Aba749Cd1` |
+| Agent wallet (sends every payment) | `0xA351d65c15b8a342B6ECbC7f2B9eFE62B17cdb21` |
 | ERC-8004 identity held by the agent wallet | agent **#9879** (registry `0x8004A169FB4a3325136EB29fA0ceB6D2e539a432`) |
 | ERC-8004 identity held by the owner | agent #9867 |
 | Proof of a human behind it | Self Agent ID **#191** — soulbound, zero-knowledge passport proof |

@@ -74,3 +74,19 @@ function claimMessage(msg: string): string {
     ? "Couldn't start a session. Check your connection and reopen Remesso."
     : msg;
 }
+
+/// The reason an Edge Function gave, rather than supabase-js's generic
+/// "Edge Function returned a non-2xx status code". The body is ours and
+/// carries `{ error, detail? }`.
+export async function functionError(e: unknown): Promise<string> {
+  const ctx = (e as { context?: unknown }).context;
+  if (ctx instanceof Response) {
+    try {
+      const b = await ctx.clone().json();
+      if (b && typeof b.error === "string") return b.detail ? `${b.error}: ${b.detail}` : b.error;
+    } catch {
+      // Not JSON; fall through.
+    }
+  }
+  return (e as Error).message ?? String(e);
+}

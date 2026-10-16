@@ -22,7 +22,7 @@ once, never forgotten.
 | Category | Payments |
 | Short description | Send money home on a schedule: set it once, and the person you support is paid every week or month from your MiniPay balance. |
 | Already supports MiniPay | Yes, built for MiniPay first and tested in developer mode |
-| Smart contract | `RemessoExecutorV4` `0x288b7cDD10e069eA64D4984c3E5fa0D9c5816009` on Celo mainnet, verified on Celoscan |
+| Smart contract | `RemessoExecutorV5` `0x3C357af3300f383Ea49B6D6ED8e084199a92bEd8` on Celo mainnet, verified on Celoscan |
 | Audited | **Not yet.** It is live and has paid real schedules from our own test wallets. We keep per-payment limits low until an audit. |
 | Social | [X / Telegram handle] |
 | Demo video | https://youtu.be/AD8JhgAlb9c |

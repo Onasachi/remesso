@@ -29,7 +29,7 @@ asking again and without ever holding the money.
 ## How it works
 
 1. **The sender signs once.** Two transactions in their own wallet: `approve`
-   the token, then `createSchedule` on `RemessoExecutorV4` with the recipient,
+   the token, then `createSchedule` on `RemessoExecutorV5` with the recipient,
    amount, interval, number of payments and expiry.
 2. **The agent finds it.** Every 5 minutes `sync-schedules` scans the contract
    for new schedules, including ones created by a script or another agent
@@ -47,7 +47,7 @@ asking again and without ever holding the money.
 ```
 Sender wallet            Supabase (Edge Functions + pg_cron)        Celo
 ─────────────            ───────────────────────────────────        ────
-approve + createSchedule ───────────────────────────────────▶ RemessoExecutorV4
+approve + createSchedule ───────────────────────────────────▶ RemessoExecutorV5
                          sync-schedules      every 5 min  ◀── nextScheduleId / getSchedule
                          preflight           every 30 min ◀── balance, allowance, pool rate
                            └─▶ notice in the app, with its fix
@@ -139,7 +139,7 @@ Remesso is tested in MiniPay's developer mode and is not yet a listed Mini App.
 
 | | |
 |---|---|
-| Agent wallet (sends every payment) | `0x3c754AD31e802D5fA65487f460dED65Aba749Cd1` |
+| Agent wallet (sends every payment) | `0xA351d65c15b8a342B6ECbC7f2B9eFE62B17cdb21` |
 | ERC-8004 identity, held by the agent wallet | agent **9879** (registry `0x8004A169FB4a3325136EB29fA0ceB6D2e539a432`) |
 | ERC-8004 identity, held by the owner | agent 9867 |
 | Proof of a human behind it | Self Agent ID **191**, soulbound, from a passport proof |
@@ -238,10 +238,11 @@ agent.
 
 | | |
 |---|---|
-| **RemessoExecutorV4** | `0x288b7cDD10e069eA64D4984c3E5fa0D9c5816009`, live since 2026-09-22, verified, **unaudited** |
-| Owner (cold) | `0xcDEA4Cc4191Ec9A5d8fD1a6B17e3F4C84E993Ae2`. It can pause, set the fee within the coded cap, and add tokens to the allowlist. It cannot touch a signed schedule. |
-| Agent / executor (hot) | `0x3c754AD31e802D5fA65487f460dED65Aba749Cd1`, which pays gas only |
-| Earlier versions | V3 `0xd2e68acd…7e08f`, V2 `0x218414aD…DB0e95D2`, V1 `0xC7eF75fC…1189`, all superseded. Schedules do not migrate between contracts. |
+| **RemessoExecutorV5** | `0x3C357af3300f383Ea49B6D6ED8e084199a92bEd8`, deployed 2026-10-16, verified, **unaudited by a person** (V4 had an AI review; V5 fixes its findings) |
+| Owner (cold) | `0xc998739EEF304d39771901c0d379215a7C1AA15e`. It can pause, set the fee within the coded cap, and add tokens to the allowlist. It cannot touch a signed schedule. |
+| Agent / executor (hot) | `0xA351d65c15b8a342B6ECbC7f2B9eFE62B17cdb21`, which pays gas only |
+| Treasury | `0x2dA4cd408bd8051385B5Dd113F8beD56E4F9F134`, where the commission lands |
+| Earlier versions | V4 `0x288b7cDD…5816009` (2026-09-22 to 2026-10-16; owner `0xcDEA…3Ae2`, executor `0x3c75…9Cd1`), V3 `0xd2e68acd…7e08f`, V2 `0x218414aD…DB0e95D2`, V1 `0xC7eF75fC…1189`, all superseded. Schedules do not migrate between contracts. |
 | Tokens | USDT `0x48065fbB…483D5e` · USDC `0xcebA9300…32118C` · USDm `0x765DE816…B1282a` · USA₮ `0xD2ab3C9A…67F771` · wARS `0x0DC4F928…29D90D` · wBRL `0xD76f5Faf…4390e0` · wCOP `0x8a1D45e1…91e2D76` · cNGN `0xF6829D73…271a4f` |
 
 What V4 adds over V3, each fixed in the schedule at signing so no later owner

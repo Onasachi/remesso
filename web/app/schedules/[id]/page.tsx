@@ -10,8 +10,8 @@ import { waitForTransactionReceipt } from "wagmi/actions";
 import { wagmiConfig } from "@/lib/wagmi";
 import { txOverrides } from "@/lib/tx";
 import { executorAbi } from "@/lib/abi";
-import { EXECUTOR_ADDRESS, EXPLORER, CNGN, tokenFor } from "@/lib/config";
-import { supabase } from "@/lib/supabase";
+import { EXECUTOR_ADDRESS, EXPLORER, CNGN, isRemessoTrigger, tokenFor } from "@/lib/config";
+import { functionError, supabase } from "@/lib/supabase";
 import {
   useHistory,
   useIsMiniPay,
@@ -144,14 +144,14 @@ export default function ScheduleDetailPage() {
       if (action === "revoke") {
         await refetchOnchain();
       } else {
-        // The contract is already the authority; this mirrors it so the executor
-        // loop stops picking the schedule up on its next tick.
-        await supabase()
-          .from("schedules")
-          .update({
-            status: action === "cancel" ? "cancelled" : action === "pause" ? "paused" : "active",
-          })
-          .eq("id", schedule.id);
+        // The contract is already the authority; the server mirrors it so the
+        // executor loop stops (or resumes) picking the schedule up. Read at
+        // this transaction's block, so the mirror cannot lag the chain. The
+        // app no longer writes `status` itself (migration 20261016000001).
+        const { error: mErr } = await supabase().functions.invoke("confirm-schedule", {
+          body: { schedule: schedule.id, txHash: hash },
+        });
+        if (mErr) throw new Error(await functionError(mErr));
       }
 
       await queryClient.invalidateQueries({ queryKey: ["schedule", schedule.id] });
@@ -341,7 +341,7 @@ export default function ScheduleDetailPage() {
                 same rule as the review step. A sender who never typed an
                 address cannot check one. */}
             <p className="mt-1 text-[12px] text-ink-2">
-              {triggerAddress && onchain.trigger.toLowerCase() === triggerAddress.toLowerCase()
+              {isRemessoTrigger(onchain.trigger, triggerAddress)
                 ? "Remesso, on your behalf"
                 : (
                   <span className="mono">

@@ -2,17 +2,20 @@
 /// get the order wrong:
 ///
 ///   input checked → 402 quoted → payment verified → answer produced → settled
+///   → answer released
 ///
 /// - Bad input is a 400 BEFORE any price is quoted: nobody should pay to learn
 ///   their request could not be served.
 /// - The answer is produced before settlement. If it fails, the caller gets a
 ///   503 and is not charged; a caller who paid and got nothing is worse than
 ///   one who got nothing and paid nothing.
+/// - It is RELEASED only after settlement. An unsettled signature can be
+///   replayed or cancelled, so an answer handed over first is free.
 /// - Settlement reuses the exact entry that verified: the payer signed for one
 ///   asset, and settling another would ask the facilitator to move a token the
 ///   signature does not authorise.
 ///
-/// `rate-service` and `trigger-run` predate this and are left as they are.
+/// `rate-service` and `trigger-run` predate this and follow the same order by hand.
 import {
   ASSETS,
   decodePayment,
@@ -113,8 +116,16 @@ export function servePaid<I>(svc: PaidService<I>) {
       return json({ error: "unavailable right now — you were not charged" }, 503);
     }
 
+    // The answer is produced first and released only once settlement lands.
+    // Settling consumes the payer's EIP-3009 nonce on-chain; handing the
+    // answer over before that let one signature be replayed, or cancelled,
+    // for free answers (solidity-auditor scan 2026-10-16).
     const paid = await settle(payment, check.matched, what);
-    if (!paid.ok) console.error(`${svc.path}: SETTLEMENT FAILED after serving`, check.payer);
+    if (!paid.ok) {
+      console.error(`${svc.path}: settlement failed; answer withheld`, check.payer);
+      const q = paymentRequired(accepts, what, "payment could not be settled");
+      return json(q.body, 402, q.headers);
+    }
 
     return new Response(
       JSON.stringify({ ...(answer as object), asOf: new Date().toISOString(), payer: check.payer ?? null }, null, 2),

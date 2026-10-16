@@ -11,6 +11,20 @@ export const RPC_URL =
 export const EXECUTOR_ADDRESS =
   (process.env.NEXT_PUBLIC_REMESSO_EXECUTOR_ADDRESS ?? "") as `0x${string}`;
 
+/// V5's `CURRENT_EXECUTOR`. A sender who lets Remesso send early grants THIS,
+/// not the executor's address: it means "whoever is the executor now", so a
+/// key rotation moves the grant and a retired key keeps nothing. V5 refuses
+/// the executor's literal address as a trigger.
+export const CURRENT_EXECUTOR = "0x0000000000000000000000000000000000000001" as const;
+
+/// Is `trigger` a grant to Remesso? The sentinel on V5; the executor's own
+/// address on a V4 schedule, which predates it.
+export function isRemessoTrigger(trigger: string | undefined | null, executor: string | undefined | null): boolean {
+  if (!trigger) return false;
+  const t = trigger.toLowerCase();
+  return t === CURRENT_EXECUTOR || (!!executor && t === executor.toLowerCase());
+}
+
 export type TokenInfo = {
   address: `0x${string}`;
   symbol: string;
@@ -125,6 +139,23 @@ const BY_ADDRESS: Record<string, TokenInfo> = Object.fromEntries(
 
 /// Resolve a token by address. Falls back to USDT because every pre-V3 schedule
 /// was funded in it; an unknown address would otherwise format as 6dp silently.
+/// The smallest payment the backend will run, in whole tokens, by currency.
+/// Mirrors `LIMITS.minRunAmountUsd` ($1) scaled by `unitsPerUsd` in
+/// `supabase/functions/_shared/config.ts`: a run costs ~$0.002 in network fees
+/// whatever its size, and below about a dollar the commission doesn't cover
+/// it. A schedule under this would be signed and then never run.
+const MIN_RUN_WHOLE: Record<TokenInfo["currency"], bigint> = {
+  USD: 1n,
+  NGN: 1300n,
+  ARS: 1500n,
+  BRL: 5n,
+  COP: 3200n,
+};
+
+export function minRunUnits(t: TokenInfo): bigint {
+  return MIN_RUN_WHOLE[t.currency] * 10n ** BigInt(t.decimals);
+}
+
 export function tokenFor(address?: string | null): TokenInfo {
   return (address && BY_ADDRESS[address.toLowerCase()]) || USDT;
 }

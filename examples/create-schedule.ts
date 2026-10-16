@@ -40,7 +40,7 @@ import { celo } from "npm:viem@2/chains";
 
 const RPC = Deno.env.get("CELO_RPC_URL") ?? "https://forno.celo.org";
 const EXECUTOR = (Deno.env.get("EXECUTOR") ??
-  "0x288b7cDD10e069eA64D4984c3E5fa0D9c5816009") as `0x${string}`;
+  "0x3C357af3300f383Ea49B6D6ED8e084199a92bEd8") as `0x${string}`;
 
 /// Decimals are NOT uniform: USDm is 18dp while USDT and USDC are 6dp, so a
 /// fixed 6 is wrong by 10^12 for a third of this table. Addresses are the
@@ -167,13 +167,13 @@ if (celoBalance === 0n) {
   Deno.exit(1);
 }
 
-/// Who, if anyone, may bring a payment forward. `remesso` reads the address
-/// off the contract rather than trusting one written here — `setExecutor` can
-/// change it, and a grant naming a stale address refuses every call while
-/// looking permissive.
+/// Who, if anyone, may bring a payment forward. `remesso` is the contract's
+/// CURRENT_EXECUTOR sentinel, address(1): "whoever is the executor now", so a
+/// key rotation moves the grant. V5 refuses the executor's own address, and on
+/// a converting (swap) payout it refuses any trigger but this one.
 const triggerEnv = (Deno.env.get("TRIGGER") ?? "").trim();
 const trigger = triggerEnv.toLowerCase() === "remesso"
-  ? await read("executor", [], EXECUTOR) as `0x${string}`
+  ? "0x0000000000000000000000000000000000000001" as const
   : /^0x[a-fA-F0-9]{40}$/.test(triggerEnv)
   ? triggerEnv as `0x${string}`
   : "0x0000000000000000000000000000000000000000" as const;

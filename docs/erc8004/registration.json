@@ -1,0 +1,76 @@
+{
+  "type": "https://eips.ethereum.org/EIPS/eip-8004#registration-v1",
+  "name": "Remesso",
+  "description": "Recurring stablecoin payments on Celo, bound by a mandate the payer signs on-chain. An agent can be paid by a schedule, ask to be paid, pay for services in USDC, USD₮ or USA₮ over x402, or commit its own wallet to paying on a schedule. Nothing can redirect, resize or extend a payment once signed — the contract enforces it, not the operator.",
+  "services": [
+    {
+      "name": "capabilities",
+      "endpoint": "https://engaboljiqudghvzmebq.supabase.co/functions/v1/agent",
+      "description": "What this agent does, what it costs, and what it refuses. Free."
+    },
+    {
+      "name": "request-payment",
+      "endpoint": "https://engaboljiqudghvzmebq.supabase.co/functions/v1/request-payment",
+      "description": "Ask someone to pay you on a schedule. Free. Advisory: it prefills their form and decides nothing."
+    },
+    {
+      "name": "naira-rate",
+      "endpoint": "https://engaboljiqudghvzmebq.supabase.co/functions/v1/rate-service",
+      "description": "Live USDT/NGN and USDC/NGN from on-chain RFQ makers. 0.001 via x402."
+    },
+    {
+      "name": "trigger-run",
+      "endpoint": "https://engaboljiqudghvzmebq.supabase.co/functions/v1/trigger-run",
+      "description": "Bring one payment of an existing schedule forward. 0.01 via x402. The caller buys timing and nothing else. Grant trigger 0x0000000000000000000000000000000000000001 (CURRENT_EXECUTOR) to allow it."
+    },
+    {
+      "name": "latam-rate",
+      "endpoint": "https://engaboljiqudghvzmebq.supabase.co/functions/v1/latam-rate",
+      "description": "Peso and real pricing on Celo (wARS, wBRL) from two independent sources, side by side. 0.001 via x402."
+    },
+    {
+      "name": "latam-route",
+      "endpoint": "https://engaboljiqudghvzmebq.supabase.co/functions/v1/latam-route",
+      "description": "Where to convert pesos or reais on Celo at your size, and what it costs. 0.002 via x402."
+    }
+  ],
+  "payment": {
+    "protocol": "x402",
+    "version": 2,
+    "network": "eip155:42220",
+    "assets": [
+      {
+        "symbol": "USDC",
+        "address": "0xcebA9300f2b948710d2653dD7B07f33A8B32118C"
+      },
+      {
+        "symbol": "USDT",
+        "address": "0x48065fbBE25f71C9282ddf5e1cD6D6A887483D5e"
+      },
+      {
+        "symbol": "USAT",
+        "address": "0xD2ab3C9A02DBBAB236BfEC45D1d755DF4267F771"
+      }
+    ],
+    "note": "Take the EIP-712 domain from the 402's extra; match assets by address, not symbol."
+  },
+  "contracts": [
+    {
+      "name": "RemessoExecutorV5",
+      "address": "0x3C357af3300f383Ea49B6D6ED8e084199a92bEd8",
+      "chainId": 42220,
+      "role": "enforces every mandate; the authority on what may move"
+    }
+  ],
+  "identity": {
+    "selfAgentId": 191,
+    "registry": "0xaC3DF9ABf80d0F5c020C06B04Cced27763355944",
+    "proof": "self-agent-id",
+    "note": "Soulbound to a human verified by zero-knowledge passport proof."
+  },
+  "supportedTrust": [
+    "reputation"
+  ],
+  "skill": "https://raw.githubusercontent.com/crackedstudio/Remesso/main/skills/remesso/SKILL.md",
+  "source": "https://github.com/crackedstudio/Remesso"
+}

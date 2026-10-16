@@ -9,7 +9,7 @@ Read `README.md` for the why. This file is what you need to not break it.
 ## Commands
 
 ```bash
-# contracts — 17 tests, all must pass
+# contracts — 81 tests across V1–V5, all must pass
 cd contracts && forge test
 
 # Self webhook signatures — verifies our Svix check against the svix library
@@ -27,6 +27,9 @@ deno test --allow-env --allow-read --allow-net supabase/functions/_shared/x402.t
 
 # pre-flight agent — what it tells a sender about an upcoming payment, and how urgently
 deno test supabase/functions/_shared/preflight.test.ts
+
+# mirror status — a pause is a pause, not "completed"
+deno test supabase/functions/_shared/schedule-status.test.ts
 
 # history merge — how the chain is allowed ahead of the `runs` table in the UI
 deno test --unstable-sloppy-imports web/lib/history.test.ts
@@ -48,7 +51,7 @@ cd web && npx tsc --noEmit && npx next build && npm start   # localhost:3000
 
 # deploy
 supabase functions deploy execute-due-runs cngn-webhook reconcile-redemptions \
-  cngn-proxy balance-poller self-verify self-webhook
+  cngn-proxy balance-poller self-verify self-webhook confirm-schedule
 supabase secrets set --env-file .env.functions
 ```
 
@@ -74,17 +77,24 @@ blast radius grows quietly.
 
 | | |
 |---|---|
-| `RemessoExecutorV4` | `0x288b7cDD10e069eA64D4984c3E5fa0D9c5816009` — **live and in use since 2026-09-22**, verified, **unaudited**. Payout asset per schedule, `runNow`, capped commission. |
+| `RemessoExecutorV5` | `0x3C357af3300f383Ea49B6D6ED8e084199a92bEd8` — **deployed 2026-10-16** (tx `0x95a9ddcc…6a07`, block 80,268,721), verified. V4 plus the fixes from the 2026-10-16 solidity-auditor scans: an early send moves a run instead of adding one, `CURRENT_EXECUTOR` (address(1)) as trigger, no third-party trigger on the swap rails, commission rounded up, floor checked on the net amount. Allowlists copied from V4 by `contracts/script/setup-v5.sh` and checked equal on-chain. **No person has audited it.** |
+| `RemessoExecutorV4` | `0x288b7cDD10e069eA64D4984c3E5fa0D9c5816009` — live 2026-09-22 to the V5 cutover. Its schedules stay on-chain and stop running once the executor is pointed at V5. Its early send adds a payment on an uncapped schedule: do not grant triggers on it. |
 | `RemessoExecutorV3` | `0xd2e68acd875fb1b3a98dc0d72659910b05e7e08f` — superseded 2026-09-22. Schedules created against it still exist on-chain and can never run again: the executor is scoped to one contract. |
 | `RemessoExecutorV2` | `0x218414aD37206fd4cFD6C47947574708DB0e95D2` — superseded 2026-09-17 |
 | `RemessoExecutor` V1 | `0xC7eF75fC6283aB3b810fa4dE270F074C47761189` — retired 2026-09-15, schedule #1 cancelled, allowance revoked. Has the defects listed below; do not point anything at it. |
-| owner | `0xcDEA4Cc4191Ec9A5d8fD1a6B17e3F4C84E993Ae2` — cold, deploy only |
-| executor (hot) | `0x3c754AD31e802D5fA65487f460dED65Aba749Cd1` — cron key, gas only |
+| owner (V5) | `0xc998739EEF304d39771901c0d379215a7C1AA15e` — cold, deploy and allowlist only |
+| executor (V5, hot) | `0xA351d65c15b8a342B6ECbC7f2B9eFE62B17cdb21` — cron key, gas only |
+| treasury (V5) | `0x2dA4cd408bd8051385B5Dd113F8beD56E4F9F134` — commission |
+| owner (V1–V4) | `0xcDEA4Cc4191Ec9A5d8fD1a6B17e3F4C84E993Ae2` — cold. Still owns V1–V4, ERC-8004 #9867, Self Agent ID 191, and is `X402_PAY_TO`. |
+| executor (V1–V4) | `0x3c754AD31e802D5fA65487f460dED65Aba749Cd1` — still the executor on V1–V4, which have no live schedules. |
 | **retired** | `0xe1a0F916e859624D4edbadA23E4382D327EAf626` — **private key was exposed in a session log. Do not reuse.** |
 | Supabase | `engaboljiqudghvzmebq` |
 | Goldsky subgraph | `remesso-celo-celo/1.0.0` → tag `prod`, project `project_cmt8exmp1z5f401z7gnkohrw9`. Instant subgraph from the V3 ABI, `indexer/`. |
 
-Keys live in `~/.remesso/keys/{owner,executor}.json` and `~/.ssh/cngn_api_key`.
+Keys: the V5 owner key is `DEPLOYER_PRIVATE_KEY` in `contracts/.env` and the V5
+executor key is `EXECUTOR_PRIVATE_KEY` in the root `.env` (both git-ignored).
+`~/.remesso/keys/{owner,executor}.json` hold the V1–V4 owner and executor;
+`~/.ssh/cngn_api_key` the cNGN key.
 The contract is immutable: a fix means redeploying and every sender
 re-authorising. Owner can `setExecutor`, `setPoolFee`, `pause`, `rescueToken` —
 nothing else, and it cannot redirect a payment.
@@ -381,11 +391,24 @@ The backend encodes the suffix itself rather than importing
 path of every remittance). `attribution.test.ts` pins the bytes to the SDK's
 own output — one wrong byte and the indexer sees nothing, silently.
 
-## V4 and paid triggering
+## V4/V5 and paid triggering
 
-`RemessoExecutorV4` at `0x288b7cDD10e069eA64D4984c3E5fa0D9c5816009` (verified,
-**unaudited**) is what the app creates against and the executor runs, since
-2026-09-22.
+`RemessoExecutorV5` at `0x3C357af3300f383Ea49B6D6ED8e084199a92bEd8` (verified,
+no human audit) is what the app creates against and the executor runs from the
+2026-10-16 cutover; V4 (`0x288b…6009`) before it, since 2026-09-22. V5 has V4's
+ABI and storage, so everything below holds for both, except:
+
+- **An early send moves a run, it does not add one.** V4 restarted the cadence
+  from the early send, so on a schedule with no run cap each paid trigger was
+  one MORE payment. V5 uses up the next slot; a trigger on a run that is
+  already due costs no early send.
+- **A grant to Remesso is `CURRENT_EXECUTOR`, address(1)**, resolved to the
+  executor at call time. V5 refuses the executor's literal address as a
+  trigger. The app writes the sentinel (`web/lib/config.ts`); `/agent`
+  advertises it as `chain.trigger`.
+- **On the swap rails only the sender or the executor may trigger.**
+- Commission rounds UP; the degenerate-floor check uses the net amount;
+  `setMinRate` refuses Direct; a first run after the expiry is refused.
 
 **Schedules do not migrate.** They live in a contract's own storage, so every
 V3 schedule is still on-chain, still owned by its sender, and will never run
@@ -456,15 +479,21 @@ peso/real pricing and routing. Both read two independent sources side by side
 reads) and the Uniswap USDT pools on Celo — wARS 1bps `0x5D8e…2391`, wBRL
 1bps `0x01c3…` (~88k wBRL: 1.2% impact at $5k, so the route switches venue).
 wCOP has neither and is answered as "none on Celo". Ripio is links only.
-Both run through `_shared/x402-serve.ts` (400 before price, answer before
-settle); **its description must be Latin-1** — it rides in the base64
+Both run through `_shared/x402-serve.ts` (400 before price, answer RELEASED only
+after settlement — computed first so "unavailable" charges nobody); **its description must be Latin-1** — it rides in the base64
 PAYMENT-REQUIRED header and `btoa` throws on "→", which made every paid call
 a 500 locally before it was caught.
 
 `trigger-run` sells one early send over x402 — an agent pays $0.01 USDC, one
 run fires ahead of cadence. The caller buys timing and nothing else. Order is
-verify -> run -> settle, so a reverted run charges nobody; a settlement that
-fails after a successful run is logged loudly because it is our loss.
+verify -> simulate -> settle -> run (since 2026-10-16; it was verify -> run ->
+settle, and an unsettled signature can be replayed or cancelled, so one payment
+bought any number of runs). Settling spends the payer's EIP-3009 nonce
+on-chain; the simulation keeps "a run that would revert charges nobody". A run
+that simulated cleanly and then reverted after settlement is logged loudly and
+the payer told they were charged. It also applies the backend's own per-run
+cap, $1 minimum and token table (`runAmountProblem`), and prices a swap run
+from a live quote, never the sender's floor.
 `verify_jwt = false`: the payment is the authentication, and callers have no
 Supabase JWT. It answers 403 before quoting a price for any schedule whose
 sender did not nominate this executor, and for any schedule paying out in cNGN
@@ -484,15 +513,18 @@ Registered with Self Agent ID on 2026-09-22, from a real passport:
 |---|---|
 | agent id | `191` |
 | agent address | `0x5C3EBb0084233156ba51a5C2dfD42d88d5a74CA6` |
-| human owner | `0xcDEA4Cc4191Ec9A5d8fD1a6B17e3F4C84E993Ae2` (cold) |
+| human owner | `0xcDEA4Cc4191Ec9A5d8fD1a6B17e3F4C84E993Ae2` (the V1–V4 cold owner) |
 | registry | `0xaC3DF9ABf80d0F5c020C06B04Cced27763355944` — soulbound, `ownerOf(191)` confirms |
 | ERC-8004 | agent `9867`, registry `0x8004A169FB4a3325136EB29fA0ceB6D2e539a432`, registered 2026-09-28, metadata refreshed 2026-10-01 (`0x86e49771…dc77`) — owned by the cold owner |
-| ERC-8004 (agent wallet) | agent `9879`, same registry and metadata as 9867, registered 2026-10-06 FROM the executor (`0x3c754AD3…49Cd1`, tx `0xc806f21d…bad5`) — the hackathon wants the identity held by the wallet that sends the agent's transactions |
+| ERC-8004 (agent wallet) | agent `9879`, same registry and metadata as 9867, registered 2026-10-06 FROM the then-executor (`0x3c754AD3…49Cd1`, tx `0xc806f21d…bad5`) — the hackathon wants the identity held by the wallet that sends the agent's transactions. At the V5 cutover it moves to the V5 executor `0xA351…cdb21` with `agentWallet` re-set by that wallet's signature: `scripts/erc8004-v5.ts` (the registry clears `agentWallet` on any transfer). |
 
 The ERC-8004 metadata is a `data:` URI embedded in the token, not a link to a
 host we control: what is registered cannot be quietly rewritten later. Changing
 it means `setAgentURI` and a transaction anyone can see — ~1.02M gas, about two
-cents, signed with the COLD owner key.
+cents, signed by whichever key holds that token (#9867: the V1–V4 cold owner;
+#9879: the V5 executor). The current document is `docs/erc8004/registration.json`
+and `scripts/erc8004-v5.ts` writes it to both; it names the contract, so every
+redeploy needs it again.
 
 **It goes stale silently, and it is believed.** By 2026-10-01 it still
 advertised x402 v1, `network: "celo"` and USDC alone, so an agent discovering
@@ -507,7 +539,7 @@ them: the returned credentials are empty bytes, and the OFAC flags are false.
 That is the sybil-resistance layer the Celo Agent Visa Work tier asks for.
 
 The agent address is an identity, not a key that moves money. Runs are still
-signed by the executor (`0x3c754AD3…49Cd1`) and bounded by the contract.
+signed by the executor (`0xA351…cdb21` on V5) and bounded by the contract.
 
 ## Agents: being paid, and paying
 
@@ -693,7 +725,13 @@ every sender re-authorising, so it is a deliberate decision, not a default.
   storage means a new anonymous user, and first-come-and-permanent left the app
   with no sender row and a "sign in" message naming a screen that does not
   exist. Re-claiming grants a view of a schedule list, never the ability to
-  move money.
+  move money. **That was not true until 2026-10-16**: RLS let the claimed
+  session write `status` (pause a victim's cadence), `onchain_id` (squat ids so
+  real schedules never mirrored) and recipients' bank fields. Migration
+  `20261016000001` makes those service-role only; the app now asks
+  `confirm-schedule`, which reads them from the chain. Still open: a bank
+  payout's account details are a claim — bind them to something the sender
+  signs before the naira rails come back.
 - The contract is **live on mainnet and unaudited.** Schedules have run since 2026-09-22 — all
   ours so far (the first wARS run: schedule #8, 2026-10-11, `0x4eaf6976…9cdc`).
 

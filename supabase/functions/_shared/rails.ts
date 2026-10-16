@@ -1,6 +1,6 @@
 /// Which payout rails the backend will actually run.
 ///
-/// `RemessoExecutorV4` is immutable and has all three rails compiled into it,
+/// `RemessoExecutorV5` is immutable and has all three rails compiled into it,
 /// so "disable naira" cannot be a contract change — `pause()` is the only
 /// lever the contract offers and it stops every rail at once. The switch has
 /// to live in the two things that call the contract: the cron executor and the

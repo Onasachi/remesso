@@ -21,9 +21,10 @@
 /// is rejected. Batching them into a single transaction is the way past that,
 /// and it needs a batcher contract set via setExecutor — see README.
 import { createClient } from "npm:@supabase/supabase-js@2";
-import { CELO, directToken, LIMITS, requireEnv } from "../_shared/config.ts";
+import { CELO, requireEnv, runAmountProblem } from "../_shared/config.ts";
 import {
   executeRun,
+  feeOf,
   getSchedule,
   isPaused,
   liquidityIsHealthy,
@@ -31,6 +32,7 @@ import {
 } from "../_shared/celo.ts";
 import { assertCeloSupported, CngnError, redeemToBank } from "../_shared/cngn.ts";
 import { CNGN_RAILS_ENABLED } from "../_shared/rails.ts";
+import { mirrorStatus } from "../_shared/schedule-status.ts";
 
 const db = createClient(
   Deno.env.get("SUPABASE_URL")!,
@@ -192,36 +194,40 @@ async function prepare(
 
   try {
     // 1. Ask the contract, not the database. It is the authority.
-    const r = await runnability(onchainId);
+    const [r, onchain, wallet] = await Promise.all([
+      runnability(onchainId),
+      getSchedule(onchainId),
+      senderWallet(s.sender_id),
+    ]);
+
+    // The row must belong to the schedule's own sender. A mirror row is only
+    // a pointer at an on-chain id, and until 2026-10-16 the app could write
+    // `onchain_id` itself — so a row could name somebody else's schedule, or
+    // squat an id before its real owner's row arrived. Running it would still
+    // only pay what that sender signed, but under the wrong person's history.
+    if (!wallet || onchain.sender.toLowerCase() !== wallet) {
+      return await fail(`on-chain schedule ${onchainId} belongs to ${onchain.sender}, not this row's sender`);
+    }
+
     if (!r.due) {
-      // Distinguish "not yet" from "never again". A schedule that has spent its
-      // run cap is not due and never will be, so close it here too — the settle
-      // path above only catches schedules this deployment finished itself.
-      const onchain = await getSchedule(onchainId);
-      if (!onchain.active && !onchain.cancelled) {
-        await db.from("schedules").update({ status: "completed" }).eq("id", s.schedule_id);
-        return await fail("schedule completed its final run", "skipped");
+      // Distinguish "not yet" from "never again" — and a pause from both. The
+      // contract flips `active` off for a pause AND for the final run, so the
+      // run count tells them apart; see `mirrorStatus`.
+      const status = mirrorStatus(onchain);
+      if (status !== "active") {
+        await db.from("schedules").update({ status }).eq("id", s.schedule_id);
+        return await fail(`schedule is ${status} on-chain`, "skipped");
       }
       return await fail("not due on-chain", "skipped");
     }
     if (!r.funded) return await fail("sender funding wallet is short", "skipped");
     if (!r.approved) return await fail("sender allowance revoked or too low", "skipped");
 
-    // 2. Backstop the on-chain envelope with our own ceiling, at the funding
-    //    asset's own scale and in its own currency. An asset missing from the
-    //    table is refused rather than assumed 6dp: the old fallback would have
-    //    read an 18dp wARS amount as 10^12 times smaller and waved through any
-    //    size at all. Funding assets are all in `DIRECT_TOKENS` (the swap rails
-    //    fund in USDT, which is), so this only fires if the contract's
-    //    allowlist gained a token this table never heard of.
-    const asset = directToken(s.token_address ?? CELO.usdt);
-    if (!asset) {
-      return await fail(`funding asset ${s.token_address} is not in the backend token list`);
-    }
-    const cap = BigInt(LIMITS.maxRunAmountUsdt) * BigInt(asset.unitsPerUsd);
-    if (amountIn > cap * 10n ** BigInt(asset.decimals)) {
-      return await fail(`amount exceeds backend cap of ${cap} ${asset.symbol}`);
-    }
+    // 2. Backstop the on-chain envelope with our own ceiling and floor, at the
+    //    funding asset's own scale and in its own currency. Read from the
+    //    chain's copy of the schedule, not the mirror's.
+    const problem = runAmountProblem(onchain.token, onchain.amountIn);
+    if (problem) return await fail(problem);
 
     // 3. A Direct run converts nothing: same asset in and out. There is no
     //    price to quote, no pool to check and no floor to clear, so the whole
@@ -239,8 +245,12 @@ async function prepare(
     }
 
     // One pool, ~$95k deep. Confirm it can still fill this before spending gas
-    // — and reuse the quote it computed rather than asking twice.
-    const health = await liquidityIsHealthy(amountIn);
+    // — and reuse the quote it computed rather than asking twice. Quoted on
+    // the NET amount: the contract takes its commission first and swaps what
+    // is left, so a quote on the gross asked a bank redemption for naira the
+    // swap would never produce.
+    const net = onchain.amountIn - feeOf(onchain.amountIn, onchain.feeBps);
+    const health = await liquidityIsHealthy(net);
     if (!health.ok) {
       return await fail(`pool impact ${health.impactBps}bps exceeds limit`, "skipped");
     }
@@ -331,10 +341,10 @@ async function settle(p: Prepared) {
     // with a next_run_at that advances forever, the UI shows a finished
     // schedule as live, and every cycle writes another "not due" skipped row.
     const [r, onchain] = await Promise.all([runnability(onchainId), getSchedule(onchainId)]);
-    const finished = !onchain.active && !onchain.cancelled;
+    const status = mirrorStatus(onchain);
     await db.from("schedules").update({
       next_run_at: new Date(Number(r.nextRunAt) * 1000).toISOString(),
-      ...(finished ? { status: "completed" as const } : {}),
+      ...(status !== "active" ? { status } : {}),
     }).eq("id", s.schedule_id);
 
     return { schedule: s.schedule_id, status: "ok", hash, awaitingPayout: !!cngnTrxRef };
@@ -364,6 +374,12 @@ function describe(e: unknown): string {
   return e instanceof CngnError
     ? `cNGN ${e.status}: ${e.message}${e.retryable ? " (retryable)" : ""}`
     : (e as Error).message;
+}
+
+/// The wallet a sender row names, lowercased, or null.
+async function senderWallet(senderId: string): Promise<string | null> {
+  const { data } = await db.from("senders").select("wallet_address").eq("id", senderId).maybeSingle();
+  return data?.wallet_address ? String(data.wallet_address).toLowerCase() : null;
 }
 
 async function bankDetails(scheduleId: string) {

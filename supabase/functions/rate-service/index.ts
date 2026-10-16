@@ -90,7 +90,8 @@ Deno.serve(async (req) => {
   }
 
   // Fetch before settling. A caller who paid and got nothing is worse than a
-  // caller who got nothing and paid nothing.
+  // caller who got nothing and paid nothing — but the answer is only RETURNED
+  // once settlement succeeds, below.
   let rates: Rate[];
   try {
     rates = await naira();
@@ -99,8 +100,17 @@ Deno.serve(async (req) => {
     return json({ error: "rates unavailable — you were not charged" }, 503);
   }
 
+  // Settle before the answer leaves. Until settlement the payer's signature
+  // is unspent, so an answer handed over first could be had again with the
+  // same signature, or the authorisation cancelled — free rates, indefinitely
+  // (solidity-auditor scan 2026-10-16). Settling consumes the EIP-3009 nonce
+  // on-chain, which is what makes one payment buy exactly one answer.
   const paid = await settle(payment, check.matched, what);
-  if (!paid.ok) console.error("rate-service: SETTLEMENT FAILED after serving", check.payer);
+  if (!paid.ok) {
+    console.error("rate-service: settlement failed; answer withheld", check.payer);
+    const q = paymentRequired(accepts, what, "payment could not be settled");
+    return json(q.body, 402, q.headers);
+  }
 
   return new Response(
     JSON.stringify({ rates, asOf: new Date().toISOString(), payer: check.payer ?? null }, null, 2),

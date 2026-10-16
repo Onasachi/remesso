@@ -16,16 +16,27 @@
 /// The caller is buying timing. Everything else was fixed when the sender
 /// signed, and `runNow` re-checks all of it on-chain.
 ///
-/// Order of operations: verify the payment, run, then settle. A caller whose
-/// run reverts is not charged; a caller who is charged got their run.
+/// Order of operations: check, verify the payment, simulate the run, settle,
+/// then run. Until 2026-10-16 it was verify -> run -> settle with no record of
+/// the payment, and an unsettled signature can be replayed or cancelled — so
+/// one authorisation bought any number of runs, each costing our hot key gas
+/// (solidity-auditor scan 2026-10-16). Settling first consumes the payer's
+/// EIP-3009 nonce on-chain; the simulation before it keeps "a run that would
+/// revert charges nobody". What remains is a run that simulated cleanly and
+/// then reverted in the seconds after settlement — logged loudly, and the
+/// payer told they were charged.
 import {
-  executorAccount,
+  CURRENT_EXECUTOR,
   executorV4,
+  feeOf,
   getSchedule,
+  liquidityIsHealthy,
   runNow,
+  simulateRunNow,
   triggerability,
   v4Runnability,
 } from "../_shared/celo.ts";
+import { CELO, runAmountProblem } from "../_shared/config.ts";
 import { CNGN_RAILS_ENABLED, PAYOUT_DIRECT, RAIL_DISABLED_DETAIL } from "../_shared/rails.ts";
 import {
   decodePayment,
@@ -79,12 +90,12 @@ Deno.serve(async (req) => {
   // the caller should not pay to discover that.
   let canTrigger: boolean;
   let floor: bigint;
-  let payoutType: number;
+  let onchain: Awaited<ReturnType<typeof getSchedule>>;
   try {
-    const t = await triggerability(id);
+    const [t, r, s] = await Promise.all([triggerability(id), v4Runnability(id), getSchedule(id)]);
     canTrigger = t.canTrigger;
-    floor = (await v4Runnability(id)).floor;
-    payoutType = (await getSchedule(id)).payoutType;
+    floor = r.floor;
+    onchain = s;
   } catch (e) {
     console.error("trigger-run: chain read failed", (e as Error).message);
     return json({ error: "could not read the schedule" }, 502);
@@ -95,6 +106,7 @@ Deno.serve(async (req) => {
   // of only two places that can decline, and the rail is read from the chain
   // rather than from our mirror of it because a payer is about to spend money
   // on the answer.
+  const payoutType = onchain.payoutType;
   if (!CNGN_RAILS_ENABLED && payoutType !== PAYOUT_DIRECT) {
     return json({ error: "this schedule cannot be triggered", detail: RAIL_DISABLED_DETAIL }, 403);
   }
@@ -105,8 +117,40 @@ Deno.serve(async (req) => {
       detail:
         "its sender has not authorised early sends for this executor, or none are left, " +
         "or the schedule is paused, expired, finished, or was triggered in the last minute",
-      trigger: executorAccount().address,
+      // V5: a sender grants Remesso by naming the CURRENT_EXECUTOR sentinel,
+      // which follows key rotation. The executor's literal address is refused.
+      trigger: CURRENT_EXECUTOR,
     }, 403);
+  }
+
+  // The backend's own limits, which the cron applies and this path skipped
+  // until 2026-10-16: the sender signed the amount, but the per-run cap, the
+  // dust minimum and the token table are ours to hold on every path that has
+  // the hot key sign a run.
+  const problem = runAmountProblem(onchain.token, onchain.amountIn);
+  if (problem) return json({ error: "this schedule cannot be triggered", detail: problem }, 403);
+
+  // The slippage bound. Direct converts nothing, so the floor (zero) is the
+  // bound. A swap rail gets a live quote, as the cron does — handing the
+  // contract the sender's floor as the bound let whoever bought the timing
+  // trade around the swap down to it.
+  let amountOutMinimum = floor;
+  if (payoutType !== PAYOUT_DIRECT) {
+    // The quoter prices USDT -> cNGN only. A schedule paying out in anything
+    // else would get a bound for the wrong asset.
+    if (onchain.tokenOut.toLowerCase() !== CELO.cngn.toLowerCase()) {
+      return json({ error: "this schedule cannot be triggered", detail: "only cNGN swap payouts are priced" }, 403);
+    }
+    try {
+      const health = await liquidityIsHealthy(onchain.amountIn - feeOf(onchain.amountIn, onchain.feeBps));
+      if (!health.ok) {
+        return json({ error: "the pool cannot fill this run right now", detail: `${health.impactBps}bps impact` }, 409);
+      }
+      if (health.quote.minOut > amountOutMinimum) amountOutMinimum = health.quote.minOut;
+    } catch (e) {
+      console.error("trigger-run: quote failed", (e as Error).message);
+      return json({ error: "could not price the run" }, 502);
+    }
   }
 
   // --- the 402 half ------------------------------------------------------
@@ -123,28 +167,43 @@ Deno.serve(async (req) => {
     return json(q.body, 402, q.headers);
   }
 
-  // --- the work ----------------------------------------------------------
-  let hash: string;
+  // --- dry run -----------------------------------------------------------
   try {
-    const out = await runNow(id, floor);
-    hash = out.hash;
+    await simulateRunNow(id, amountOutMinimum);
   } catch (e) {
     // Nothing is settled, so nothing is charged. The contract's own revert is
     // the honest answer: it knows why better than this handler does.
-    console.error("trigger-run: runNow reverted", raw, (e as Error).message);
-    return json({ error: "the run did not go through", detail: (e as Error).message.slice(0, 200) }, 409);
+    console.error("trigger-run: runNow would revert", raw, (e as Error).message);
+    return json({ error: "the run would not go through", detail: (e as Error).message.slice(0, 200) }, 409);
   }
 
   // --- settlement --------------------------------------------------------
+  // Before the run, so the signature is spent before anything is given for
+  // it. A second request with the same payment fails here.
   const paid = await settle(payment, check.matched, what);
   if (!paid.ok) {
-    // The run happened and we were not paid for it. Loud, because it is our
-    // loss and the caller's free lunch — and because a facilitator failing
-    // here repeatedly is a bug, not weather.
-    console.error("trigger-run: SETTLEMENT FAILED after a successful run", raw, hash);
+    const q = paymentRequired(accepts, what, "payment could not be settled");
+    return json(q.body, 402, q.headers);
   }
 
-  return new Response(JSON.stringify({ ok: true, schedule: raw, txHash: hash, settled: paid.ok }), {
+  // --- the work ----------------------------------------------------------
+  let hash: string;
+  try {
+    const out = await runNow(id, amountOutMinimum);
+    hash = out.hash;
+  } catch (e) {
+    // Simulated cleanly seconds ago, paid for, and reverted anyway — the
+    // schedule changed in between (a cancel, a cron run inside the minute).
+    // Our failure to deliver what was bought: loud, and the payer is told.
+    console.error("trigger-run: RUN FAILED after settlement", raw, paid.txHash, (e as Error).message);
+    return json({
+      error: "you were charged but the run did not go through",
+      detail: (e as Error).message.slice(0, 200),
+      settlement: paid.txHash ?? null,
+    }, 409, settlementHeaders(paid.txHash, check.version));
+  }
+
+  return new Response(JSON.stringify({ ok: true, schedule: raw, txHash: hash, settled: true }), {
     status: 200,
     headers: {
       ...CORS,

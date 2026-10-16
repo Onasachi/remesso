@@ -56,9 +56,23 @@ export const executorV4Abi = parseAbi([
   "function directTokenAllowed(address token) view returns (bool)",
 ]);
 
-/// The V4 deployment. Empty until the migration; `trigger-run` is the only
-/// thing that reads it, and it answers 503 rather than guessing.
-export const executorV4 = (Deno.env.get("REMESSO_EXECUTOR_V4_ADDRESS") ?? "") as `0x${string}` | "";
+/// The contract `runNow` and the Direct allowlist are read from: the
+/// configured executor, V5 since 2026-10-16. It was a separate
+/// `REMESSO_EXECUTOR_V4_ADDRESS` while V3 ran the cadence and V4 only took
+/// triggers; with one contract doing both, a second variable is only a second
+/// thing to forget at the next migration. V5 keeps V4's ABI for every call here.
+export const executorV4 = (CELO.executor ?? "") as `0x${string}` | "";
+
+/// V5's `CURRENT_EXECUTOR`: stored as a schedule's `trigger`, it means
+/// "whoever is the executor now", so rotating the hot key moves the grant
+/// with it. The literal executor address is refused as a trigger on V5.
+export const CURRENT_EXECUTOR = "0x0000000000000000000000000000000000000001" as const;
+
+/// Commission as V5 takes it: rounded up. Used to quote what a swap actually
+/// converts, which is the amount after the fee.
+export function feeOf(amount: bigint, feeBps: number): bigint {
+  return (amount * BigInt(feeBps) + 9_999n) / 10_000n;
+}
 
 /// The Direct assets V4 will accept right now, read from its allowlist.
 ///
@@ -125,6 +139,19 @@ export async function runNow(id: bigint, amountOutMinimum: bigint) {
   const hash = await wc.writeContract(request);
   const receipt = await publicClient.waitForTransactionReceipt({ hash, confirmations: 1 });
   return { hash, receipt };
+}
+
+/// Would `runNow` go through right now? Throws the contract's revert if not.
+/// Moves nothing and signs nothing — `trigger-run` asks this before it takes
+/// a payer's money, so a run that would revert charges nobody.
+export async function simulateRunNow(id: bigint, amountOutMinimum: bigint): Promise<void> {
+  await publicClient.simulateContract({
+    address: executorV4 as `0x${string}`,
+    abi: executorV4Abi,
+    functionName: "runNow",
+    args: [id, amountOutMinimum],
+    account: executorAccount(),
+  });
 }
 
 const quoterAbi = parseAbi([
@@ -241,17 +268,31 @@ export type OnchainSchedule = {
   cancelled: boolean;
   /// The asset this schedule actually moves. Direct schedules pin their own.
   token: Address;
+  tokenOut: Address;
+  feeBps: number;
+  lastRunAt: bigint;
+  triggersLeft: number;
+  trigger: Address;
 };
 
 /// The sender-signed policy, read from the contract rather than our mirror of
 /// it. Used where being wrong costs money — chiefly checking that a cNGN
-/// redemption address matches the destination the sender actually authorised.
-export async function getSchedule(onchainId: bigint): Promise<OnchainSchedule> {
+/// redemption address matches the destination the sender actually authorised,
+/// and that a row's sender is the schedule's.
+///
+/// `contract` defaults to the configured executor; `blockNumber` pins the read
+/// to a receipt's block, because forno can answer from a block behind right
+/// after a transaction and a mirror written from that answer is wrong.
+export async function getSchedule(
+  onchainId: bigint,
+  opts: { contract?: `0x${string}`; blockNumber?: bigint } = {},
+): Promise<OnchainSchedule> {
   return await publicClient.readContract({
-    address: CELO.executor,
+    address: opts.contract ?? CELO.executor,
     abi: executorAbi,
     functionName: "getSchedule",
     args: [onchainId],
+    ...(opts.blockNumber ? { blockNumber: opts.blockNumber } : {}),
   }) as OnchainSchedule;
 }
 

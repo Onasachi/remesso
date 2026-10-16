@@ -13,7 +13,7 @@
 import { CELO, DIRECT_TOKENS, SELF_API } from "../_shared/config.ts";
 import { ATTRIBUTION_CODE } from "../_shared/attribution.ts";
 import { ASSETS, X402 } from "../_shared/x402.ts";
-import { allowedDirectTokens, executorAccount, executorV4 } from "../_shared/celo.ts";
+import { allowedDirectTokens, CURRENT_EXECUTOR, executorAccount, executorV4 } from "../_shared/celo.ts";
 import { CNGN_RAILS_ENABLED } from "../_shared/rails.ts";
 
 const CORS = {
@@ -102,12 +102,18 @@ Deno.serve(async (req) => {
       network: "celo",
       chainId: CELO.chainId,
       executor: executorV4 || CELO.executor,
-      /// The address a payer names as `trigger` if they want Remesso able to
+      /// The value a payer passes as `trigger` if they want Remesso able to
       /// collect on their behalf — which is what makes `trigger-run` usable
-      /// for their schedule at all.
+      /// for their schedule at all. On V5 it is the CURRENT_EXECUTOR
+      /// sentinel, address(1): it means "whoever is the executor now", so a
+      /// key rotation moves the grant and a retired key keeps nothing. The
+      /// executor's own address is refused as a trigger.
+      trigger: CURRENT_EXECUTOR,
+      /// The key that actually sends those runs. Informational: grant the
+      /// sentinel above, never this.
       // Derived from the signing key, not configured: an address is public
       // and a second copy of it is a second thing to keep in step.
-      trigger: triggerAddress(),
+      triggeredBy: triggerAddress(),
       attributionCode: ATTRIBUTION_CODE,
     },
 
@@ -281,7 +287,9 @@ Deno.serve(async (req) => {
           ...(CNGN_RAILS_ENABLED ? [] : [
             "403 for any schedule paying out in cNGN — naira payouts are switched off",
           ]),
-          "409 if the payment itself reverts — the caller is not charged",
+          "403 if the amount is outside the backend's per-payment limits",
+          "409 if the payment would revert — checked by simulation before the caller is charged",
+          "402 if the caller's payment cannot be settled — settlement happens before the run",
         ],
       },
     ],

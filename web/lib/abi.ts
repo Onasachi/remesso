@@ -38,6 +38,10 @@ export const executorAbi = [
   { type: "error", name: "SameToken", inputs: [] },
   { type: "error", name: "NotTrigger", inputs: [] },
   { type: "error", name: "NoTriggersLeft", inputs: [] },
+  // V5
+  { type: "error", name: "InvalidTrigger", inputs: [] },
+  { type: "error", name: "FirstRunAfterExpiry", inputs: [] },
+  { type: "error", name: "NoFloorOnDirect", inputs: [] },
   {
     type: "error",
     name: "TriggeredTooSoon",
