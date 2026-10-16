@@ -106,6 +106,12 @@ Deno.serve(async (req) => {
   // of only two places that can decline, and the rail is read from the chain
   // rather than from our mirror of it because a payer is about to spend money
   // on the answer.
+  // An id nobody has created reads back as an all-zero struct, whose payout
+  // type (0, Wallet) would otherwise be refused below as a naira schedule.
+  if (/^0x0{40}$/i.test(onchain.sender)) {
+    return json({ error: "no such schedule", detail: `schedule #${raw} does not exist on this contract` }, 404);
+  }
+
   const payoutType = onchain.payoutType;
   if (!CNGN_RAILS_ENABLED && payoutType !== PAYOUT_DIRECT) {
     return json({ error: "this schedule cannot be triggered", detail: RAIL_DISABLED_DETAIL }, 403);
