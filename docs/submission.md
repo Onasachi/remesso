@@ -220,9 +220,10 @@ no CELO**.
   on every service and every currency, confirmed from the live 402s.
 - **How x402 activity is credited.** Attribution tags are not yet supported on
   x402 settlements, so the hackathon credits x402 by this payTo address. It is
-  also Remesso's owner wallet and receives the 0.25% schedule commission, so
-  x402 payments are the ones Celo's facilitator (`0x0d74D5Ce…FB48`) submits as
-  `transferWithAuthorization`. Every one to date is our own test (listed under
+  the owner of the earlier contracts; since V5 the 0.25% schedule commission
+  goes to a separate treasury (`0x2dA4…F134`), so every payment into payTo is
+  an x402 settlement — the ones Celo's facilitator (`0x0d74D5Ce…FB48`) submits
+  as `transferWithAuthorization`. Every one to date is our own test (listed under
   Proof on mainnet).
 - **x402 v2 on the wire**, v1 still accepted: the price list rides in the
   `PAYMENT-REQUIRED` header, the payment in `PAYMENT-SIGNATURE`, the receipt in
@@ -241,8 +242,9 @@ no CELO**.
   instead and `latam-rate` flags the split. Ripio is linked, not integrated —
   its public ramp, no partnership implied.
 - **Nobody pays for a failure.** `trigger-run` checks the schedule on-chain and
-  answers 403 *before quoting a price* if the call could not succeed; the order
-  is verify → run → settle, so a payment that reverts charges nothing (409).
+  answers 403 *before quoting a price* if the call could not succeed. The order
+  is verify → simulate → settle → run: a run that would revert charges nothing
+  (409), and settling before the run means one payment buys exactly one run.
 - **Builder code, ready for when tags arrive.** Every 402 already declares the
   x402 `builder-code` extension (`{"a":"remesso","s":["celo_5cd35ca55baf"]}`),
   verified identical to `@x402/extensions`, so settlements will carry our tag
@@ -309,6 +311,7 @@ users yet, and we do not count any of the payments below as volume.
 | An outside developer installed `remesso-x402` from GitHub and paid in USA₮ on their own — with test funds we provided | `0xa5d6eceb…aca2` |
 | **RemessoExecutorV5 deployed (2026-10-16)**, fixing the findings of a security review of V4, verified on Celoscan | `0x95a9ddcc…6a07` |
 | ERC-8004 #9879 moved to the V5 agent wallet `0xA351…cdb21`, which signed for it as `agentWallet`; both entries' metadata updated to V5 | `0xa8e717d6…0c3c`, `0xaa0bda8b…1b34`, `0x15a8dec9…c3e4`, `0x28d3eb9d…f3b6` |
+| First payment on V5 (our own test, to our own MiniPay wallet): 1 USA₮ schedule created in the app, confirmed from the chain, paid by the agent 30 seconds later | `0xecc53e43…05b2`, `0x4ef1b459…2e72` |
 
 ## What we built during the hackathon (from 2026-10-06)
 
@@ -332,6 +335,14 @@ users yet, and we do not count any of the payments below as volume.
   default.
 - The pre-flight agent: observe, decide, act and verify on every upcoming
   payment, with notices in the app that carry their own fix.
+- A security review of the live contract, and `RemessoExecutorV5` fixing what
+  it found: an early send now takes the place of a scheduled payment instead of
+  adding one, a grant to the agent follows key rotation, and the commission can
+  no longer round to zero. Deployed with a fresh agent wallet, owner and
+  treasury; the ERC-8004 identity moved with the agent wallet.
+- The backend hardened from the same review: the database mirror can only be
+  written from what the chain says, a paid early send is settled before it runs
+  (one payment, one run), and paid answers are released only after settlement.
 
 Commits from `a10658d` onward. The contract, the agent loop and x402 selling
 predate the hackathon and are described in the README.
