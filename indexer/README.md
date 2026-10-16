@@ -1,4 +1,4 @@
-# indexer — Goldsky subgraph over `RemessoExecutorV3`
+# indexer — Goldsky subgraph over `RemessoExecutorV5`
 
 An [instant subgraph](https://docs.goldsky.com/subgraphs/reference/instant-subgraph):
 generated from the ABI, no mapping handlers. Every event the contract emits
@@ -10,9 +10,15 @@ is the entity key.
 | | |
 |---|---|
 | project | `project_cmub9zi745rtc01ts1xx66zy6` |
-| subgraph | `remesso-celo/1.0.0` — deployed from the dashboard, **no `prod` tag** |
-| endpoint | `https://api.goldsky.com/api/public/project_cmub9zi745rtc01ts1xx66zy6/subgraphs/remesso-celo/1.0.0/gn` |
-| chain | `celo` (42220), from block `77741897` — V3's deployment block |
+| subgraph | `remesso-celo-celo/1.0.1` — V5 (`0x3C357af3…bEd8`), deployed 2026-10-16 with `goldsky subgraph deploy remesso-celo/1.0.1 --from-abi goldsky.json` (the CLI appends the chain to the name). Tagged `prod`. The dashboard-deployed `remesso-celo/1.0.0` indexed V3 only. |
+| endpoint | `https://api.goldsky.com/api/public/project_cmub9zi745rtc01ts1xx66zy6/subgraphs/remesso-celo-celo/prod/gn` — through the `prod` tag, so the next version is `goldsky subgraph tag create remesso-celo-celo/<v> --tag prod`, not an env change |
+| chain | `celo` (42220), from block `80268721` — V5's deployment block |
+
+**One contract per subgraph, and the app knows it.** Schedule ids restart at 1
+in every deployment, so `useOnchainRuns` only asks the subgraph about
+schedules whose `executor_address` is the configured executor. Before
+2026-10-16 it asked about every schedule, and a V4 schedule's page could show
+the V3 schedule with the same number.
 
 Deployed from the Goldsky dashboard, which keeps the name as typed. The CLI
 (`--from-abi`) appends the chain instead, which is where a `remesso-celo-celo`
@@ -44,7 +50,7 @@ instance in `goldsky.json`, with its own start block) or the ABI does.
 
 ```bash
 cd contracts && forge build
-jq '.abi' contracts/out/RemessoExecutorV3.sol/RemessoExecutorV3.json > indexer/abis/RemessoExecutorV3.json
+jq '.abi' contracts/out/RemessoExecutorV5.sol/RemessoExecutorV5.json > indexer/abis/RemessoExecutorV5.json
 cd indexer && goldsky subgraph deploy remesso-celo/1.1.0 --from-abi goldsky.json
 goldsky subgraph tag create remesso-celo-celo/1.1.0 --tag prod
 ```

@@ -89,7 +89,7 @@ blast radius grows quietly.
 | executor (V1–V4) | `0x3c754AD31e802D5fA65487f460dED65Aba749Cd1` — still the executor on V1–V4, which have no live schedules. |
 | **retired** | `0xe1a0F916e859624D4edbadA23E4382D327EAf626` — **private key was exposed in a session log. Do not reuse.** |
 | Supabase | `engaboljiqudghvzmebq` |
-| Goldsky subgraph | `remesso-celo-celo/1.0.0` → tag `prod`, project `project_cmt8exmp1z5f401z7gnkohrw9`. Instant subgraph from the V3 ABI, `indexer/`. |
+| Goldsky subgraph | `remesso-celo-celo/1.0.1`, tag `prod`, project `project_cmub9zi745rtc01ts1xx66zy6` — indexes V5 from block 80,268,721 (deployed 2026-10-16). The app reads `…/subgraphs/remesso-celo-celo/prod/gn`. The older `remesso-celo/1.0.0` indexed V3 only. Instant subgraph from the ABI, `indexer/`. |
 
 Keys: the V5 owner key is `DEPLOYER_PRIVATE_KEY` in `contracts/.env` and the V5
 executor key is `EXECUTOR_PRIVATE_KEY` in the root `.env` (both git-ignored).

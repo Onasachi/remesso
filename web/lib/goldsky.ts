@@ -1,4 +1,7 @@
-/// Reads the Goldsky subgraph that indexes `RemessoExecutorV3` on Celo.
+/// Reads the Goldsky subgraph that indexes the configured executor contract
+/// (`RemessoExecutorV5` since 2026-10-16; it was V3 until then) on Celo. One
+/// contract only, so `useOnchainRuns` asks it about that contract's schedules
+/// and no other: schedule ids restart at 1 in every deployment.
 ///
 /// The `runs` table is written by `execute-due-runs` after it has waited for
 /// the receipt, and the browser then polls it every 15s — so a run shows up

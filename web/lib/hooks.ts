@@ -106,7 +106,14 @@ export function useRuns(scheduleId: string) {
 /// Disabled without `NEXT_PUBLIC_GOLDSKY_SUBGRAPH_URL`; `useHistory` then
 /// renders the database alone.
 export function useOnchainRuns(schedule: Schedule | null | undefined, dbRuns: Run[] | undefined) {
-  const onchainId = schedule?.onchain_id ?? null;
+  // The subgraph indexes ONE contract — the configured executor — and every
+  // deployment numbers schedules from 1. Asked about a schedule from another
+  // contract, it would answer with a different schedule's runs under the same
+  // number (a V4 #3 shown V5 #3's payments), so only this contract's
+  // schedules are looked up.
+  const onThisContract =
+    !!schedule?.executor_address && schedule.executor_address.toLowerCase() === EXECUTOR_ADDRESS.toLowerCase();
+  const onchainId = onThisContract ? schedule?.onchain_id ?? null : null;
   const active = schedule?.status === "active";
   const inflight = dbRuns?.some((r) => ["pending", "swapping"].includes(r.status)) ?? false;
   // The backend advances `next_run_at` only after the run, so "due" holds from
