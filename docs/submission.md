@@ -307,6 +307,8 @@ users yet, and we do not count any of the payments below as volume.
 | x402 payment in USA₮ through the `remesso-x402` skill script | `0xf91d3465…d6f9`, `0x15167882…d6f8` |
 | `latam-rate` and `latam-route` paid in USA₮ through the skill script | `0x24d0ea8d…713a`, `0x86706193…d328` |
 | An outside developer installed `remesso-x402` from GitHub and paid in USA₮ on their own — with test funds we provided | `0xa5d6eceb…aca2` |
+| **RemessoExecutorV5 deployed (2026-10-16)**, fixing the findings of a security review of V4, verified on Celoscan | `0x95a9ddcc…6a07` |
+| ERC-8004 #9879 moved to the V5 agent wallet `0xA351…cdb21`, which signed for it as `agentWallet`; both entries' metadata updated to V5 | `0xa8e717d6…0c3c`, `0xaa0bda8b…1b34`, `0x15a8dec9…c3e4`, `0x28d3eb9d…f3b6` |
 
 ## What we built during the hackathon (from 2026-10-06)
 

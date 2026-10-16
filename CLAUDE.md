@@ -515,8 +515,8 @@ Registered with Self Agent ID on 2026-09-22, from a real passport:
 | agent address | `0x5C3EBb0084233156ba51a5C2dfD42d88d5a74CA6` |
 | human owner | `0xcDEA4Cc4191Ec9A5d8fD1a6B17e3F4C84E993Ae2` (the V1–V4 cold owner) |
 | registry | `0xaC3DF9ABf80d0F5c020C06B04Cced27763355944` — soulbound, `ownerOf(191)` confirms |
-| ERC-8004 | agent `9867`, registry `0x8004A169FB4a3325136EB29fA0ceB6D2e539a432`, registered 2026-09-28, metadata refreshed 2026-10-01 (`0x86e49771…dc77`) — owned by the cold owner |
-| ERC-8004 (agent wallet) | agent `9879`, same registry and metadata as 9867, registered 2026-10-06 FROM the then-executor (`0x3c754AD3…49Cd1`, tx `0xc806f21d…bad5`) — the hackathon wants the identity held by the wallet that sends the agent's transactions. At the V5 cutover it moves to the V5 executor `0xA351…cdb21` with `agentWallet` re-set by that wallet's signature: `scripts/erc8004-v5.ts` (the registry clears `agentWallet` on any transfer). |
+| ERC-8004 | agent `9867`, registry `0x8004A169FB4a3325136EB29fA0ceB6D2e539a432`, registered 2026-09-28, metadata refreshed 2026-10-01 (`0x86e49771…dc77`) and for V5 on 2026-10-16 (`0x28d3eb9d…f3b6`) — owned by the V1–V4 cold owner |
+| ERC-8004 (agent wallet) | agent `9879`, same registry and metadata as 9867, registered 2026-10-06 FROM the then-executor (`0x3c754AD3…49Cd1`, tx `0xc806f21d…bad5`) — the hackathon wants the identity held by the wallet that sends the agent's transactions. Moved to the V5 executor `0xA351…cdb21` on 2026-10-16 by `scripts/erc8004-v5.ts`: transfer `0xa8e717d6…0c3c`, `agentWallet` re-set by that wallet's EIP-712 signature `0xaa0bda8b…1b34` (the registry clears it on any transfer), metadata `0x15a8dec9…c3e4`. |
 
 The ERC-8004 metadata is a `data:` URI embedded in the token, not a link to a
 host we control: what is registered cannot be quietly rewritten later. Changing
