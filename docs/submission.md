@@ -49,6 +49,9 @@ How a payment happens:
 4. The contract moves the amount — minus a 0.25% fee, fixed at signing — to the
    recipient, and the app shows the receipt.
 
+Each payment is at least $1 (or its equivalent in pesos, reais or naira), so
+the 0.25% fee always covers the network fee the agent pays to send it.
+
 ## The agent
 
 | | |
@@ -213,7 +216,7 @@ no CELO**.
 | `naira-rate` | `POST /functions/v1/rate-service` | 0.001 | Live USDT/NGN and USDC/NGN — bid, ask, last; mid and spread only when both sides are quoted (never invented) |
 | `latam-rate` | `POST /functions/v1/latam-rate` | 0.001 | USD-to-wARS and USD-to-wBRL from two independent on-chain sources side by side — Textile's RFQ makers and the Uniswap pool on Celo at your size, with price impact — flagged when they disagree by more than 1%. wCOP: "no on-chain market on Celo", never priced from elsewhere |
 | `latam-route` | `POST /functions/v1/latam-route` | 0.002 | How to deliver pesos or reais: the token, the dollars it takes and the best venue at that size, Ripio's buy and cash-out links and a prefilled Remesso schedule link. Moves nothing |
-| `trigger-run` | `POST /functions/v1/trigger-run` | 0.01 | Brings one payment of a schedule forward, only if its sender allowed early sends |
+| `trigger-run` | `POST /functions/v1/trigger-run` | 0.01 | Brings one payment of a schedule forward, only if its sender allowed early sends. It takes the place of the next scheduled payment — the sender never pays more often than they signed |
 
 - **Currencies:** USDC, USD₮ and **USA₮**, at the same price in each (all 6dp).
 - **Paid to (payTo):** `0xcDEA4Cc4191Ec9A5d8fD1a6B17e3F4C84E993Ae2` — the same
@@ -303,7 +306,7 @@ users yet, and we do not count any of the payments below as volume.
 | USA₮ allowed on the contract (2026-10-11) | `0xf3292694…9e5a` |
 | cNGN allowed on the contract (2026-10-14) | `0x68ad32f6…3296` |
 | **First cNGN payments by the agent:** schedule #11, 1,500 cNGN every 5 minutes (testing), twice. 1,496.25 cNGN to the recipient and a 3.75 cNGN fee each time | `0x90423b80…8bd0`, `0xb8051faa…fce9` |
-| ERC-8004 agent #9879 registered from the agent wallet | `0xc806f21d…bad5` |
+| ERC-8004 agent #9879 registered from the agent wallet of the time (`0x3c75…9Cd1`; moved to the V5 agent wallet on 2026-10-16, below) | `0xc806f21d…bad5` |
 | **First peso payment by the agent:** a 1,000 wARS weekly schedule created outside the app was found and paid within 5 minutes, unprompted — 997.5 wARS to the recipient, 2.5 wARS fee | `0x4eaf6976…9cdc` |
 | x402 payments in USA₮ through the official SDK (run twice) | `0x084c5027…ab39`, `0x5780ab21…d38d` |
 | x402 payment in USA₮ through the `remesso-x402` skill script | `0xf91d3465…d6f9`, `0x15167882…d6f8` |
