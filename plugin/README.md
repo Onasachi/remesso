@@ -66,10 +66,11 @@ from Remesso, pay up to 0.01"*, *"What can you still spend today?"*
 
 ## Source
 
-`mcp/server.mjs` is a bundle of `mcp/src/server.mjs` and its pinned
-dependencies (`mcp/package-lock.json`), so the plugin runs without an install
-step. The build then removes the EVM contract bytecode that viem embeds for
-verifying smart-wallet signatures, which this server never does
+`mcp/server.mjs` is a bundle of `mcp/src/` (the wallet, and a minimal MCP
+stdio server in `mcp.mjs`) with viem and the official x402 client, pinned by
+`mcp/package-lock.json`, so the plugin runs without an install step. The
+build then removes the EVM contract bytecode viem embeds for verifying
+smart-wallet signatures, which this server never does
 (`mcp/scripts/strip-bytecode.mjs` explains why). To rebuild and compare:
 `cd mcp && npm ci && npm run build` writes `dist/server.mjs`, byte-identical
 to `server.mjs`. Contract,

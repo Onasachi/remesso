@@ -29,7 +29,7 @@ assemble() {
     [ -d "skills/$s/scripts" ] && cp -R "skills/$s/scripts" "$out/skills/$s/"
   done
   cp mcp/dist/server.mjs "$out/mcp/server.mjs"
-  cp mcp/src/server.mjs "$out/mcp/src/server.mjs"
+  cp mcp/src/server.mjs mcp/src/mcp.mjs "$out/mcp/src/"
   cp mcp/package.json mcp/package-lock.json "$out/mcp/"
   mkdir -p "$out/mcp/scripts" && cp mcp/scripts/strip-bytecode.mjs "$out/mcp/scripts/"
   cp web/app/icon.png "$out/.claude-plugin/icon.png"

@@ -9,10 +9,9 @@
 // The agent key never reaches the model. It is generated here, stored in a
 // 0600 file under ~/.remesso-agent, and no tool returns it.
 
-import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
-import { z } from "zod";
-import { createPublicClient, createWalletClient, http, parseAbi, getAddress, isAddress, formatUnits, parseUnits } from "viem";
+import { McpServer, z } from "./mcp.mjs";
+import { createClient, http, parseAbi, getAddress, isAddress, formatUnits, parseUnits } from "viem";
+import { readContract, getBalance, simulateContract, writeContract, waitForTransactionReceipt } from "viem/actions";
 import { privateKeyToAccount, generatePrivateKey } from "viem/accounts";
 import { celo } from "viem/chains";
 import { wrapFetchWithPayment, x402Client, decodePaymentResponseHeader } from "@x402/fetch";
@@ -82,8 +81,17 @@ function saveConfig(c) {
 }
 
 const account = privateKeyToAccount(loadKey());
-const pub = createPublicClient({ chain: celo, transport: http(RPC) });
-const wallet = createWalletClient({ chain: celo, transport: http(RPC), account });
+// A bare client plus the five actions used, rather than createPublicClient and
+// createWalletClient, which attach every action viem has and roughly double
+// the bundle the plugin ships.
+const client = createClient({ chain: celo, transport: http(RPC), account });
+const pub = {
+  readContract: (a) => readContract(client, a),
+  getBalance: (a) => getBalance(client, a),
+  simulateContract: (a) => simulateContract(client, a),
+  waitForTransactionReceipt: (a) => waitForTransactionReceipt(client, a),
+};
+const wallet = { writeContract: (a) => writeContract(client, a) };
 
 // ---- helpers ----
 
@@ -174,7 +182,7 @@ async function payThroughPolicy(d, to, units, memo) {
 
 // ---- the server ----
 
-const server = new McpServer({ name: "remesso-wallet", version: "0.2.0" });
+const server = new McpServer({ name: "remesso-wallet", version: "0.2.2" });
 
 server.tool(
   "wallet",
@@ -366,4 +374,4 @@ server.tool(
   },
 );
 
-await server.connect(new StdioServerTransport());
+await server.connect();
