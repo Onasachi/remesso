@@ -62,12 +62,18 @@ The same amount in base units is the price in each — all three are 6dp.
 currency to choose unless your wallet holds none. USDC and USD₮ remain
 accepted, for wallets that only hold those.
 
-## Pay in three commands
+## Pay in two commands
+
+With the Remesso Claude plugin installed, use its `pay_x402` tool instead: it
+pays from a wallet whose spending is capped on-chain, and no key passes
+through the conversation.
+
+`scripts/pay.mjs` ships beside this file (its source is also in the
+[repository](https://github.com/crackedstudio/Remesso/blob/main/skills/remesso-x402/scripts/pay.mjs)):
 
 ```bash
 npm i @x402/fetch@2.28.0 @x402/evm@2.28.0 viem
-curl -sO https://raw.githubusercontent.com/crackedstudio/Remesso/main/skills/remesso-x402/scripts/pay.mjs
-PAYER_KEY=0x… node pay.mjs --service naira-rate
+PAYER_KEY=0x… node scripts/pay.mjs --service naira-rate
 ```
 
 `pay.mjs` prints the HTTP status, the settlement receipt (transaction hash)

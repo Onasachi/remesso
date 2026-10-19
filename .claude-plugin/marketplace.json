@@ -8,7 +8,7 @@
   "plugins": [
     {
       "name": "remesso",
-      "source": "./",
+      "source": "./plugin",
       "description": "Stablecoin payments on Celo for agents: an agent wallet whose spending is capped on-chain by its human, scheduled payments under a Remesso mandate, and x402 payments in USA₮, USDC or USDT.",
       "version": "0.2.0",
       "category": "payments"

@@ -1,0 +1,22 @@
+{
+  "name": "remesso-agent-wallet",
+  "version": "0.2.0",
+  "private": true,
+  "description": "MCP server for the Remesso Claude plugin: an agent wallet whose spending is capped on-chain by RemessoAgentAllowance.",
+  "type": "module",
+  "license": "MIT",
+  "scripts": {
+    "build": "esbuild src/server.mjs --bundle --platform=node --format=esm --target=node20 --outfile=dist/server.mjs --banner:js=\"import { createRequire } from 'module'; const require = createRequire(import.meta.url);\"",
+    "start": "node dist/server.mjs"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "1.17.0",
+    "@x402/evm": "2.28.0",
+    "@x402/fetch": "2.28.0",
+    "viem": "2.31.0",
+    "zod": "3.25.76"
+  },
+  "devDependencies": {
+    "esbuild": "0.25.8"
+  }
+}
