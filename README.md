@@ -181,7 +181,8 @@ pinned byte for byte to `@celo/attribution-tags`.
 ### Claude plugin: an agent wallet with on-chain limits
 
 ```
-/plugin install remesso --marketplace crackedstudio/Remesso
+/plugin marketplace add crackedstudio/Remesso
+/plugin install remesso@remesso
 ```
 
 The plugin gives Claude a wallet of its own on Celo, plus the Remesso skills.
@@ -193,6 +194,9 @@ enforces: one token, a cap per payment and per day, a total, and an expiry,
 optionally only to listed addresses. Your money stays in your wallet until a
 payment moves it, and **Stop** on the same page ends the policy at once. A
 prompt-injected agent hits the same caps as an honest one.
+
+The [one-pager](docs/claude-plugin-one-pager.pdf) (PDF) covers the setup,
+the payment flow and what the contract refuses, on one page.
 
 | Tool | What it does |
 |---|---|

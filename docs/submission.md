@@ -296,7 +296,8 @@ The skills are also served from the app (`/skills/manifest.json`,
 ## Claude plugin: an agent wallet with on-chain limits
 
 ```
-/plugin install remesso --marketplace crackedstudio/Remesso
+/plugin marketplace add crackedstudio/Remesso
+/plugin install remesso@remesso
 ```
 
 Remesso is also a Claude Code plugin. It gives Claude a wallet of its own on

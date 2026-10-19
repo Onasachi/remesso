@@ -5,7 +5,8 @@ is capped on-chain by its human, recurring payments under a Remesso mandate,
 and pay-per-call x402 services.
 
 ```
-/plugin install remesso --marketplace crackedstudio/Remesso
+/plugin marketplace add crackedstudio/Remesso
+/plugin install remesso@remesso
 ```
 
 Needs Node.js 20 or later. The wallet is a local (stdio) MCP server, so it
