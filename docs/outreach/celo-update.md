@@ -16,7 +16,7 @@ into a multi-currency product, live on Celo mainnet, that serves Latin
 America and Nigeria as well as MiniPay's dollar users, and that both people
 and agents can use.
 
-Demo (2 min): https://youtu.be/AD8JhgAlb9c · Repo: https://github.com/crackedstudio/Remesso
+Demo (2 min): https://youtu.be/2LVKKX02wO0 · Repo: https://github.com/crackedstudio/Remesso
 
 ---
 

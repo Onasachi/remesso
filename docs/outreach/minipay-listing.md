@@ -25,7 +25,7 @@ once, never forgotten.
 | Smart contract | `RemessoExecutorV5` `0x3C357af3300f383Ea49B6D6ED8e084199a92bEd8` on Celo mainnet, verified on Celoscan |
 | Audited | **Not yet.** It is live and has paid real schedules from our own test wallets. We keep per-payment limits low until an audit. |
 | Social | [X / Telegram handle] |
-| Demo video | https://youtu.be/AD8JhgAlb9c |
+| Demo video | https://youtu.be/2LVKKX02wO0 |
 
 ### Why it fits MiniPay
 
