@@ -203,5 +203,3 @@ export function isConfigured(): boolean {
 /// uses. Empty until deployed: /agent-wallet then says so instead of offering
 /// a transaction to nowhere.
 export const AGENT_ALLOWANCE_ADDRESS = (process.env.NEXT_PUBLIC_AGENT_ALLOWANCE_ADDRESS ?? "") as `0x${string}` | "";
-/// Its deploy block: where the page starts looking for a person's policies.
-export const AGENT_ALLOWANCE_FROM_BLOCK = BigInt(process.env.NEXT_PUBLIC_AGENT_ALLOWANCE_FROM_BLOCK ?? "0");

@@ -272,6 +272,13 @@ export const executorAddressAbi = [
 export const agentAllowanceAbi = [
   {
     type: "function",
+    name: "nextPolicyId",
+    stateMutability: "view",
+    inputs: [],
+    outputs: [{ type: "uint256" }],
+  },
+  {
+    type: "function",
     name: "createPolicy",
     stateMutability: "nonpayable",
     inputs: [

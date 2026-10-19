@@ -11,7 +11,6 @@ import { txOverrides } from "@/lib/tx";
 import { agentAllowanceAbi, erc20Abi } from "@/lib/abi";
 import {
   AGENT_ALLOWANCE_ADDRESS,
-  AGENT_ALLOWANCE_FROM_BLOCK,
   EXPLORER,
   USAT,
   USDC,
@@ -37,6 +36,8 @@ import { Icon } from "@/components/Icon";
 /// it is not shown — the same rules as a pay link.
 
 const TOKENS: TokenInfo[] = [USDT, USDC, USAT];
+/// How many of the newest policies the Stop list reads. See Existing.
+const RECENT_IDS = 200;
 const DURATIONS = [
   { label: "1 week", days: 7 },
   { label: "1 month", days: 30 },
@@ -303,22 +304,27 @@ function Existing({ owner, agent }: { owner: `0x${string}`; agent: `0x${string}`
     queryKey: ["agent-policies", owner, agent],
     enabled: Boolean(client && AGENT_ALLOWANCE_ADDRESS),
     queryFn: async () => {
-      const logs = await client!.getContractEvents({
-        address: AGENT_ALLOWANCE_ADDRESS as `0x${string}`,
-        abi: agentAllowanceAbi,
-        eventName: "PolicyCreated",
-        args: { owner, agent },
-        fromBlock: AGENT_ALLOWANCE_FROM_BLOCK,
-      });
+      // Read policies by id, newest first, rather than searching PolicyCreated
+      // logs: forno answers getLogs over at most 5,000 blocks (~83 minutes),
+      // so a search from the deploy block failed silently soon after launch and
+      // this list, with its Stop buttons, never appeared. Ids are dense and few;
+      // the newest RECENT_IDS cover every policy until usage grows past them.
+      const aa = AGENT_ALLOWANCE_ADDRESS as `0x${string}`;
+      const next = await client!.readContract({ address: aa, abi: agentAllowanceAbi, functionName: "nextPolicyId" });
+      const ids: bigint[] = [];
+      for (let id = next - 1n; id >= 1n && ids.length < RECENT_IDS; id--) ids.push(id);
+      const policies = await Promise.all(
+        ids.map((id) => client!.readContract({ address: aa, abi: agentAllowanceAbi, functionName: "policy", args: [id] })),
+      );
+      const mine = ids
+        .map((id, i) => ({ id, p: policies[i] }))
+        .filter(({ p }) => p.owner.toLowerCase() === owner.toLowerCase() && p.agent.toLowerCase() === agent.toLowerCase());
       return Promise.all(
-        logs.map(async (l) => {
-          const id = l.args.id!;
-          const [p, left] = await Promise.all([
-            client!.readContract({ address: AGENT_ALLOWANCE_ADDRESS as `0x${string}`, abi: agentAllowanceAbi, functionName: "policy", args: [id] }),
-            client!.readContract({ address: AGENT_ALLOWANCE_ADDRESS as `0x${string}`, abi: agentAllowanceAbi, functionName: "remainingToday", args: [id] }),
-          ]);
-          return { id, p, left };
-        }),
+        mine.map(async ({ id, p }) => ({
+          id,
+          p,
+          left: await client!.readContract({ address: aa, abi: agentAllowanceAbi, functionName: "remainingToday", args: [id] }),
+        })),
       );
     },
   });
@@ -347,7 +353,7 @@ function Existing({ owner, agent }: { owner: `0x${string}`; agent: `0x${string}`
     <div className="mt-10">
       <p className="label">Limits you have given this agent</p>
       <div className="space-y-2">
-        {[...data].reverse().map(({ id, p, left }) => {
+        {data.map(({ id, p, left }) => {
           const t = tokenFor(p.token);
           const live = !p.revoked && Number(p.expiresAt) > now;
           return (
