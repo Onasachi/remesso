@@ -13,7 +13,7 @@ Agents on Open Rails (Loops House × Celo) — Remesso is entered in two tracks:
 | Track | Bounties | Why Remesso fits |
 |---|---|---|
 | **Stable Agents: LatAm** (Ripio × Celo) | 1st and 2nd place | Remittances to Argentina, Brazil and Colombia paid in Ripio's **wARS, wBRL and wCOP** by an agent on Celo mainnet — no conversion through dollars — with Ripio's ramp to buy and cash out, and two paid services, `latam-rate` and `latam-route`, that price and route peso and real payments. |
-| **Open Corridors: USA₮ with x402** | 1st and 2nd place | Four services sold over **x402** through Celo's facilitator, priced in **USA₮** (also USDC and USD₮), a published agent skill that **pays in USA₮ by default**, and USA₮ as a schedule currency — in a browser wallet and in MiniPay. |
+| **Open Corridors: USA₮ with x402** | 1st and 2nd place | Four services sold over **x402** through Celo's facilitator, priced in **USA₮** (also USDC and USD₮), a published agent skill that **pays in USA₮ by default**, a Claude plugin whose agent wallet pays any x402 API in USA₮ within on-chain limits, and USA₮ as a schedule currency — in a browser wallet and in MiniPay. |
 
 ## The problem
 
@@ -293,6 +293,37 @@ npx skills add crackedstudio/Remesso --skill remesso        # schedules, being p
 The skills are also served from the app (`/skills/manifest.json`,
 `/skill.md`) and linked from the agent card.
 
+## Claude plugin: an agent wallet with on-chain limits
+
+```
+/plugin install remesso --marketplace crackedstudio/Remesso
+```
+
+Remesso is also a Claude Code plugin. It gives Claude a wallet of its own on
+Celo, so an agent can pay people, other agents and x402 APIs, and ask to be
+paid. What it cannot do is spend more than its human allowed: the limits live
+in a contract, not in the prompt.
+
+- **The agent's key is generated on the user's machine** and never reaches the
+  model. No tool returns it.
+- **The human sets the limits from their own wallet** on
+  `remesso.crackedstudios.xyz/agent-wallet`, in MiniPay or a browser wallet:
+  one token, a cap per payment and per day, a total, an expiry, optionally an
+  allowlist of recipients.
+- **`RemessoAgentAllowance`** (`0xA6351fAeEb097698289586C4D6188530300DB209`,
+  verified) enforces them. It has no owner and no admin; the money stays in the
+  human's wallet until a payment moves it; Stop on the same page ends the
+  policy at once. A prompt-injected agent hits the same caps as an honest one.
+- **Seven tools:** `wallet`, `link_policy`, `limits`, `pay`, `pay_x402`,
+  `request_payment`, `find_agent`.
+- **Agent to agent:** `find_agent` resolves another agent's wallet from the
+  ERC-8004 registry; `pay` pays it once; `pay_x402` pays its x402 API in USA₮,
+  USDC or USD₮, never above a maximum the user sets, topping the agent up
+  through the same policy so those payments pass the caps too;
+  `request_payment` asks it to pay on a Remesso schedule.
+- Every transaction carries the `remesso` and `celo_5cd35ca55baf` attribution
+  tags.
+
 ---
 
 ## Proof on mainnet
@@ -315,6 +346,9 @@ users yet, and we do not count any of the payments below as volume.
 | **RemessoExecutorV5 deployed (2026-10-16)**, fixing the findings of a security review of V4, verified on Celoscan | `0x95a9ddcc…6a07` |
 | ERC-8004 #9879 moved to the V5 agent wallet `0xA351…cdb21`, which signed for it as `agentWallet`; both entries' metadata updated to V5 | `0xa8e717d6…0c3c`, `0xaa0bda8b…1b34`, `0x15a8dec9…c3e4`, `0x28d3eb9d…f3b6` |
 | First payment on V5 (our own test, to our own MiniPay wallet): 1 USA₮ schedule created in the app, confirmed from the chain, paid by the agent 30 seconds later | `0xecc53e43…05b2`, `0x4ef1b459…2e72` |
+| **RemessoAgentAllowance deployed (2026-10-19)**, verified on Celoscan | `0x0b80f355…dc1e` |
+| Claude plugin end to end (our test wallets): a policy of 0.05 USDT per payment, a payment, then an x402 call that topped the agent up through the policy and was settled by Celo's facilitator | `0xfaebbb07…69d8`, `0x8451f5c8…ecdc`, `0x627789be…3210` |
+| First payment from the installed plugin, in Claude Code: 0.2 USA₮ under a policy set on `/agent-wallet` (our own test) | `0xa8e70f5f…bd56` |
 
 ## What we built during the hackathon (from 2026-10-06)
 
@@ -343,6 +377,10 @@ users yet, and we do not count any of the payments below as volume.
   adding one, a grant to the agent follows key rotation, and the commission can
   no longer round to zero. Deployed with a fresh agent wallet, owner and
   treasury; the ERC-8004 identity moved with the agent wallet.
+- **A Claude plugin with an agent wallet** whose spending is capped on-chain by
+  `RemessoAgentAllowance`, a setup page for the limits, and seven tools for
+  paying, paying x402 APIs, finding agents on ERC-8004 and asking to be paid.
+- Terms of Service and a Privacy Policy, linked from every page.
 - The backend hardened from the same review: the database mirror can only be
   written from what the chain says, a paid early send is settled before it runs
   (one payment, one run), and paid answers are released only after settlement.

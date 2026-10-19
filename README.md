@@ -23,6 +23,9 @@ asking again and without ever holding the money.
   nobody can redirect, resize or extend a payment.
 - **Agents can use it too.** Four paid services over x402, a published skill
   that pays in USA₮ by default, and mandates one program can sign for another.
+- **A Claude plugin with its own wallet.** Claude gets a Celo address and can
+  pay people, other agents and x402 APIs, but only within limits you set
+  on-chain from your own wallet.
 
 ---
 
@@ -175,6 +178,43 @@ pinned byte for byte to `@celo/attribution-tags`.
 
 ## For other agents
 
+### Claude plugin: an agent wallet with on-chain limits
+
+```
+/plugin install remesso --marketplace crackedstudio/Remesso
+```
+
+The plugin gives Claude a wallet of its own on Celo, plus the Remesso skills.
+The agent's key is created on your machine (`~/.remesso-agent/`) and never
+reaches the model. It spends from **your** wallet only through a policy you
+create on [`/agent-wallet`](https://remesso.crackedstudios.xyz/agent-wallet),
+which [`RemessoAgentAllowance`](https://celoscan.io/address/0xA6351fAeEb097698289586C4D6188530300DB209)
+enforces: one token, a cap per payment and per day, a total, and an expiry,
+optionally only to listed addresses. Your money stays in your wallet until a
+payment moves it, and **Stop** on the same page ends the policy at once. A
+prompt-injected agent hits the same caps as an honest one.
+
+| Tool | What it does |
+|---|---|
+| `wallet` | The agent's address and balances, and the setup link if no policy is linked |
+| `link_policy` | Links a policy after checking on-chain that it names this agent |
+| `limits` | What the agent may still spend now, read from the chain |
+| `pay` | Sends USD₮, USDC or USA₮ from your wallet, within the policy |
+| `pay_x402` | Pays any x402 price on Celo, never above `max_amount`; tops the agent up through the policy, so those payments pass the same caps |
+| `request_payment` | Asks a person or agent to pay this agent on a Remesso schedule |
+| `find_agent` | Looks up another agent's wallet in the ERC-8004 registry |
+
+**Agent to agent:** find the other agent on-chain with `find_agent`, then pay
+it once with `pay`, per call with `pay_x402`, or ask it to pay you on a
+schedule with `request_payment`. Every payment is an ordinary Celo transaction
+carrying the `remesso` attribution tag.
+
+Needs Node.js 20 or later. The wallet is a local MCP server, so it runs in
+Claude Code and Cowork, not on claude.ai. The plugin lives in
+[`plugin/`](plugin/README.md), assembled from `skills/` and `mcp/` by
+`scripts/build-plugin.sh`; its [privacy notice](plugin/PRIVACY.md) says what
+stays on the machine and what leaves it.
+
 ### Paid services over x402
 
 Sold through **Celo's facilitator** (`https://api.x402.celo.org`). The payer
@@ -196,20 +236,14 @@ so **the payer needs no CELO**.
   in `PAYMENT-RESPONSE`. Verified with the official `@x402/fetch` and
   `@x402/evm` 2.28.0 paying in USA₮ at default settings.
 - **Nobody pays for a failure.** A request that cannot succeed is refused
-  before a price is quoted, and the order is verify → run → settle, so a
-  payment that reverts charges nothing.
+  before a price is quoted. The order is verify → simulate → settle → run: a
+  run that would revert charges nothing, and one payment buys exactly one run.
 - Rates are built on **Textile FX's** live maker quotes, cross-checked against
   the Uniswap pools on Celo.
 
 ### Skills
 
-In Claude Code, install both skills as one plugin:
-
-```
-/plugin install remesso --marketplace crackedstudio/Remesso
-```
-
-Or with any agent that reads Agent Skills:
+The plugin above includes them. For any other agent that reads Agent Skills:
 
 ```bash
 npx skills add crackedstudio/Remesso --skill remesso-x402   # pay the services above (USA₮ by default)
@@ -247,6 +281,7 @@ agent.
 | | |
 |---|---|
 | **RemessoExecutorV5** | `0x3C357af3300f383Ea49B6D6ED8e084199a92bEd8`, deployed 2026-10-16, verified, **unaudited by a person** (V4 had an AI review; V5 fixes its findings) |
+| **RemessoAgentAllowance** | `0xA6351fAeEb097698289586C4D6188530300DB209`, deployed 2026-10-19, verified, **unaudited by a person**. Agent spending policies for the Claude plugin. No owner and no admin: only a policy's owner can change it. |
 | Owner (cold) | `0xc998739EEF304d39771901c0d379215a7C1AA15e`. It can pause, set the fee within the coded cap, and add tokens to the allowlist. It cannot touch a signed schedule. |
 | Agent / executor (hot) | `0xA351d65c15b8a342B6ECbC7f2B9eFE62B17cdb21`, which pays gas only |
 | Treasury | `0x2dA4cd408bd8051385B5Dd113F8beD56E4F9F134`, where the commission lands |
@@ -273,11 +308,13 @@ the skill, and an agent collecting early on a mandate another agent signed.
 ## Repository
 
 ```
-contracts/          Foundry: RemessoExecutor V1–V4, 54 tests.
+contracts/          Foundry: RemessoExecutor V1–V5 and RemessoAgentAllowance, 96 tests.
 indexer/            Goldsky subgraph over the executor, read by the UI only.
-skills/             remesso and remesso-x402, plus the manifest index and schema.
+skills/             remesso, remesso-x402 and remesso-wallet, plus the manifest index and schema.
+mcp/                The plugin's agent wallet: a local MCP server (src/), bundled to dist/.
+plugin/             The Claude plugin as it ships, built by scripts/build-plugin.sh.
 examples/           An agent paying Remesso, or creating a schedule itself.
-scripts/            check-env, x402-buy, agent-pay, e2e-agent-test, build-skill-manifest.
+scripts/            check-env, x402-buy, agent-pay, e2e-agent-test, build-skill-manifest, build-plugin.
 docs/               submission, AGENTS, invite kit, screenshots, cNGN bank payouts.
 supabase/
   migrations/       Schema, row-level security, pg_cron jobs.
@@ -310,7 +347,7 @@ web/                Next.js 14 app, MiniPay-first, wagmi + viem.
 cp .env.example .env                       # secrets; never commit
 deno run --allow-env --allow-read --allow-net scripts/check-env.ts   # what is set, what is missing
 
-cd contracts && forge install && forge test   # 54 passing
+cd contracts && forge install && forge test   # 96 passing
 
 cd ..
 supabase db push
@@ -356,8 +393,9 @@ the code.
 
 ## Limits and open items
 
-- **V4 is unaudited.** It is live and has paid real schedules, all from our own
-  test wallets. Get an audit before inviting real senders at volume.
+- **V5 and RemessoAgentAllowance are unaudited.** Both are live and have paid
+  real transactions, all from our own wallets. Get an audit before inviting
+  real senders at volume, and keep agent limits small until then.
 - **Naira bank payouts are off.** Paying a bank account directly through the
   cNGN API is built but switched off. Instructing payouts to someone else's
   bank account is a money-transmission question for a Nigerian lawyer, and the
