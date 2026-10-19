@@ -4,7 +4,7 @@
 #
 #   skills/{remesso,remesso-x402,remesso-wallet}  ->  plugin/skills/
 #   mcp/dist/server.mjs (npm run build in mcp/)   ->  plugin/mcp/server.mjs
-#   mcp/src, package.json, package-lock.json      ->  plugin/mcp/ (readable source, to rebuild and compare)
+#   mcp/src, scripts, package.json, lockfile      ->  plugin/mcp/ (readable source, to rebuild and compare)
 #   web/app/icon.png, LICENSE                     ->  plugin/
 #
 # Why a folder of its own: with the repo root as the plugin, the directory's
@@ -31,6 +31,7 @@ assemble() {
   cp mcp/dist/server.mjs "$out/mcp/server.mjs"
   cp mcp/src/server.mjs "$out/mcp/src/server.mjs"
   cp mcp/package.json mcp/package-lock.json "$out/mcp/"
+  mkdir -p "$out/mcp/scripts" && cp mcp/scripts/strip-bytecode.mjs "$out/mcp/scripts/"
   cp web/app/icon.png "$out/.claude-plugin/icon.png"
   cp LICENSE "$out/LICENSE"
 }

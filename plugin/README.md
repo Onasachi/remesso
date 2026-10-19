@@ -68,6 +68,10 @@ from Remesso, pay up to 0.01"*, *"What can you still spend today?"*
 
 `mcp/server.mjs` is a bundle of `mcp/src/server.mjs` and its pinned
 dependencies (`mcp/package-lock.json`), so the plugin runs without an install
-step. To rebuild and compare: `cd mcp && npm ci && npm run build` writes `dist/server.mjs`, byte-identical to `server.mjs`. Contract,
+step. The build then removes the EVM contract bytecode that viem embeds for
+verifying smart-wallet signatures, which this server never does
+(`mcp/scripts/strip-bytecode.mjs` explains why). To rebuild and compare:
+`cd mcp && npm ci && npm run build` writes `dist/server.mjs`, byte-identical
+to `server.mjs`. Contract,
 tests and the web setup page are in the
 [repository](https://github.com/crackedstudio/Remesso). MIT.
