@@ -26,4 +26,4 @@ Remesso receives nothing from the plugin except `request_payment` calls.
 
 ## Contact
 
-Questions: open an issue at <https://github.com/crackedstudio/Remesso/issues>.
+Questions: support@crackedstudios.xyz, or open an issue at <https://github.com/crackedstudio/Remesso/issues>.

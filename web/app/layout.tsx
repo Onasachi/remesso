@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { DM_Sans, Fraunces } from "next/font/google";
 import "./globals.css";
 import { Providers } from "./providers";
+import Link from "next/link";
 import { AppHeader } from "@/components/AppHeader";
 
 /// Both fonts are self-hosted by next/font at build time: nothing is fetched
@@ -46,6 +47,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <div className="mx-auto flex min-h-[100dvh] w-full max-w-lg flex-col">
             <AppHeader />
             <main className="flex-1 px-4 pb-10">{children}</main>
+            <footer className="flex justify-center gap-4 px-4 pb-6 text-[12px] text-ink-3">
+              <Link href="/terms">Terms</Link>
+              <Link href="/privacy">Privacy</Link>
+            </footer>
           </div>
         </Providers>
       </body>
