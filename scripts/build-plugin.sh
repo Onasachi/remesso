@@ -7,6 +7,12 @@
 #   mcp/src, scripts, package.json, lockfile      ->  plugin/mcp/ (readable source, to rebuild and compare)
 #   web/app/icon.png, LICENSE                     ->  plugin/
 #
+# and the npm package for Codex, Cursor and other MCP hosts from the same files:
+#
+#   mcp/dist/server.mjs, skills, LICENSE          ->  packages/remesso-wallet/
+#
+# packages/remesso-wallet/{package.json,cli.mjs,README.md} are edited in place.
+#
 # Why a folder of its own: with the repo root as the plugin, the directory's
 # validator reads all of it — the web app, the contracts and their submodules,
 # scripts that read .env — and holds the plugin over files it never ships.
@@ -36,15 +42,39 @@ assemble() {
   cp LICENSE "$out/LICENSE"
 }
 
+assemble_npm() {
+  local out="$1"
+  mkdir -p "$out/skills"
+  for s in remesso remesso-x402 remesso-wallet; do
+    rm -rf "$out/skills/$s"
+    mkdir -p "$out/skills/$s"
+    cp "skills/$s/SKILL.md" "$out/skills/$s/"
+    [ -f "skills/$s/manifest.json" ] && cp "skills/$s/manifest.json" "$out/skills/$s/"
+    [ -d "skills/$s/scripts" ] && cp -R "skills/$s/scripts" "$out/skills/$s/"
+  done
+  cp mcp/dist/server.mjs "$out/server.mjs"
+  cp LICENSE "$out/LICENSE"
+}
+
 if [ "${1:-}" = "--check" ]; then
   tmp="$(mktemp -d)"
   trap 'rm -rf "$tmp"' EXIT
   cp -R plugin/. "$tmp/"
   assemble "$tmp"
+  mkdir -p "$tmp.npm" && trap 'rm -rf "$tmp" "$tmp.npm"' EXIT
+  cp -R packages/remesso-wallet/. "$tmp.npm/"
+  assemble_npm "$tmp.npm"
+  stale=0
   if diff -r plugin "$tmp" >/dev/null; then echo "plugin/: current"; else
-    echo "plugin/: out of date — run scripts/build-plugin.sh"; diff -rq plugin "$tmp" || true; exit 1
+    echo "plugin/: out of date — run scripts/build-plugin.sh"; diff -rq plugin "$tmp" || true; stale=1
   fi
+  if diff -r packages/remesso-wallet "$tmp.npm" >/dev/null; then echo "packages/remesso-wallet/: current"; else
+    echo "packages/remesso-wallet/: out of date — run scripts/build-plugin.sh"; diff -rq packages/remesso-wallet "$tmp.npm" || true; stale=1
+  fi
+  exit $stale
 else
   assemble plugin
   echo "plugin/: written"
+  assemble_npm packages/remesso-wallet
+  echo "packages/remesso-wallet/: written"
 fi

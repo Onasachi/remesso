@@ -1,4 +1,5 @@
-// Remesso agent wallet — the MCP server the Claude plugin ships.
+// Remesso agent wallet — the MCP server the Claude plugin ships, also
+// published to npm as `remesso-wallet` for Codex, Cursor and any other MCP host.
 //
 // The agent gets an address of its own. It can spend from its human's wallet
 // only through a RemessoAgentAllowance policy the human created: one token, a
@@ -182,7 +183,7 @@ async function payThroughPolicy(d, to, units, memo) {
 
 // ---- the server ----
 
-const server = new McpServer({ name: "remesso-wallet", version: "0.2.2" });
+const server = new McpServer({ name: "remesso-wallet", version: "0.2.4" });
 
 server.tool(
   "wallet",
@@ -341,6 +342,13 @@ server.tool(
   },
 );
 
+// The payer sees who is asking on their home screen, so name the app the
+// agent runs in, from the clientInfo it sent on initialize.
+function hostName() {
+  const n = server.client?.name ?? "";
+  return /claude/i.test(n) ? "Claude" : /codex/i.test(n) ? "Codex" : /cursor/i.test(n) ? "Cursor" : "AI";
+}
+
 server.tool(
   "request_payment",
   "Ask a person or agent to pay this agent on a recurring schedule through Remesso. Free. Returns a link that opens the payer's Remesso form prefilled; only the payer can create the schedule.",
@@ -356,7 +364,7 @@ server.tool(
     const res = await fetch(`${FUNCTIONS}/request-payment`, {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ payer, to: account.address, amount, token, every, note, from: "Claude agent" }),
+      body: JSON.stringify({ payer, to: account.address, amount, token, every, note, from: `${hostName()} agent` }),
     });
     const out = await res.json().catch(() => ({}));
     return res.ok ? ok(out) : fail(`request-payment answered ${res.status}: ${JSON.stringify(out)}`);

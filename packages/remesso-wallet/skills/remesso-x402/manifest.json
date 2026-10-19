@@ -1,0 +1,150 @@
+{
+  "$schema": "https://raw.githubusercontent.com/crackedstudio/Remesso/main/skills/manifest.schema.json",
+  "manifestVersion": 1,
+  "name": "remesso-x402",
+  "version": "1.0.0",
+  "description": "Pay Remesso's paid HTTP services on Celo mainnet over x402 v2 — in USA₮ by default (USDC and USD₮ also accepted), gasless for the payer. Use it to buy live NGN rates or to bring a scheduled stablecoin payment forward.",
+  "skill": {
+    "entry": "SKILL.md",
+    "url": "https://raw.githubusercontent.com/crackedstudio/Remesso/main/skills/remesso-x402/SKILL.md"
+  },
+  "homepage": "https://remesso.crackedstudios.xyz",
+  "repository": "https://github.com/crackedstudio/Remesso",
+  "license": "MIT",
+  "install": {
+    "npxSkills": "npx skills add crackedstudio/Remesso --skill remesso-x402",
+    "npm": [
+      "@x402/fetch@2.28.0",
+      "@x402/evm@2.28.0",
+      "viem"
+    ],
+    "run": "node scripts/pay.mjs --service naira-rate"
+  },
+  "payment": {
+    "protocol": "x402",
+    "version": 2,
+    "scheme": "exact",
+    "network": "eip155:42220",
+    "chain": {
+      "name": "Celo",
+      "chainId": 42220,
+      "rpc": "https://forno.celo.org"
+    },
+    "payTo": "0xcDEA4Cc4191Ec9A5d8fD1a6B17e3F4C84E993Ae2",
+    "facilitator": "https://api.x402.celo.org",
+    "gas": "paid by the facilitator — the payer needs the token, not CELO",
+    "defaultAsset": "0xD2ab3C9A02DBBAB236BfEC45D1d755DF4267F771",
+    "assets": [
+      {
+        "symbol": "USDC",
+        "address": "0xcebA9300f2b948710d2653dD7B07f33A8B32118C",
+        "decimals": 6,
+        "eip712": {
+          "name": "USDC",
+          "version": "2"
+        }
+      },
+      {
+        "symbol": "USD₮",
+        "address": "0x48065fbBE25f71C9282ddf5e1cD6D6A887483D5e",
+        "decimals": 6,
+        "eip712": {
+          "name": "Tether USD",
+          "version": "1"
+        }
+      },
+      {
+        "symbol": "USA₮",
+        "address": "0xD2ab3C9A02DBBAB236BfEC45D1d755DF4267F771",
+        "decimals": 6,
+        "eip712": {
+          "name": "Tether America USD",
+          "version": "1"
+        }
+      }
+    ],
+    "builderCode": {
+      "a": "remesso",
+      "s": [
+        "celo_5cd35ca55baf"
+      ]
+    },
+    "authoritative": "the PAYMENT-REQUIRED header of an unpaid request — this file is a snapshot of it"
+  },
+  "services": [
+    {
+      "name": "naira-rate",
+      "description": "Live USDT/NGN and USDC/NGN from on-chain RFQ makers: bid, ask and last, with mid and spread when both sides are quoted and null for both when they are not. What Remesso prices a naira corridor from.",
+      "endpoint": "https://engaboljiqudghvzmebq.supabase.co/functions/v1/rate-service",
+      "method": "POST",
+      "input": {},
+      "price": {
+        "amount": "1000",
+        "decimals": 6,
+        "usd": 0.001
+      }
+    },
+    {
+      "name": "latam-rate",
+      "description": "Live USD-to-wARS and USD-to-wBRL on Celo from two independent on-chain sources side by side — Textile's RFQ makers and the Uniswap pool at your size — with a flag when they disagree. wCOP has no on-chain market on Celo and is reported as such, never priced from elsewhere.",
+      "endpoint": "https://engaboljiqudghvzmebq.supabase.co/functions/v1/latam-rate",
+      "method": "POST",
+      "input": {
+        "usd": "optional trade size to price the pool at (default 100, max 100000)"
+      },
+      "price": {
+        "amount": "1000",
+        "decimals": 6,
+        "usd": 0.001
+      }
+    },
+    {
+      "name": "latam-route",
+      "description": "How to deliver an amount of pesos or reais on Celo: the token, the dollars it takes at your size and from which venue (with price impact), Ripio's public buy and cash-out links and a prefilled Remesso schedule link. Moves nothing and signs nothing. Argentina and Brazil are priced on-chain; Colombia gets the Ripio route only.",
+      "endpoint": "https://engaboljiqudghvzmebq.supabase.co/functions/v1/latam-route",
+      "method": "POST",
+      "input": {
+        "country": "AR | BR | CO",
+        "amount": "number, in local currency unless currency is USD",
+        "currency": "optional LOCAL (default) | USD",
+        "recipient": "optional 0x address to prefill",
+        "every": "optional week | fortnight | month (default month)"
+      },
+      "price": {
+        "amount": "2000",
+        "decimals": 6,
+        "usd": 0.002
+      }
+    },
+    {
+      "name": "trigger-run",
+      "description": "Bring one payment of an existing schedule forward. The caller buys timing and nothing else. Stablecoin payouts only: naira schedules are refused before a price is quoted.",
+      "endpoint": "https://engaboljiqudghvzmebq.supabase.co/functions/v1/trigger-run",
+      "method": "POST",
+      "input": {
+        "schedule": "on-chain schedule id, as a decimal string"
+      },
+      "price": {
+        "amount": "10000",
+        "decimals": 6,
+        "usd": 0.01
+      }
+    }
+  ],
+  "discovery": {
+    "capabilities": "https://engaboljiqudghvzmebq.supabase.co/functions/v1/agent",
+    "agentCard": "https://remesso.crackedstudios.xyz/.well-known/agent.json",
+    "erc8004": {
+      "registry": "0x8004A169FB4a3325136EB29fA0ceB6D2e539a432",
+      "agentIds": [
+        9867,
+        9879
+      ],
+      "chainId": 42220
+    }
+  },
+  "snapshotOf": {
+    "rateService402": "https://engaboljiqudghvzmebq.supabase.co/functions/v1/rate-service",
+    "capabilities": "https://engaboljiqudghvzmebq.supabase.co/functions/v1/agent"
+  }
+}

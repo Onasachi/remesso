@@ -16457,6 +16457,7 @@ var McpServer = class {
     const { id, method, params } = msg;
     switch (method) {
       case "initialize":
+        this.client = params?.clientInfo;
         return {
           protocolVersion: params?.protocolVersion || LATEST_PROTOCOL,
           capabilities: { tools: {} },
@@ -26251,7 +26252,7 @@ async function payThroughPolicy(d, to, units, memo) {
   if (receipt.status !== "success") throw new Error(`transaction reverted: ${hash3}`);
   return hash3;
 }
-var server = new McpServer({ name: "remesso-wallet", version: "0.2.2" });
+var server = new McpServer({ name: "remesso-wallet", version: "0.2.4" });
 server.tool(
   "wallet",
   "This agent's own Celo address, what it holds, and the policies it may spend under. Start here. If no policy is linked, it returns the steps the human must take in their own wallet.",
@@ -26398,6 +26399,10 @@ server.tool(
     }
   }
 );
+function hostName() {
+  const n = server.client?.name ?? "";
+  return /claude/i.test(n) ? "Claude" : /codex/i.test(n) ? "Codex" : /cursor/i.test(n) ? "Cursor" : "AI";
+}
 server.tool(
   "request_payment",
   "Ask a person or agent to pay this agent on a recurring schedule through Remesso. Free. Returns a link that opens the payer's Remesso form prefilled; only the payer can create the schedule.",
@@ -26413,7 +26418,7 @@ server.tool(
     const res = await fetch(`${FUNCTIONS}/request-payment`, {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ payer, to: account.address, amount, token, every, note, from: "Claude agent" })
+      body: JSON.stringify({ payer, to: account.address, amount, token, every, note, from: `${hostName()} agent` })
     });
     const out = await res.json().catch(() => ({}));
     return res.ok ? ok(out) : fail(`request-payment answered ${res.status}: ${JSON.stringify(out)}`);

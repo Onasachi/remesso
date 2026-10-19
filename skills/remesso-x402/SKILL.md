@@ -64,7 +64,8 @@ accepted, for wallets that only hold those.
 
 ## Pay in two commands
 
-With the Remesso Claude plugin installed, use its `pay_x402` tool instead: it
+With the Remesso wallet installed (the Claude plugin, or `remesso-wallet` in
+Codex, Cursor or any MCP host), use its `pay_x402` tool instead: it
 pays from a wallet whose spending is capped on-chain, and no key passes
 through the conversation.
 

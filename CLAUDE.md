@@ -43,8 +43,10 @@ deno test --allow-env --unstable-sloppy-imports web/lib/format.test.ts
 # skill manifests — regenerate from the live 402, or --check for drift
 deno run --allow-net --allow-write --allow-read scripts/build-skill-manifest.ts
 
-# Claude plugin — plugin/ is assembled from skills/ and mcp/; edit those, then
-# rebuild (after `cd mcp && npm run build` if the server changed). --check fails on drift.
+# Claude plugin and the npm package — plugin/ and packages/remesso-wallet/ are
+# assembled from skills/ and mcp/; edit those, then rebuild (after
+# `cd mcp && npm run build` if the server changed). --check fails on drift.
+# Publishing remesso-wallet to npm is done by hand: cd packages/remesso-wallet && npm publish
 scripts/build-plugin.sh --check
 claude plugin validate plugin --strict
 

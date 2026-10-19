@@ -219,6 +219,26 @@ Claude Code and Cowork, not on claude.ai. The plugin lives in
 `scripts/build-plugin.sh`; its [privacy notice](plugin/PRIVACY.md) says what
 stays on the machine and what leaves it.
 
+### Codex, Cursor and other MCP hosts
+
+The same wallet and skills ship on npm as
+[`remesso-wallet`](packages/remesso-wallet/README.md):
+
+```
+# Codex
+codex mcp add remesso-wallet -- npx -y remesso-wallet
+
+# Cursor: ~/.cursor/mcp.json
+{ "mcpServers": { "remesso-wallet": { "command": "npx", "args": ["-y", "remesso-wallet"] } } }
+
+# both: the skills, into ~/.agents/skills
+npx -y remesso-wallet skills
+```
+
+Setup is the same as above. Every host on one machine shares one agent key,
+in `~/.remesso-agent/`, so a policy linked in Claude Code also works in
+Cursor and Codex.
+
 ### Paid services over x402
 
 Sold through **Celo's facilitator** (`https://api.x402.celo.org`). The payer
@@ -317,6 +337,7 @@ indexer/            Goldsky subgraph over the executor, read by the UI only.
 skills/             remesso, remesso-x402 and remesso-wallet, plus the manifest index and schema.
 mcp/                The plugin's agent wallet: a local MCP server (src/), bundled to dist/.
 plugin/             The Claude plugin as it ships, built by scripts/build-plugin.sh.
+packages/remesso-wallet/  The same wallet on npm, for Codex, Cursor and other MCP hosts.
 examples/           An agent paying Remesso, or creating a schedule itself.
 scripts/            check-env, x402-buy, agent-pay, e2e-agent-test, build-skill-manifest, build-plugin.
 docs/               submission, AGENTS, invite kit, screenshots, cNGN bank payouts.

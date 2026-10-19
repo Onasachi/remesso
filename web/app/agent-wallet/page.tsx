@@ -69,7 +69,7 @@ function Setup() {
     return (
       <Intro>
         <p className="mt-4 text-[16px] text-ink-2">
-          This link is missing your agent&apos;s address. Ask your agent for its setup link: in Claude, run the Remesso{" "}
+          This link is missing your agent&apos;s address. Ask your agent for its setup link: in Claude, Codex or Cursor, run the Remesso{" "}
           <span className="font-medium text-ink">wallet</span> tool.
         </p>
       </Intro>

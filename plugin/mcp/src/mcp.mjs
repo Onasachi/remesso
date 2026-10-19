@@ -96,6 +96,7 @@ export class McpServer {
     const { id, method, params } = msg;
     switch (method) {
       case "initialize":
+        this.client = params?.clientInfo;
         return {
           protocolVersion: params?.protocolVersion || LATEST_PROTOCOL,
           capabilities: { tools: {} },

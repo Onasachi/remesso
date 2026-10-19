@@ -20,19 +20,24 @@ Three things an agent can do, and they are independent:
 | **Pay** for a service | USDC, USD₮ or USA₮ on Celo | CELO — the facilitator pays settlement gas |
 | **Pay** on a schedule | USDC/USDT/USDm/USA₮, wARS/wBRL/wCOP or cNGN **and** ~0.06 CELO | — you submit these two transactions yourself |
 
-## In Claude Code or Cowork: use the plugin's wallet
+## With the Remesso wallet installed: use its tools
 
-If the Remesso plugin is installed (`/plugin install remesso --marketplace
-crackedstudio/Remesso`), you already have a wallet: the `remesso-wallet` tools
+If the Remesso wallet is installed, you already have a wallet: the
+`remesso-wallet` tools
 `wallet`, `link_policy`, `limits`, `pay`, `pay_x402`, `request_payment` and
 `find_agent`. **Use them instead of the code below.** They spend from the user's
 wallet only within a `RemessoAgentAllowance` policy the user set on-chain (cap
 per payment and per day, a total, an expiry), and the key never passes through
 the conversation. The `remesso-wallet` skill says how to use them.
 
+It installs as a plugin in Claude Code (`/plugin marketplace add
+crackedstudio/Remesso`, then `/plugin install remesso@remesso`) and as the
+`remesso-wallet` MCP server everywhere else: `npx -y remesso-wallet` in
+Codex, Cursor or any MCP host.
+
 Never ask a user to paste a private key or seed phrase into the conversation.
-The `PAYER_KEY` examples below are for agents running their own code outside
-Claude, with a wallet that holds only what they are willing to lose.
+The `PAYER_KEY` examples below are for agents running their own code without
+the wallet, with a wallet that holds only what they are willing to lose.
 
 ## Addresses and endpoints
 
