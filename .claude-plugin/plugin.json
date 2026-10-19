@@ -1,0 +1,29 @@
+{
+  "name": "remesso",
+  "version": "0.2.0",
+  "description": "Stablecoin payments on Celo for agents: an agent wallet whose spending is capped on-chain by its human, scheduled payments under a Remesso mandate, and x402 payments in USA₮, USDC or USDT.",
+  "author": {
+    "name": "Cracked Studio",
+    "url": "https://github.com/crackedstudio"
+  },
+  "homepage": "https://remesso.crackedstudios.xyz",
+  "repository": "https://github.com/crackedstudio/Remesso",
+  "license": "MIT",
+  "keywords": [
+    "celo",
+    "payments",
+    "stablecoins",
+    "x402",
+    "remittances",
+    "agents",
+    "minipay"
+  ],
+  "mcpServers": {
+    "remesso-wallet": {
+      "command": "node",
+      "args": [
+        "${CLAUDE_PLUGIN_ROOT}/mcp/dist/server.mjs"
+      ]
+    }
+  }
+}

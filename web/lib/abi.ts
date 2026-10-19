@@ -266,3 +266,74 @@ export const quoterAbi = [
 export const executorAddressAbi = [
   "function executor() view returns (address)",
 ] as const;
+
+/// RemessoAgentAllowance: a spending policy a person grants their AI agent's
+/// key. The caps live in the contract; see contracts/src/RemessoAgentAllowance.sol.
+export const agentAllowanceAbi = [
+  {
+    type: "function",
+    name: "createPolicy",
+    stateMutability: "nonpayable",
+    inputs: [
+      { name: "agent", type: "address" },
+      { name: "token", type: "address" },
+      { name: "perPayment", type: "uint128" },
+      { name: "perDay", type: "uint128" },
+      { name: "expiresAt", type: "uint64" },
+      { name: "allowlistOnly", type: "bool" },
+      { name: "recipients", type: "address[]" },
+    ],
+    outputs: [{ name: "id", type: "uint256" }],
+  },
+  {
+    type: "function",
+    name: "revoke",
+    stateMutability: "nonpayable",
+    inputs: [{ name: "id", type: "uint256" }],
+    outputs: [],
+  },
+  {
+    type: "function",
+    name: "remainingToday",
+    stateMutability: "view",
+    inputs: [{ name: "id", type: "uint256" }],
+    outputs: [{ type: "uint256" }],
+  },
+  {
+    type: "function",
+    name: "policy",
+    stateMutability: "view",
+    inputs: [{ name: "id", type: "uint256" }],
+    outputs: [
+      {
+        type: "tuple",
+        components: [
+          { name: "owner", type: "address" },
+          { name: "agent", type: "address" },
+          { name: "token", type: "address" },
+          { name: "expiresAt", type: "uint64" },
+          { name: "allowlistOnly", type: "bool" },
+          { name: "revoked", type: "bool" },
+          { name: "perPayment", type: "uint128" },
+          { name: "perDay", type: "uint128" },
+          { name: "spentInWindow", type: "uint128" },
+          { name: "windowStart", type: "uint64" },
+        ],
+      },
+    ],
+  },
+  {
+    type: "event",
+    name: "PolicyCreated",
+    inputs: [
+      { name: "id", type: "uint256", indexed: true },
+      { name: "owner", type: "address", indexed: true },
+      { name: "agent", type: "address", indexed: true },
+      { name: "token", type: "address", indexed: false },
+      { name: "perPayment", type: "uint128", indexed: false },
+      { name: "perDay", type: "uint128", indexed: false },
+      { name: "expiresAt", type: "uint64", indexed: false },
+      { name: "allowlistOnly", type: "bool", indexed: false },
+    ],
+  },
+] as const;

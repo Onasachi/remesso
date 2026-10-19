@@ -9,7 +9,7 @@ Read `README.md` for the why. This file is what you need to not break it.
 ## Commands
 
 ```bash
-# contracts — 81 tests across V1–V5, all must pass
+# contracts — 96 tests across V1–V5 and RemessoAgentAllowance, all must pass
 cd contracts && forge test
 
 # Self webhook signatures — verifies our Svix check against the svix library
@@ -78,6 +78,7 @@ blast radius grows quietly.
 | | |
 |---|---|
 | `RemessoExecutorV5` | `0x3C357af3300f383Ea49B6D6ED8e084199a92bEd8` — **deployed 2026-10-16** (tx `0x95a9ddcc…6a07`, block 80,268,721), verified. V4 plus the fixes from the 2026-10-16 solidity-auditor scans: an early send moves a run instead of adding one, `CURRENT_EXECUTOR` (address(1)) as trigger, no third-party trigger on the swap rails, commission rounded up, floor checked on the net amount. Allowlists copied from V4 by `contracts/script/setup-v5.sh` and checked equal on-chain. **No person has audited it.** |
+| `RemessoAgentAllowance` | `0xA6351fAeEb097698289586C4D6188530300DB209` — **deployed 2026-10-19** (tx `0x0b80f355…dc1e`, block 80,467,202), verified. Spending limits a person grants their AI agent's key: one token, a cap per payment and per day, an expiry, an optional recipient allowlist. No owner, no admin. Used by the Claude plugin's MCP wallet (`mcp/`) and set up at `/agent-wallet`. **No person has audited it.** |
 | `RemessoExecutorV4` | `0x288b7cDD10e069eA64D4984c3E5fa0D9c5816009` — live 2026-09-22 to the V5 cutover. Its schedules stay on-chain and stop running once the executor is pointed at V5. Its early send adds a payment on an uncapped schedule: do not grant triggers on it. |
 | `RemessoExecutorV3` | `0xd2e68acd875fb1b3a98dc0d72659910b05e7e08f` — superseded 2026-09-22. Schedules created against it still exist on-chain and can never run again: the executor is scoped to one contract. |
 | `RemessoExecutorV2` | `0x218414aD37206fd4cFD6C47947574708DB0e95D2` — superseded 2026-09-17 |

@@ -203,6 +203,14 @@ so **the payer needs no CELO**.
 
 ### Skills
 
+In Claude Code, install both skills as one plugin:
+
+```
+/plugin install remesso --marketplace crackedstudio/Remesso
+```
+
+Or with any agent that reads Agent Skills:
+
 ```bash
 npx skills add crackedstudio/Remesso --skill remesso-x402   # pay the services above (USA₮ by default)
 npx skills add crackedstudio/Remesso --skill remesso        # schedules, being paid, the contract
