@@ -18,7 +18,21 @@ Three things an agent can do, and they are independent:
 |---|---|---|
 | **Be paid** by a schedule | an address | gas, a balance, an account, any software |
 | **Pay** for a service | USDC, USD₮ or USA₮ on Celo | CELO — the facilitator pays settlement gas |
-| **Pay** on a schedule | USDC/USDT/USDm/USA₮ or wARS/wBRL/wCOP **and** ~0.06 CELO | — you submit these two transactions yourself |
+| **Pay** on a schedule | USDC/USDT/USDm/USA₮, wARS/wBRL/wCOP or cNGN **and** ~0.06 CELO | — you submit these two transactions yourself |
+
+## In Claude Code or Cowork: use the plugin's wallet
+
+If the Remesso plugin is installed (`/plugin install remesso --marketplace
+crackedstudio/Remesso`), you already have a wallet: the `remesso-wallet` tools
+`wallet`, `link_policy`, `limits`, `pay`, `pay_x402`, `request_payment` and
+`find_agent`. **Use them instead of the code below.** They spend from the user's
+wallet only within a `RemessoAgentAllowance` policy the user set on-chain (cap
+per payment and per day, a total, an expiry), and the key never passes through
+the conversation. The `remesso-wallet` skill says how to use them.
+
+Never ask a user to paste a private key or seed phrase into the conversation.
+The `PAYER_KEY` examples below are for agents running their own code outside
+Claude, with a wallet that holds only what they are willing to lose.
 
 ## Addresses and endpoints
 
@@ -28,7 +42,7 @@ Three things an agent can do, and they are independent:
 | Start here | `https://remesso.crackedstudios.xyz/.well-known/agent.json` — every endpoint, the contract, the registrations |
 | Capabilities | `GET https://engaboljiqudghvzmebq.supabase.co/functions/v1/agent` — prices and refusals, free |
 | This file | `https://remesso.crackedstudios.xyz/skill.md` |
-| ERC-8004 | agent `9867`, registry `0x8004A169FB4a3325136EB29fA0ceB6D2e539a432` |
+| ERC-8004 | agent `9879`, held by the agent wallet that sends every payment (`0xA351d65c15b8a342B6ECbC7f2B9eFE62B17cdb21`); agent `9867`, held by the owner. Registry `0x8004A169FB4a3325136EB29fA0ceB6D2e539a432` |
 | Proof of human | Self Agent ID `191`, soulbound, zero-knowledge passport proof |
 | Source | https://github.com/crackedstudio/Remesso |
 
@@ -115,7 +129,8 @@ approve an allowance, move a token, or oblige anyone to pay you.
 
 ## Paying on a schedule
 
-`examples/create-schedule.ts` in the repo signs the mandate from your own
+[`examples/create-schedule.ts`](https://github.com/crackedstudio/Remesso/blob/main/examples/create-schedule.ts)
+in the repository (not shipped in the plugin) signs the mandate from your own
 wallet. This is the one flow that needs **CELO for gas** — an approval and the
 schedule, submitted by you rather than a facilitator.
 
@@ -169,14 +184,17 @@ If an endpoint and the contract disagree, the contract is right.
 - `403` from `trigger-run` if the payer never authorised early sending, if the
   grant is spent, or within 60 seconds of the last one — **before quoting a
   price**, because nobody should pay to discover a call would fail.
-- `403` for any schedule paying out in cNGN. Those rails are built and switched
-  off pending regulatory work; everything settles in stablecoins today.
+- `403` for a schedule that converts to cNGN (the swap and bank-payout rails).
+  Those rails are built and switched off pending regulatory work. A schedule
+  that pays cNGN as it is, on the Direct rail, is allowed like any other.
 - `409` if the payment reverts on-chain — the caller is not charged.
 - `429` once a payer has 10 payment requests waiting.
 
 ## Limits, measured rather than claimed
 
-`RemessoExecutorV5` is **live on mainnet and unaudited**. It holds a spending
+`RemessoExecutorV5` is **live on mainnet and unaudited**, and so is
+`RemessoAgentAllowance` (`0xA6351fAeEb097698289586C4D6188530300DB209`), which
+holds the plugin wallet's spending policies. It holds a spending
 allowance the moment a payer approves it. That is worth knowing before pointing
 real money at it.
 
