@@ -437,6 +437,24 @@ function Landing() {
         )}
       </div>
 
+      {/* Outside MiniPay only: its listing rules keep the in-wallet screens to
+          the app itself, and Claude is a separate place to use Remesso. */}
+      {miniPay === false && (
+        <Link
+          href="/claude"
+          className="mt-2 flex items-center gap-3 rounded-2xl border border-line/70 bg-surface p-3.5 transition hover:border-ink-3"
+        >
+          <span className="disc h-9 w-9 shrink-0">
+            <Icon name="auto_awesome" />
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="block text-[14px] font-medium text-ink">Use Remesso in Claude</span>
+            <span className="block text-[12px] leading-snug text-ink-2">Ask Claude to send money or set up a monthly payment.</span>
+          </span>
+          <Icon name="arrow_forward" />
+        </Link>
+      )}
+
       <div className="mt-6">
         {/* No button until we know this is not MiniPay — see ConnectBar. */}
         {miniPay !== false ? (
