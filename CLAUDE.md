@@ -665,6 +665,40 @@ message per POST, answered as JSON (`lib/mcp/protocol.ts`, no MCP SDK).
 - Pay once = a one-payment schedule; the form starts schedules immediately by
   default, so it is paid within a minute of signing.
 
+## The hosted agent — hands-free from the Claude app (2026-10-20)
+
+Option A: Remesso keeps one agent key per signed-in person in **Privy**
+(`lib/mcp/hosted.ts`), and the agent spends only from the person's own wallet
+through `RemessoAgentAllowance`. Off unless `HOSTED_AGENT_ENABLED=1`, and
+invite-only while `HOSTED_AGENT_EMAILS` lists addresses. A legal answer is
+owed before it opens to everyone.
+
+- **Sign-in is our own OAuth server** (`lib/oauth/*`, `app/oauth/authorize`,
+  `app/api/oauth/*`), lazy: link tools stay open, and a hosted tool called
+  without a token gets a 401 with `WWW-Authenticate` *before* any tool runs.
+  A 200 with an error inside never makes Claude show its Connect card.
+  Claude identifies itself with its CIMD URL, allowlisted to claude.ai and
+  claude.com.
+- **People sign in with a Supabase email code**, not Privy's React login,
+  which adds 181 packages to the MiniPay app and needs `--legacy-peer-deps`.
+  Supabase mail goes through Resend (`noreply@crackedstudios.xyz`, records on
+  `send`/`rsend`/`resend._domainkey`). Both templates must carry
+  `{{ .Token }}`, or the email has a link and no code.
+- **No table.** Codes and access tokens are HS256 JWTs (`OAUTH_SECRET`).
+  Claude's refresh token is the person's Supabase refresh token, sealed with
+  AES-GCM, so Supabase does the rotation and reuse detection. The sign-in tab
+  keeps no session and never refreshes it: a second refresher looks like
+  theft to Supabase. An agent is found by its Privy `external_id`
+  (`remesso:<supabase user id>`).
+- **Privy signs only standard tx types**, so agents pay gas in CELO. Set
+  `GAS_TANK_PRIVATE_KEY` (a hot key that only funds agents) to top them up;
+  without it the person is asked to send CELO. The shared policy
+  (`PRIVY_AGENT_POLICY_ID`) allows only `pay()` on RemessoAgentAllowance, on
+  Celo, with value 0. Wallets and the policy are owned by Remesso's P-256 key
+  (`PRIVY_AUTHORIZATION_KEY`; `~/.remesso/keys/privy-authorization.json`).
+  That key can also *export* agent keys, bypassing Privy's rules but not the
+  on-chain caps, so guard it like the executor key.
+
 ## The pre-flight agent — advice before a payment, never the payment
 
 `preflight` (cron `remesso-preflight`, every 30 min) first records the ARS and

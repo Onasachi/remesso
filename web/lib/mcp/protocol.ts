@@ -19,10 +19,10 @@ export type Tool = {
   title: string;
   description: string;
   inputSchema: JsonSchema;
-  /// Hints for the client: none of these tools moves money or writes anything
-  /// on-chain, and `readOnlyHint` lets Claude call the reading ones without
-  /// asking the person each time.
-  annotations: { readOnlyHint: boolean; destructiveHint: false; openWorldHint: boolean };
+  /// Hints for the client: `readOnlyHint` lets Claude call a reading tool
+  /// without asking each time, and `destructiveHint` makes it always ask —
+  /// set on the hosted agent's payment, which cannot be taken back.
+  annotations: { readOnlyHint: boolean; destructiveHint: boolean; openWorldHint: boolean };
   run: (args: Record<string, unknown>) => Promise<ToolResult>;
 };
 
