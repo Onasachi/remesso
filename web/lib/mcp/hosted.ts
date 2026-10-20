@@ -1,10 +1,10 @@
 /// The hosted agent: hands-free payments for someone signed in to the
 /// connector, from Claude on any device.
 ///
-/// Remesso keeps one agent key per person in Privy (2026-10-20, option A). The
-/// key never reaches this code: Privy signs inside its own hardware, and only
-/// what Remesso's policy allows (pay() on RemessoAgentAllowance, on Celo, with
-/// no CELO attached). The money never sits with the agent either: each payment
+/// Each person owns their agent wallet in Privy; Remesso is one of its signers,
+/// limited to pay() on RemessoAgentAllowance, on Celo, with no CELO attached,
+/// and only the person can remove it. No key reaches this code: Privy signs in
+/// its own hardware. The money never sits with the agent either: each payment
 /// moves from the person's own wallet through a policy they signed there, under
 /// its per-payment and daily caps. Two walls, and the second is on-chain.
 ///
@@ -69,35 +69,107 @@ const ERC20 = parseAbi([
   "function allowance(address,address) view returns (uint256)",
 ]);
 
-// ---- Privy: one agent wallet per signed-in person, found by external_id ----
+// ---- Privy: each person owns their agent; Remesso is only a signer ----
+//
+// The person is a Privy user tied to their Remesso sign-in (custom auth: Privy
+// verifies our Supabase tokens against the project's ES256 JWKS). Their agent
+// is a wallet they OWN. Remesso is added to it as an additional signer whose
+// override policy allows only pay() on RemessoAgentAllowance, on Celo.
+//
+// Measured 2026-10-20: as a signer, Remesso could not change the signers or
+// export the key ("no valid authorization keys or user signing keys"); the
+// person's own sign-in removed Remesso, after which Remesso could not sign.
+// Adding Remesso back after a Stop needs the person's sign-in again.
 
 let privyClient: PrivyClient | null = null;
-function privy(): PrivyClient {
+export function privy(): PrivyClient {
   if (!privyClient) privyClient = new PrivyClient({ appId: process.env.PRIVY_APP_ID!, appSecret: process.env.PRIVY_APP_SECRET! });
   return privyClient;
 }
-/// Remesso's owner key for every agent wallet and the policy: a request
-/// without its signature is refused by Privy, so the app secret alone moves
-/// nothing.
-const authorization = () => ({ authorization_private_keys: [process.env.PRIVY_AUTHORIZATION_KEY!] });
+/// Remesso signing as itself, the signer: a request without this signature
+/// is refused by Privy, so the app secret alone moves nothing.
+const asRemesso = () => ({ authorization_private_keys: [process.env.PRIVY_AUTHORIZATION_KEY!] });
+const SIGNER = () => process.env.PRIVY_SIGNER_QUORUM_ID!;
+const remessoSigner = () => ({ signer_id: SIGNER(), override_policy_ids: [process.env.PRIVY_AGENT_POLICY_ID!] });
 
-export type Agent = { walletId: string; address: `0x${string}` };
+export type Agent = { walletId: string; address: `0x${string}`; privyUserId: string };
+type PrivyUser = Awaited<ReturnType<ReturnType<PrivyClient["users"]>["_get"]>>;
 
+async function findPerson(personId: string): Promise<PrivyUser | null> {
+  try {
+    return await privy().users().getByCustomAuthID({ custom_user_id: personId });
+  } catch (e) {
+    if ((e as { status?: number }).status === 404) return null;
+    throw e;
+  }
+}
+function walletOf(user: PrivyUser): { id: string; address: string } | null {
+  for (const a of user.linked_accounts) {
+    const w = a as { type?: string; chain_type?: string; connector_type?: string; id?: string | null; address?: string };
+    if (w.type === "wallet" && w.chain_type === "ethereum" && w.connector_type === "embedded" && w.id && w.address) {
+      return { id: w.id, address: w.address };
+    }
+  }
+  return null;
+}
+
+/// At sign-in, with the person's fresh token: make sure they exist in Privy,
+/// own an agent, and have Remesso on it as a signer. Creating the person and
+/// their wallet with the signer in one request is Privy's pregeneration; adding
+/// Remesso back to an existing wallet (after a Stop) is an owner action, so it
+/// carries the person's token.
+export async function connectAgent(personId: string, personJwt: string): Promise<Agent> {
+  let user = await findPerson(personId);
+  if (!user) {
+    user = await privy().users().create({
+      linked_accounts: [{ type: "custom_auth", custom_user_id: personId }],
+      wallets: [{ chain_type: "ethereum", additional_signers: [remessoSigner()] }],
+    });
+  }
+  let w = walletOf(user);
+  if (!w) {
+    user = await privy().users().pregenerateWallets(user.id, { wallets: [{ chain_type: "ethereum", additional_signers: [remessoSigner()] }] });
+    w = walletOf(user);
+    if (!w) throw new Error("Privy did not create the agent wallet");
+  }
+  const wallet = await privy().wallets().get(w.id);
+  const signers = wallet.additional_signers ?? [];
+  if (!signers.some((s) => s.signer_id === SIGNER())) {
+    await privy().wallets().update(w.id, {
+      additional_signers: [...signers.map((s) => ({ signer_id: s.signer_id, override_policy_ids: s.override_policy_ids })), remessoSigner()],
+      authorization_context: { user_jwts: [personJwt] },
+    });
+  }
+  return { walletId: w.id, address: getAddress(w.address), privyUserId: user.id };
+}
+
+export class AgentStopped extends Error {}
+
+/// At tool time: the person's agent, if Remesso is still one of its signers.
 export async function agentFor(personId: string): Promise<Agent> {
-  const externalId = `remesso:${personId}`;
-  const page = await privy().wallets().list({ external_id: externalId, chain_type: "ethereum" });
-  const found = page.data[0];
-  if (found) return { walletId: found.id, address: getAddress(found.address) };
-  const w = await privy().wallets().create({
-    chain_type: "ethereum",
-    external_id: externalId,
-    display_name: "Remesso agent",
-    owner: { public_key: process.env.PRIVY_AUTHORIZATION_PUBLIC_KEY! },
-    policy_ids: [process.env.PRIVY_AGENT_POLICY_ID!],
-    // Two tabs signing in at once must not give one person two agents.
-    idempotency_key: externalId,
+  const user = await findPerson(personId);
+  const w = user ? walletOf(user) : null;
+  if (!user || !w) throw new AgentStopped("No Remesso agent for this sign-in yet. Disconnect and reconnect Remesso in Claude to create one.");
+  const wallet = await privy().wallets().get(w.id);
+  if (!(wallet.additional_signers ?? []).some((s) => s.signer_id === SIGNER())) {
+    throw new AgentStopped("You stopped Remesso from paying for you. To use hands-free payments again, disconnect and reconnect Remesso in Claude.");
+  }
+  return { walletId: w.id, address: getAddress(w.address), privyUserId: user.id };
+}
+
+/// The person's Stop: removes Remesso as a signer, as the owner. Remesso
+/// cannot do this alone, nor undo it without the person signing in again.
+export async function stopAgent(personId: string, personJwt: string): Promise<{ stopped: boolean; address?: string }> {
+  const user = await findPerson(personId);
+  const w = user ? walletOf(user) : null;
+  if (!user || !w) return { stopped: false };
+  const wallet = await privy().wallets().get(w.id);
+  const keep = (wallet.additional_signers ?? []).filter((s) => s.signer_id !== SIGNER());
+  await privy().wallets().update(w.id, {
+    additional_signers: keep.map((s) => ({ signer_id: s.signer_id, override_policy_ids: s.override_policy_ids })),
+    authorization_context: { user_jwts: [personJwt] },
   });
-  return { walletId: w.id, address: getAddress(w.address) };
+  return { stopped: true, address: getAddress(w.address) };
 }
 
 // ---- reading the chain: policies naming the agent, and readiness ----
@@ -206,7 +278,7 @@ async function readiness(origin: string, agent: Agent) {
     if (ready) next = todo;
     ready = false;
   };
-  lines.push(`✓ Agent: ${agent.address}, kept by Remesso, signs only within your policy`);
+  lines.push(`✓ Agent: ${agent.address}, owned by you; Remesso signs for it only within your policy (stop it any time: ${origin}/agent/stop)`);
   const link = setupLinkFor(origin, agent.address);
   if (!d) {
     fail(
@@ -326,7 +398,7 @@ export function hostedTools(origin: string, personId: string | null): Tool[] {
       const sent = await privy().wallets().ethereum().sendTransaction(agent.walletId, {
         caip2: "eip155:42220",
         params: { transaction: { to: ALLOWANCE, data, value: "0x0" } },
-        authorization_context: authorization(),
+        authorization_context: asRemesso(),
       });
       const receipt = await pub.waitForTransactionReceipt({ hash: sent.hash as Hex });
       if (receipt.status !== "success") return refuse(`The payment reverted on-chain: https://celoscan.io/tx/${sent.hash}`);
