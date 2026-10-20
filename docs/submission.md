@@ -315,7 +315,7 @@ in a contract, not in the prompt.
   verified) enforces them. It has no owner and no admin; the money stays in the
   human's wallet until a payment moves it; Stop on the same page ends the
   policy at once. A prompt-injected agent hits the same caps as an honest one.
-- **Seven tools:** `wallet`, `link_policy`, `limits`, `pay`, `pay_x402`,
+- **Eight tools:** `wallet`, `await_setup`, `link_policy`, `limits`, `pay`, `pay_x402`,
   `request_payment`, `find_agent`.
 - **Also in Codex, Cursor and any MCP host:** the same wallet and skills are
   on npm as [`remesso-wallet`](https://www.npmjs.com/package/remesso-wallet)
@@ -383,7 +383,7 @@ users yet, and we do not count any of the payments below as volume.
   no longer round to zero. Deployed with a fresh agent wallet, owner and
   treasury; the ERC-8004 identity moved with the agent wallet.
 - **A Claude plugin with an agent wallet** whose spending is capped on-chain by
-  `RemessoAgentAllowance`, a setup page for the limits, and seven tools for
+  `RemessoAgentAllowance`, a setup page for the limits, and eight tools for
   paying, paying x402 APIs, finding agents on ERC-8004 and asking to be paid.
 - Terms of Service and a Privacy Policy, linked from every page.
 - The backend hardened from the same review: the database mirror can only be

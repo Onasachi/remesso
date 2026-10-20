@@ -200,8 +200,9 @@ the payment flow and what the contract refuses, on one page.
 
 | Tool | What it does |
 |---|---|
-| `wallet` | The agent's address and balances, and the setup link if no policy is linked |
-| `link_policy` | Links a policy after checking on-chain that it names this agent |
+| `wallet` | The agent's address and balances, and a readiness checklist with the one next step; the setup link if there is no policy |
+| `await_setup` | Waits while the human sets the limits, then confirms the wallet is ready |
+| `link_policy` | Links a policy by id; rarely needed, since policies naming the agent are found on their own |
 | `limits` | What the agent may still spend now, read from the chain |
 | `pay` | Sends USD₮, USDC or USA₮ from your wallet, within the policy |
 | `pay_x402` | Pays any x402 price on Celo, never above `max_amount`; tops the agent up through the policy, so those payments pass the same caps |

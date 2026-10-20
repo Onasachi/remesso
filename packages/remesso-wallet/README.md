@@ -56,14 +56,17 @@ put them somewhere else.
 
 ## Set up
 
-1. Ask the agent: *"Show my Remesso wallet."* The `wallet` tool creates the
-   agent's key on your machine and answers with the agent's address and a
-   setup link.
-2. Open the link in MiniPay or a browser wallet. Choose USD₮, USDC or USA₮
-   and set the most for one payment, per day and in total, and for how
-   long. Approve the two steps in your wallet.
-3. Tell the agent the line the page shows, *"Link Remesso policy N"*.
-4. Send the agent's address about 0.1 CELO for network fees.
+Ask the agent: *"Set up my Remesso wallet."*
+
+1. The agent creates the agent's key on your machine and gives you a setup
+   link (`remesso.crackedstudios.xyz/agent-wallet?agent=0x…`).
+2. Open it in MiniPay or a browser wallet. Choose USD₮, USDC or USA₮, set the
+   most for one payment, per day and for how long, and approve the two steps
+   in your wallet. The agent waits while you do, finds the policy on-chain
+   by itself and shows a checklist: policy, your funds, network fees, and a
+   test payment simulated without sending anything.
+3. If the checklist asks for network fees, send the agent's address 0.10 of
+   the same token (or 0.05 CELO).
 
 Then: *"Pay 2 USDT to 0x…"*, *"Pay agent 9879 1 USDT"*, *"What can you still
 spend today?"*
@@ -72,8 +75,9 @@ spend today?"*
 
 | Tool | What it does |
 |---|---|
-| `wallet` | The agent's address, balances, linked limits; the setup link if none |
-| `link_policy` | Records a spending policy after checking on-chain that it names this agent |
+| `wallet` | The agent's address and balances, and a readiness checklist with the one next step; the setup link if there is no policy |
+| `await_setup` | Waits while you set the limits, then confirms the wallet is ready |
+| `link_policy` | Links a policy by id; rarely needed, since policies naming the agent are found on their own |
 | `limits` | What the agent may still spend now, read from the chain |
 | `pay` | Sends USD₮, USDC or USA₮ from your wallet, within the policy |
 | `pay_x402` | Pays an HTTP 402 (x402) price on Celo, never above `max_amount` |

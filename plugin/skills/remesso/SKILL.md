@@ -24,7 +24,7 @@ Three things an agent can do, and they are independent:
 
 If the Remesso wallet is installed, you already have a wallet: the
 `remesso-wallet` tools
-`wallet`, `link_policy`, `limits`, `pay`, `pay_x402`, `request_payment` and
+`wallet`, `await_setup`, `link_policy`, `limits`, `pay`, `pay_x402`, `request_payment` and
 `find_agent`. **Use them instead of the code below.** They spend from the user's
 wallet only within a `RemessoAgentAllowance` policy the user set on-chain (cap
 per payment and per day, a total, an expiry), and the key never passes through

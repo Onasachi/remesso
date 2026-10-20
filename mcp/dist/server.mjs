@@ -26136,7 +26136,20 @@ var AA = parseAbi([
   "function policy(uint256) view returns (Policy)",
   "function remainingToday(uint256) view returns (uint256)",
   "function allowed(uint256,address) view returns (bool)",
-  "function pay(uint256 id, address to, uint256 amount, bytes32 memo)"
+  "function nextPolicyId() view returns (uint256)",
+  "function pay(uint256 id, address to, uint256 amount, bytes32 memo)",
+  // The contract's errors, so a refused simulation names its reason instead of
+  // "execution reverted".
+  "error NotAgent()",
+  "error Revoked()",
+  "error Expired()",
+  "error ZeroAddress()",
+  "error ZeroAmount()",
+  "error SelfPayment()",
+  "error OverPerPayment()",
+  "error OverPerDay()",
+  "error RecipientNotAllowed()",
+  "error SafeERC20FailedOperation(address token)"
 ]);
 var REGISTRY = parseAbi(["function getAgentWallet(uint256) view returns (address)"]);
 function ensureHome() {
@@ -26217,16 +26230,132 @@ async function describePolicy(id) {
   };
 }
 var strip = ({ _raw, ...rest }) => rest;
-async function policyFor(symbol) {
+var SCAN_LIMIT = 500;
+async function discoverPolicies() {
   const cfg = loadConfig();
+  const next = Number(await pub.readContract({ address: ALLOWANCE, abi: AA, functionName: "nextPolicyId" }));
+  const start = (cfg.scannedTo ?? 0) + 1;
+  const end = Math.min(next - 1, start + SCAN_LIMIT - 1);
+  const found = [];
+  for (let i = start; i <= end; i += 25) {
+    const ids = Array.from({ length: Math.min(25, end - i + 1) }, (_, k) => i + k);
+    const ps = await Promise.all(ids.map((id) => pub.readContract({ address: ALLOWANCE, abi: AA, functionName: "policy", args: [BigInt(id)] })));
+    ps.forEach((p, k) => {
+      if (p.agent.toLowerCase() === account.address.toLowerCase()) found.push(ids[k]);
+    });
+  }
+  if (end >= start) {
+    cfg.policies = [.../* @__PURE__ */ new Set([...cfg.policies ?? [], ...found])];
+    cfg.scannedTo = end;
+    saveConfig(cfg);
+  }
+  return found;
+}
+async function policyFor(symbol) {
   const want = TOKENS[tokenKey(symbol)];
   if (!want) throw new Error(`token must be one of ${Object.keys(TOKENS).join(", ")}`);
-  for (const id of cfg.policies) {
+  await discoverPolicies();
+  for (const id of loadConfig().policies) {
     const d = await describePolicy(id);
     if (d._raw.active && d._raw.p.token.toLowerCase() === want.address.toLowerCase()) return d;
   }
-  throw new Error(`no active policy for ${want.label}. Ask your human to create one (run the "wallet" tool for the steps) and then call link_policy.`);
+  throw new Error(`no active policy for ${want.label}. Run the "wallet" tool: it gives the setup link for your human and says what is missing.`);
 }
+function refusal(e) {
+  const name = e?.cause?.data?.errorName ?? e?.data?.errorName ?? e?.cause?.cause?.data?.errorName;
+  return {
+    NotAgent: "the policy names a different agent",
+    Revoked: "the human revoked this policy",
+    Expired: "the policy has expired",
+    OverPerPayment: "the amount is over the per-payment cap",
+    OverPerDay: "today's cap is used up; it resets 24 hours after the day's first payment",
+    RecipientNotAllowed: "the recipient is not on the policy's allowlist",
+    SelfPayment: "a policy cannot pay its own owner",
+    SafeERC20FailedOperation: "the token refused the transfer: the human's balance or approval is too low"
+  }[name] ?? String(e?.shortMessage || e?.message || e);
+}
+var DAY = 86400;
+var short = (d) => `${d.perPayment} per payment, ${d.perDay} a day, until ${d.expires.slice(0, 10)}`;
+async function readiness() {
+  await discoverPolicies();
+  const cfg = loadConfig();
+  const all = [];
+  for (const id of cfg.policies) all.push(await describePolicy(id));
+  const live = all.filter((d2) => d2._raw.active).sort((a, b) => b._raw.spendable > a._raw.spendable ? 1 : -1);
+  const d = live[0];
+  const checks = [];
+  const warnings = [];
+  const add = (ok2, step, detail, next) => checks.push({ ok: ok2, step, detail, ...ok2 ? {} : { next } });
+  const setupLink = `${APP}/agent-wallet?agent=${account.address}`;
+  add(true, "Agent key", `${account.address}, on this machine only`);
+  if (!d) {
+    const dead = all.map((x) => `#${x.policyId} ${x.revoked ? "revoked" : "expired"}`).join(", ");
+    add(
+      false,
+      "Spending policy",
+      dead ? `no live policy (${dead})` : "none yet",
+      `Give your human the setup link; they set the limits in their own wallet. Then call await_setup.`
+    );
+  } else {
+    add(true, "Spending policy", `#${d.policyId}: ${short(d)}, ${d.recipients}`);
+    const { p, t: t2 } = d._raw;
+    const owner = await Promise.all([
+      pub.readContract({ address: p.token, abi: ERC20, functionName: "balanceOf", args: [p.owner] }),
+      pub.readContract({ address: p.token, abi: ERC20, functionName: "allowance", args: [p.owner, ALLOWANCE] })
+    ]);
+    const canMove = owner[0] < owner[1] ? owner[0] : owner[1];
+    add(
+      canMove > 0n,
+      "Human's funds",
+      `${fmt(owner[0], t2)} in their wallet, ${fmt(owner[1], t2)} approved`,
+      owner[1] === 0n ? "The approval is used up or was removed: your human approves more on the setup page." : `Your human's wallet holds no ${t2.label}: they add some.`
+    );
+    const left = Number(p.expiresAt) - Math.floor(Date.now() / 1e3);
+    if (left < 3 * DAY) warnings.push(`The policy ends ${d.expires}; your human can create a new one on the setup page before then.`);
+  }
+  const celoBal = await pub.getBalance({ address: account.address });
+  const sym = d ? d.token : "USDT";
+  const t = TOKENS[sym] ?? TOKENS.USDT;
+  const tokBal = await pub.readContract({ address: t.address, abi: ERC20, functionName: "balanceOf", args: [account.address] });
+  const gas = celoBal > parseUnits("0.002", 18) ? `${formatUnits(celoBal, 18)} CELO` : tokBal >= 10000n ? `paid in ${t.label} (${fmt(tokBal, t)} held)` : null;
+  add(
+    Boolean(gas),
+    "Network fees",
+    gas ?? "the agent holds no CELO and almost no tokens",
+    `Send the agent (${account.address}) 0.10 ${t.label}, or 0.05 CELO. It pays fees in either.`
+  );
+  if (d) {
+    try {
+      await pub.simulateContract({
+        address: ALLOWANCE,
+        abi: AA,
+        functionName: "pay",
+        args: [BigInt(d.policyId), account.address, 1n, `0x${"0".repeat(64)}`],
+        account
+      });
+      add(true, "Test payment", "a 1-unit payment simulates cleanly (nothing was sent)");
+    } catch (e) {
+      const why = refusal(e);
+      const allowlistOnly = e?.cause?.data?.errorName === "RecipientNotAllowed";
+      add(
+        allowlistOnly,
+        "Test payment",
+        allowlistOnly ? "simulates up to the allowlist, which is working as set" : `refused: ${why}`,
+        `Refused: ${why}.`
+      );
+    }
+  }
+  const failing = checks.find((c) => !c.ok);
+  return {
+    ready: !failing,
+    checklist: checks.map((c) => `${c.ok ? "\u2713" : "\u2717"} ${c.step}: ${c.detail}`),
+    next: failing ? failing.next : "Ready. Ask what to pay, or run limits to see what is left today.",
+    ...warnings.length ? { warnings } : {},
+    ...d ? {} : { setupLink },
+    _policies: all.map(strip)
+  };
+}
+var sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 async function gasOptions(tokenSym) {
   const celoBal = await pub.getBalance({ address: account.address });
   if (celoBal > parseUnits("0.002", 18)) return {};
@@ -26252,13 +26381,12 @@ async function payThroughPolicy(d, to, units, memo) {
   if (receipt.status !== "success") throw new Error(`transaction reverted: ${hash3}`);
   return hash3;
 }
-var server = new McpServer({ name: "remesso-wallet", version: "0.2.5" });
+var server = new McpServer({ name: "remesso-wallet", version: "0.3.0" });
 server.tool(
   "wallet",
-  "This agent's own Celo address, what it holds, and the policies it may spend under. Start here. If no policy is linked, it returns the steps the human must take in their own wallet.",
+  "Start here. This agent's Celo address, what it holds, and a readiness checklist read from the chain: spending policy, the human's funds, network fees, and a simulated test payment, with the one next step if anything is missing. Policies naming this agent are found and linked automatically.",
   {},
   async () => {
-    const cfg = loadConfig();
     const celoBal = await pub.getBalance({ address: account.address });
     const held = {};
     for (const [k, t] of Object.entries(TOKENS)) {
@@ -26267,30 +26395,52 @@ server.tool(
     const out = {
       address: account.address,
       network: "Celo mainnet (42220)",
-      holds: { CELO: formatUnits(celoBal, 18), ...held },
-      policies: []
+      holds: { CELO: formatUnits(celoBal, 18), ...held }
     };
     const missing = needAllowance();
-    if (missing) out.note = missing;
-    else {
-      for (const id of cfg.policies) out.policies.push(strip(await describePolicy(id)));
-      if (!out.policies.length) {
-        out.setupLink = `${APP}/agent-wallet?agent=${account.address}`;
-        out.setup = [
-          `Give your human setupLink. They open it in MiniPay or a browser wallet, set the limits, and tell you the policy number; then call link_policy.`,
-          `By hand instead, from THEIR wallet:`,
-          `1. approve(${ALLOWANCE}, <amount>) on the token (USD\u20AE ${TOKENS.USDT.address}, USDC ${TOKENS.USDC.address} or USA\u20AE ${TOKENS.USAT.address})`,
-          `2. createPolicy(agent=${account.address}, token, perPayment, perDay, expiresAt, allowlistOnly, recipients) on ${ALLOWANCE}`,
-          `Then call link_policy with the policy id from the PolicyCreated event. They can revoke() at any time.`
-        ];
-      }
+    if (missing) return ok({ ...out, note: missing });
+    try {
+      const { _policies, ...r } = await readiness();
+      return ok({ ...out, ...r, policies: _policies });
+    } catch (e) {
+      return fail(`could not read the chain: ${String(e?.shortMessage || e?.message || e)}`);
     }
-    return ok(out);
+  }
+);
+server.tool(
+  "await_setup",
+  "Wait while the human sets up this agent's spending policy from the setup link, then report readiness. Call it right after giving them the link. It returns as soon as a policy naming this agent is live on-chain, or after timeout_seconds; if it times out, ask whether they are done and call it again.",
+  { timeout_seconds: z.number().int().positive().default(55).describe("how long to wait; keep under the host's tool timeout (Codex: 60s)") },
+  async ({ timeout_seconds }) => {
+    const missing = needAllowance();
+    if (missing) return fail(missing);
+    const started = Date.now();
+    const deadline = started + Math.min(timeout_seconds, 600) * 1e3;
+    for (; ; ) {
+      try {
+        await discoverPolicies();
+        for (const id of loadConfig().policies) {
+          if ((await describePolicy(id))._raw.active) {
+            const { _policies, ...r } = await readiness();
+            return ok({ found: true, waitedSeconds: Math.round((Date.now() - started) / 1e3), ...r });
+          }
+        }
+      } catch {
+      }
+      if (Date.now() + 5e3 > deadline) break;
+      await sleep(5e3);
+    }
+    return ok({
+      found: false,
+      waitedSeconds: Math.round((Date.now() - started) / 1e3),
+      setupLink: `${APP}/agent-wallet?agent=${account.address}`,
+      next: "No policy yet. Ask your human whether they finished both wallet steps, then call await_setup again."
+    });
   }
 );
 server.tool(
   "link_policy",
-  "Record a RemessoAgentAllowance policy id the human created for this agent. Verified on-chain: refused unless the policy names this agent's address.",
+  "Link a RemessoAgentAllowance policy by id. Rarely needed: wallet, limits and await_setup find and link every policy naming this agent on their own. Verified on-chain: refused unless the policy names this agent's address.",
   { policy_id: z.number().int().positive() },
   async ({ policy_id }) => {
     const missing = needAllowance();
@@ -26312,10 +26462,10 @@ server.tool(
   async () => {
     const missing = needAllowance();
     if (missing) return fail(missing);
-    const cfg = loadConfig();
+    await discoverPolicies();
     const list = [];
-    for (const id of cfg.policies) list.push(strip(await describePolicy(id)));
-    return ok(list.length ? list : "no policies linked \u2014 run the wallet tool for setup steps");
+    for (const id of loadConfig().policies) list.push(strip(await describePolicy(id)));
+    return ok(list.length ? list : "no policy names this agent yet: run the wallet tool for the setup link");
   }
 );
 server.tool(
@@ -26339,7 +26489,7 @@ server.tool(
       const hash3 = await payThroughPolicy(d, getAddress(to), units, memo);
       return ok({ sent: `${amount} ${t.label}`, to: getAddress(to), policyId: d.policyId, tx: hash3, explorer: `https://celoscan.io/tx/${hash3}` });
     } catch (e) {
-      return fail(String(e?.shortMessage || e?.message || e));
+      return fail(`Nothing sent: ${refusal(e)}`);
     }
   }
 );

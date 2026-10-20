@@ -17,7 +17,7 @@
 # validator reads all of it — the web app, the contracts and their submodules,
 # scripts that read .env — and holds the plugin over files it never ships.
 #
-# plugin/.claude-plugin/plugin.json and plugin/README.md are edited in place.
+# plugin/.claude-plugin/plugin.json, plugin/README.md and plugin/commands/ are edited in place.
 #
 #   scripts/build-plugin.sh          write plugin/
 #   scripts/build-plugin.sh --check  exit 1 if plugin/ differs from its sources
