@@ -35,6 +35,14 @@ https://bitbucket.org/crackedstudios/remesso.git`, then `/plugin install remesso
 `remesso-wallet` MCP server everywhere else: `npx -y remesso-wallet` in
 Codex, Cursor or any MCP host.
 
+## In the Claude app, on a phone or the web: use the connector's links
+
+The local wallet runs only on a computer. In the Claude app the plugin brings
+the `remesso` connector instead, which holds no keys: `prepare_payment` turns
+a payment or a schedule into a link the user signs in their own wallet, and
+`list_schedules`, `check_wallet`, `request_payment` and `find_agent` read or
+ask. It needs the user's `0x…` address to read anything; it has no login.
+
 Never ask a user to paste a private key or seed phrase into the conversation.
 The `PAYER_KEY` examples below are for agents running their own code without
 the wallet, with a wallet that holds only what they are willing to lose.

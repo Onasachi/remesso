@@ -9,8 +9,14 @@ and pay-per-call x402 services.
 /plugin install remesso@remesso
 ```
 
-Needs Node.js 20 or later. The wallet is a local (stdio) MCP server, so it
-runs in Claude Code and Cowork, not on claude.ai; the skills work everywhere.
+In the Claude app (web, desktop, iOS, Android): **Customize → Plugins → Add**,
+add the marketplace `https://bitbucket.org/crackedstudios/remesso`, install
+**Remesso**, then connect **Remesso** on the plugin's **Connectors** tab. You
+get the skills and the `remesso` connector, which turns payments and schedules
+into links you sign in your own wallet and needs no sign-in or keys.
+
+The agent wallet below is a local (stdio) MCP server and needs Node.js 20 or
+later, so it runs in Claude Code and Cowork on a computer, not in the phone app.
 
 ## Set up
 
