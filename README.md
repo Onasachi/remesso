@@ -220,6 +220,26 @@ Claude Code and Cowork, not on claude.ai. The plugin lives in
 `scripts/build-plugin.sh`; its [privacy notice](plugin/PRIVACY.md) says what
 stays on the machine and what leaves it.
 
+### Claude on the web, iOS and Android
+
+Add `https://remesso.crackedstudios.xyz/mcp` once in claude.ai (**Customize →
+Connectors → Add custom connector**) and Remesso follows you to Claude on
+your phone. No sign-in, and **no keys**: this connector reads the chain and
+turns every payment into a link you sign in your own wallet.
+
+| Tool | What it does |
+|---|---|
+| `prepare_payment` | One payment or a schedule (*"20 USDT to mum every month"*), as a prefilled link to sign |
+| `list_schedules` | A wallet's schedules: next payment, payments made, and whether the next one can run |
+| `check_wallet` | A wallet's stablecoin balances and what it has approved for Remesso |
+| `request_payment` | Ask someone to pay you on a schedule (free) |
+| `find_agent` | An agent's wallet from the ERC-8004 registry |
+
+Links open the Remesso form, which connects to a wallet's own browser, so on a
+phone the answer includes MetaMask and Trust Wallet links that open it there.
+The connector refuses what the backend would never run: under $1, over
+$1,000 a payment, or a schedule longer than a year.
+
 ### Codex, Cursor and other MCP hosts
 
 The same wallet and skills ship on npm as

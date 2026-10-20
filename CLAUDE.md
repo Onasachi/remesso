@@ -641,6 +641,30 @@ not the steady-state cost; do not quote that one), and createSchedule
 ~$0.004. A one-cent payment therefore loses ~17% to gas. Re-measure before
 quoting; the number moves with the gas price and with CELO.
 
+## The Claude connector — links, never keys (2026-10-20)
+
+`web/app/mcp/route.ts` is a remote MCP server for Claude's hosted apps (web,
+desktop, iOS, Android): `https://remesso.crackedstudios.xyz/mcp`, added once as
+a custom connector on claude.ai. Stateless Streamable HTTP, one JSON-RPC
+message per POST, answered as JSON (`lib/mcp/protocol.ts`, no MCP SDK).
+
+- **Authless and keyless, by decision.** It reads the chain and builds
+  `/schedules/new` prefill links; the person signs in their own wallet. A
+  hosted agent key would be custody of every user's caps, so it is not here.
+  Passkey smart accounts are the next step, not a server key.
+- **Links need a wallet's own browser.** The site is injected-only
+  (`lib/wagmi.ts`), and a link tapped in the Claude app opens Safari or
+  Chrome, which has no wallet. `prepare_payment` therefore adds MetaMask and
+  Trust Wallet deep links. MiniPay has no public open-this-page link
+  (`link.minipay.xyz/browse` is provisioned on request).
+- **It refuses what would never run:** under `minRunUnits` ($1), over $1,000
+  equivalent (mirrors `LIMITS.maxRunAmountUsdt`'s default; change both), or
+  more payments than fit in 364 days, because the form caps the end date there
+  and the contract caps a schedule at a year. Token acceptance is read from
+  `directTokenAllowed`, never from a list.
+- Pay once = a one-payment schedule; the form starts schedules immediately by
+  default, so it is paid within a minute of signing.
+
 ## The pre-flight agent — advice before a payment, never the payment
 
 `preflight` (cron `remesso-preflight`, every 30 min) first records the ARS and
