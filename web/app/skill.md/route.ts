@@ -8,14 +8,14 @@ import { NextResponse } from "next/server";
 ///
 /// A redirect rather than a copy, deliberately. The canonical file is
 /// `skills/remesso/SKILL.md` in the repo, because that is where
-/// `npx skills add crackedstudio/Remesso` looks for it. Serving a second copy
+/// the repo and the remesso-wallet npm package ship it. Serving a second copy
 /// from here would mean two files saying what the prices are, and the stale
 /// ERC-8004 entry was the lesson about what happens to the copy nobody
 /// remembers to update. One file, two addresses to reach it.
 export const dynamic = "force-static";
 
 const CANONICAL =
-  "https://raw.githubusercontent.com/crackedstudio/Remesso/main/skills/remesso/SKILL.md";
+  "https://bitbucket.org/crackedstudios/remesso/raw/main/skills/remesso/SKILL.md";
 
 export async function GET() {
   // 307, not 301: if the canonical location ever moves — a docs site, a

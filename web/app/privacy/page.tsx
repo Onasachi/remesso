@@ -115,7 +115,7 @@ export default function PrivacyPage() {
           requests you choose to send. The details are in the{" "}
           <a
             className="text-ink underline"
-            href="https://github.com/crackedstudio/Remesso/blob/main/plugin/PRIVACY.md"
+            href="https://bitbucket.org/crackedstudios/remesso/src/main/plugin/PRIVACY.md"
             target="_blank"
             rel="noreferrer"
           >

@@ -71,6 +71,6 @@
   "supportedTrust": [
     "reputation"
   ],
-  "skill": "https://raw.githubusercontent.com/crackedstudio/Remesso/main/skills/remesso/SKILL.md",
-  "source": "https://github.com/crackedstudio/Remesso"
+  "skill": "https://bitbucket.org/crackedstudios/remesso/raw/main/skills/remesso/SKILL.md",
+  "source": "https://bitbucket.org/crackedstudios/remesso"
 }

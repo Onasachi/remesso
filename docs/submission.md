@@ -2,7 +2,7 @@
 
 **Send money home on a schedule, in the currency your family spends — signed once, carried out by an agent on Celo.**
 
-Live on Celo mainnet · App: https://remesso.crackedstudios.xyz · Demo video: https://youtu.be/2LVKKX02wO0 · Repo: https://github.com/crackedstudio/Remesso
+Live on Celo mainnet · App: https://remesso.crackedstudios.xyz · Demo video: https://youtu.be/2LVKKX02wO0 · Repo: https://bitbucket.org/crackedstudios/remesso
 
 ---
 
@@ -261,8 +261,8 @@ no CELO**.
 Two skills, installable by any agent with one command:
 
 ```bash
-npx skills add crackedstudio/Remesso --skill remesso-x402   # pay our x402 services
-npx skills add crackedstudio/Remesso --skill remesso        # schedules, being paid, the contract
+npx -y remesso-wallet skills                    # remesso, remesso-x402, remesso-wallet into ~/.agents/skills
+npx -y remesso-wallet skills ~/.claude/skills   # the same, for Claude Code
 ```
 
 **`remesso-x402` pays in USA₮ by default.** It installs:
@@ -296,7 +296,7 @@ The skills are also served from the app (`/skills/manifest.json`,
 ## Claude plugin: an agent wallet with on-chain limits
 
 ```
-/plugin marketplace add crackedstudio/Remesso
+/plugin marketplace add https://bitbucket.org/crackedstudios/remesso.git
 /plugin install remesso@remesso
 ```
 
@@ -317,6 +317,10 @@ in a contract, not in the prompt.
   policy at once. A prompt-injected agent hits the same caps as an honest one.
 - **Seven tools:** `wallet`, `link_policy`, `limits`, `pay`, `pay_x402`,
   `request_payment`, `find_agent`.
+- **Also in Codex, Cursor and any MCP host:** the same wallet and skills are
+  on npm as [`remesso-wallet`](https://www.npmjs.com/package/remesso-wallet)
+  (`npx -y remesso-wallet`). Every host on one machine shares one agent key,
+  so a policy linked in Claude Code works in Cursor and Codex too.
 - **Agent to agent:** `find_agent` resolves another agent's wallet from the
   ERC-8004 registry; `pay` pays it once; `pay_x402` pays its x402 API in USA₮,
   USDC or USD₮, never above a maximum the user sets, topping the agent up

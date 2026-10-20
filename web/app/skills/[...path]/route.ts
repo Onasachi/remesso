@@ -9,7 +9,7 @@ import { NextResponse } from "next/server";
 /// window onto the repository.
 export const dynamic = "force-static";
 
-const RAW = "https://raw.githubusercontent.com/crackedstudio/Remesso/main/skills";
+const RAW = "https://bitbucket.org/crackedstudios/remesso/raw/main/skills";
 const PUBLISHED = new Set([
   "manifest.json",
   "manifest.schema.json",

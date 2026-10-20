@@ -26252,7 +26252,7 @@ async function payThroughPolicy(d, to, units, memo) {
   if (receipt.status !== "success") throw new Error(`transaction reverted: ${hash3}`);
   return hash3;
 }
-var server = new McpServer({ name: "remesso-wallet", version: "0.2.4" });
+var server = new McpServer({ name: "remesso-wallet", version: "0.2.5" });
 server.tool(
   "wallet",
   "This agent's own Celo address, what it holds, and the policies it may spend under. Start here. If no policy is linked, it returns the steps the human must take in their own wallet.",

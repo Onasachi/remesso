@@ -70,7 +70,7 @@ pays from a wallet whose spending is capped on-chain, and no key passes
 through the conversation.
 
 `scripts/pay.mjs` ships beside this file (its source is also in the
-[repository](https://github.com/crackedstudio/Remesso/blob/main/skills/remesso-x402/scripts/pay.mjs)):
+[repository](https://bitbucket.org/crackedstudios/remesso/src/main/skills/remesso-x402/scripts/pay.mjs)):
 
 ```bash
 npm i @x402/fetch@2.28.0 @x402/evm@2.28.0 viem
@@ -142,7 +142,7 @@ facilitator supports it. Nothing to do on your side.
 ## More
 
 - Scheduling, being paid, and the contract: the `remesso` skill
-  (`npx skills add crackedstudio/Remesso --skill remesso`).
+  (`npx -y remesso-wallet skills`).
 - Capabilities, live: `GET https://engaboljiqudghvzmebq.supabase.co/functions/v1/agent`
 - Agent card: `https://remesso.crackedstudios.xyz/.well-known/agent.json`
 - Identity: ERC-8004 agents 9867 and 9879 on `0x8004A169FB4a3325136EB29fA0ceB6D2e539a432`; Self Agent ID 191.

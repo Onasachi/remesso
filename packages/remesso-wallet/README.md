@@ -44,7 +44,7 @@ then add the skills with `npx -y remesso-wallet skills`.
 **Claude Code** has a plugin with the same wallet and skills:
 
 ```
-/plugin marketplace add crackedstudio/Remesso
+/plugin marketplace add https://bitbucket.org/crackedstudios/remesso.git
 /plugin install remesso@remesso
 ```
 
@@ -96,6 +96,6 @@ spend today?"*
   cap, and an end-to-end run on mainnet, but no person has audited it. Keep
   limits small.
 
-Source, contract and setup page: [crackedstudio/Remesso](https://github.com/crackedstudio/Remesso).
+Source, contract and setup page: [crackedstudios/remesso](https://bitbucket.org/crackedstudios/remesso).
 `server.mjs` is built from `mcp/` there (`cd mcp && npm ci && npm run build`).
 MIT.

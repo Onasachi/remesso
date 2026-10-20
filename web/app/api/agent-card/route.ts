@@ -38,12 +38,12 @@ export async function GET() {
 
       /// How to integrate, written for an agent to load rather than a person
       /// to read.
-      skill: "https://raw.githubusercontent.com/crackedstudio/Remesso/main/skills/remesso/SKILL.md",
+      skill: "https://bitbucket.org/crackedstudios/remesso/raw/main/skills/remesso/SKILL.md",
 
       /// Every skill we publish, as data: names, install commands, and for the
       /// paid ones a manifest of assets, EIP-712 domains and prices generated
       /// from the live 402 (`scripts/build-skill-manifest.ts`).
-      skills: "https://raw.githubusercontent.com/crackedstudio/Remesso/main/skills/manifest.json",
+      skills: "https://bitbucket.org/crackedstudios/remesso/raw/main/skills/manifest.json",
 
       endpoints: [
         { name: "capabilities", url: `${FUNCTIONS}/agent`, method: "GET" },
@@ -85,7 +85,7 @@ export async function GET() {
         },
       ],
 
-      source: "https://github.com/crackedstudio/Remesso",
+      source: "https://bitbucket.org/crackedstudios/remesso",
     },
     {
       headers: {

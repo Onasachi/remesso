@@ -31,7 +31,7 @@ per payment and per day, a total, an expiry), and the key never passes through
 the conversation. The `remesso-wallet` skill says how to use them.
 
 It installs as a plugin in Claude Code (`/plugin marketplace add
-crackedstudio/Remesso`, then `/plugin install remesso@remesso`) and as the
+https://bitbucket.org/crackedstudios/remesso.git`, then `/plugin install remesso@remesso`) and as the
 `remesso-wallet` MCP server everywhere else: `npx -y remesso-wallet` in
 Codex, Cursor or any MCP host.
 
@@ -49,7 +49,7 @@ the wallet, with a wallet that holds only what they are willing to lose.
 | This file | `https://remesso.crackedstudios.xyz/skill.md` |
 | ERC-8004 | agent `9879`, held by the agent wallet that sends every payment (`0xA351d65c15b8a342B6ECbC7f2B9eFE62B17cdb21`); agent `9867`, held by the owner. Registry `0x8004A169FB4a3325136EB29fA0ceB6D2e539a432` |
 | Proof of human | Self Agent ID `191`, soulbound, zero-knowledge passport proof |
-| Source | https://github.com/crackedstudio/Remesso |
+| Source | https://bitbucket.org/crackedstudios/remesso |
 
 The capability document is free because discovery that costs money is discovery
 nobody does. Read it first; it is generated from what is deployed, so it is
@@ -59,7 +59,7 @@ current in a way this file may not be.
 
 A focused skill for this, with a tested script and a `manifest.json` of
 assets and prices generated from the live 402, is `remesso-x402`
-(`npx skills add crackedstudio/Remesso --skill remesso-x402`).
+(`npx -y remesso-wallet skills`).
 
 These endpoints speak **x402 v2**, so the standard client works with no
 Remesso-specific code:
@@ -134,7 +134,7 @@ approve an allowance, move a token, or oblige anyone to pay you.
 
 ## Paying on a schedule
 
-[`examples/create-schedule.ts`](https://github.com/crackedstudio/Remesso/blob/main/examples/create-schedule.ts)
+[`examples/create-schedule.ts`](https://bitbucket.org/crackedstudios/remesso/src/main/examples/create-schedule.ts)
 in the repository (not shipped in the plugin) signs the mandate from your own
 wallet. This is the one flow that needs **CELO for gas** — an approval and the
 schedule, submitted by you rather than a facilitator.

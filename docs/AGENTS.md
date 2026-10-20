@@ -8,9 +8,9 @@ person pointing one at us — needs.
 same ground written for an agent to load rather than a person to read:
 
 ```bash
-npx skills add crackedstudio/Remesso
+npx -y remesso-wallet skills
 # or just fetch it:
-# https://raw.githubusercontent.com/crackedstudio/Remesso/main/skills/remesso/SKILL.md
+# https://bitbucket.org/crackedstudios/remesso/raw/main/skills/remesso/SKILL.md
 ```
 
 | | |

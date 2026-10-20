@@ -181,7 +181,7 @@ pinned byte for byte to `@celo/attribution-tags`.
 ### Claude plugin: an agent wallet with on-chain limits
 
 ```
-/plugin marketplace add crackedstudio/Remesso
+/plugin marketplace add https://bitbucket.org/crackedstudios/remesso.git
 /plugin install remesso@remesso
 ```
 
@@ -270,8 +270,8 @@ so **the payer needs no CELO**.
 The plugin above includes them. For any other agent that reads Agent Skills:
 
 ```bash
-npx skills add crackedstudio/Remesso --skill remesso-x402   # pay the services above (USA₮ by default)
-npx skills add crackedstudio/Remesso --skill remesso        # schedules, being paid, the contract
+npx -y remesso-wallet skills                    # remesso, remesso-x402, remesso-wallet into ~/.agents/skills
+npx -y remesso-wallet skills ~/.claude/skills   # the same, for Claude Code
 ```
 
 `remesso-x402` ships a ready-to-run payer (`scripts/pay.mjs`) and a

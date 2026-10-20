@@ -14,7 +14,7 @@
 
 const FUNCTIONS = "https://engaboljiqudghvzmebq.supabase.co/functions/v1";
 const APP = "https://remesso.crackedstudios.xyz";
-const RAW = "https://raw.githubusercontent.com/crackedstudio/Remesso/main";
+const RAW = "https://bitbucket.org/crackedstudios/remesso/raw/main";
 const check = Deno.args.includes("--check");
 
 type Accept = {
@@ -87,10 +87,10 @@ const x402Manifest = {
     "Use it to buy live NGN rates or to bring a scheduled stablecoin payment forward.",
   skill: { entry: "SKILL.md", url: `${RAW}/skills/remesso-x402/SKILL.md` },
   homepage: APP,
-  repository: "https://github.com/crackedstudio/Remesso",
+  repository: "https://bitbucket.org/crackedstudios/remesso",
   license: "MIT",
   install: {
-    npxSkills: "npx skills add crackedstudio/Remesso --skill remesso-x402",
+    npxSkills: "npx -y remesso-wallet skills",
     npm: ["@x402/fetch@2.28.0", "@x402/evm@2.28.0", "viem"],
     run: "node scripts/pay.mjs --service naira-rate",
   },
@@ -124,7 +124,7 @@ const index = {
   $schema: `${RAW}/skills/manifest.schema.json`,
   manifestVersion: 1,
   publisher: "Remesso",
-  repository: "https://github.com/crackedstudio/Remesso",
+  repository: "https://bitbucket.org/crackedstudios/remesso",
   skills: [
     {
       name: "remesso",
@@ -132,7 +132,7 @@ const index = {
         "Send, receive and schedule stablecoin payments on Celo as an agent: be paid by a schedule, ask to be paid, " +
         "commit a wallet to paying on a schedule, or bring a payment forward.",
       skill: `${RAW}/skills/remesso/SKILL.md`,
-      install: "npx skills add crackedstudio/Remesso --skill remesso",
+      install: "npx -y remesso-wallet skills",
     },
     {
       name: "remesso-x402",

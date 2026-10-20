@@ -1,21 +1,21 @@
 {
-  "$schema": "https://raw.githubusercontent.com/crackedstudio/Remesso/main/skills/manifest.schema.json",
+  "$schema": "https://bitbucket.org/crackedstudios/remesso/raw/main/skills/manifest.schema.json",
   "manifestVersion": 1,
   "publisher": "Remesso",
-  "repository": "https://github.com/crackedstudio/Remesso",
+  "repository": "https://bitbucket.org/crackedstudios/remesso",
   "skills": [
     {
       "name": "remesso",
       "description": "Send, receive and schedule stablecoin payments on Celo as an agent: be paid by a schedule, ask to be paid, commit a wallet to paying on a schedule, or bring a payment forward.",
-      "skill": "https://raw.githubusercontent.com/crackedstudio/Remesso/main/skills/remesso/SKILL.md",
-      "install": "npx skills add crackedstudio/Remesso --skill remesso"
+      "skill": "https://bitbucket.org/crackedstudios/remesso/raw/main/skills/remesso/SKILL.md",
+      "install": "npx -y remesso-wallet skills"
     },
     {
       "name": "remesso-x402",
       "description": "Pay Remesso's paid HTTP services on Celo mainnet over x402 v2 — in USA₮ by default (USDC and USD₮ also accepted), gasless for the payer. Use it to buy live NGN rates or to bring a scheduled stablecoin payment forward.",
-      "skill": "https://raw.githubusercontent.com/crackedstudio/Remesso/main/skills/remesso-x402/SKILL.md",
-      "manifest": "https://raw.githubusercontent.com/crackedstudio/Remesso/main/skills/remesso-x402/manifest.json",
-      "install": "npx skills add crackedstudio/Remesso --skill remesso-x402"
+      "skill": "https://bitbucket.org/crackedstudios/remesso/raw/main/skills/remesso-x402/SKILL.md",
+      "manifest": "https://bitbucket.org/crackedstudios/remesso/raw/main/skills/remesso-x402/manifest.json",
+      "install": "npx -y remesso-wallet skills"
     }
   ]
 }

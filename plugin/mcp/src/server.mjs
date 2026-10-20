@@ -183,7 +183,7 @@ async function payThroughPolicy(d, to, units, memo) {
 
 // ---- the server ----
 
-const server = new McpServer({ name: "remesso-wallet", version: "0.2.4" });
+const server = new McpServer({ name: "remesso-wallet", version: "0.2.5" });
 
 server.tool(
   "wallet",

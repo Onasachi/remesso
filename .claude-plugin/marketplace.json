@@ -2,7 +2,7 @@
   "name": "remesso",
   "owner": {
     "name": "Cracked Studio",
-    "url": "https://github.com/crackedstudio"
+    "url": "https://bitbucket.org/crackedstudios"
   },
   "description": "Remesso: stablecoin payments on Celo for agents.",
   "plugins": [
@@ -10,7 +10,7 @@
       "name": "remesso",
       "source": "./plugin",
       "description": "Stablecoin payments on Celo for agents: an agent wallet whose spending is capped on-chain by its human, scheduled payments under a Remesso mandate, and x402 payments in USA₮, USDC or USDT.",
-      "version": "0.2.4",
+      "version": "0.2.5",
       "category": "payments"
     }
   ]

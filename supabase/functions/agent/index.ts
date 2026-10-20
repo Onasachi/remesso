@@ -306,7 +306,7 @@ Deno.serve(async (req) => {
 
     verification: {
       contract: `https://celoscan.io/address/${executorV4 || CELO.executor}`,
-      source: "https://github.com/crackedstudio/Remesso",
+      source: "https://bitbucket.org/crackedstudios/remesso",
       /// Anyone can read the mandate themselves instead of believing this.
       reads: {
         triggerability: "triggerability(uint256 id, address caller) view",

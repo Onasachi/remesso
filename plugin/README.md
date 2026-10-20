@@ -5,7 +5,7 @@ is capped on-chain by its human, recurring payments under a Remesso mandate,
 and pay-per-call x402 services.
 
 ```
-/plugin marketplace add crackedstudio/Remesso
+/plugin marketplace add https://bitbucket.org/crackedstudios/remesso.git
 /plugin install remesso@remesso
 ```
 
@@ -76,4 +76,4 @@ smart-wallet signatures, which this server never does
 `cd mcp && npm ci && npm run build` writes `dist/server.mjs`, byte-identical
 to `server.mjs`. Contract,
 tests and the web setup page are in the
-[repository](https://github.com/crackedstudio/Remesso). MIT.
+[repository](https://bitbucket.org/crackedstudios/remesso). MIT.

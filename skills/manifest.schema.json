@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://raw.githubusercontent.com/crackedstudio/Remesso/main/skills/manifest.schema.json",
+  "$id": "https://bitbucket.org/crackedstudios/remesso/raw/main/skills/manifest.schema.json",
   "title": "Remesso skill manifest",
   "description": "Machine-readable companion to a SKILL.md. Either an index of skills (has `skills`) or one skill's manifest (has `skill` and, for paid services, `payment`). Payment terms are a snapshot of a live 402; the 402 is authoritative.",
   "type": "object",
