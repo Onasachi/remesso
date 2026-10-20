@@ -8,7 +8,7 @@ import { classifyRun } from "@/lib/ai";
 import { useAccount, useWriteContract } from "wagmi";
 import { waitForTransactionReceipt } from "wagmi/actions";
 import { wagmiConfig } from "@/lib/wagmi";
-import { txOverrides } from "@/lib/tx";
+import { ensureCelo, txOverrides } from "@/lib/tx";
 import { executorAbi } from "@/lib/abi";
 import { EXECUTOR_ADDRESS, EXPLORER, CNGN, isRemessoTrigger, tokenFor } from "@/lib/config";
 import { functionError, supabase } from "@/lib/supabase";
@@ -111,6 +111,7 @@ export default function ScheduleDetailPage() {
       action === "cancel" ? "Cancelling…" : action === "revoke" ? "Revoking…" : "Updating…",
     );
     try {
+      await ensureCelo();
       const hash =
         // Withdrawing a grant is `setTrigger(id, 0, 0)`: nobody may collect,
         // and nothing else about the schedule moves.

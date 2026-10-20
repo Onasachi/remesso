@@ -1,16 +1,17 @@
 "use client";
 
-import { useAccount, useConnect, useDisconnect, useChainId, useSwitchChain } from "wagmi";
+import { useAccount, useConnect, useDisconnect, useSwitchChain } from "wagmi";
 import { activeChain } from "@/lib/wagmi";
 import { useMiniPayState } from "@/lib/hooks";
 import { addressName } from "@/lib/identity";
 import { Icon } from "./Icon";
 
 export function ConnectBar({ compact = false }: { compact?: boolean }) {
-  const { address, isConnected } = useAccount();
+  // The wallet's own chain: the config's chain id stays on a configured chain
+  // when the wallet is on one the app does not list, and would hide this button.
+  const { address, isConnected, chainId } = useAccount();
   const { connect, connectors, isPending } = useConnect();
   const { disconnect } = useDisconnect();
-  const chainId = useChainId();
   const { switchChain } = useSwitchChain();
   const miniPay = useMiniPayState();
   const inMiniPay = miniPay === true;

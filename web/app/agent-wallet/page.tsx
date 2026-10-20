@@ -7,7 +7,7 @@ import { readContract, waitForTransactionReceipt } from "wagmi/actions";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { isAddress, getAddress, parseEventLogs } from "viem";
 import { wagmiConfig } from "@/lib/wagmi";
-import { txOverrides } from "@/lib/tx";
+import { ensureCelo, txOverrides } from "@/lib/tx";
 import { agentAllowanceAbi, erc20Abi } from "@/lib/abi";
 import {
   AGENT_ALLOWANCE_ADDRESS,
@@ -144,6 +144,7 @@ function NewPolicy({ owner, agent }: { owner: `0x${string}`; agent: `0x${string}
     try {
       // `approve` replaces an allowance rather than adding to it, so keep what
       // earlier policies on this token were counting on and add this budget.
+      await ensureCelo();
       setBusy("Approving the total");
       const current = await readContract(wagmiConfig, {
         address: token.address,
@@ -334,6 +335,7 @@ function Existing({ owner, agent }: { owner: `0x${string}`; agent: `0x${string}`
   async function stop(id: bigint) {
     setStopping(id);
     try {
+      await ensureCelo();
       const hash = await writeContractAsync({
         address: AGENT_ALLOWANCE_ADDRESS as `0x${string}`,
         abi: agentAllowanceAbi,

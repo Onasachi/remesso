@@ -1,9 +1,9 @@
 "use client";
 
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { useEffect, useState } from "react";
-import { WagmiProvider, useAccount, useConnect } from "wagmi";
-import { wagmiConfig } from "@/lib/wagmi";
+import { useEffect, useRef, useState } from "react";
+import { WagmiProvider, useAccount, useConnect, useSwitchChain } from "wagmi";
+import { activeChain, wagmiConfig } from "@/lib/wagmi";
 import { useMiniPayState } from "@/lib/hooks";
 import { ensureSender } from "@/lib/supabase";
 
@@ -27,6 +27,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
     <WagmiProvider config={wagmiConfig}>
       <QueryClientProvider client={queryClient}>
         <MiniPayAutoConnect />
+        <SwitchToCelo />
         <SenderBinding />
         {children}
       </QueryClientProvider>
@@ -49,6 +50,28 @@ function MiniPayAutoConnect() {
     const injected = connectors.find((c) => c.id === "injected");
     if (injected) connect({ connector: injected });
   }, [isConnected, inMiniPay, connect, connectors]);
+
+  return null;
+}
+
+/// Ask a browser wallet to move to Celo the moment it connects on another
+/// chain, adding Celo if the wallet lacks it (see ensureCelo). Read from the
+/// connection itself (`useAccount().chainId`): the config's chain id stays on a
+/// configured chain when the wallet is on one the app doesn't list, which is
+/// exactly the case that needs the switch. Asked once per address and chain, so
+/// a person who declines gets the "Switch to Celo" button, not a prompt loop.
+function SwitchToCelo() {
+  const { isConnected, address, chainId } = useAccount();
+  const { switchChain } = useSwitchChain();
+  const asked = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (!isConnected || !chainId || chainId === activeChain.id) return;
+    const key = `${address}:${chainId}`;
+    if (asked.current === key) return;
+    asked.current = key;
+    switchChain({ chainId: activeChain.id });
+  }, [isConnected, address, chainId, switchChain]);
 
   return null;
 }

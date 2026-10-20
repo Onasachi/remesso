@@ -7,7 +7,7 @@ import { useAccount, useWriteContract } from "wagmi";
 import { waitForTransactionReceipt } from "wagmi/actions";
 import { parseEventLogs } from "viem";
 import { wagmiConfig } from "@/lib/wagmi";
-import { txOverrides } from "@/lib/tx";
+import { ensureCelo, txOverrides } from "@/lib/tx";
 import { DescribeSchedule, tokenFromSymbol } from "@/components/DescribeSchedule";
 import type { Draft } from "@/lib/ai";
 import { erc20Abi, executorAbi, PayoutType } from "@/lib/abi";
@@ -245,6 +245,9 @@ export default function NewSchedulePage() {
 
     try {
       setBusy("Preparing");
+      // Before any row is written: a wallet on another chain would otherwise
+      // leave a pending schedule behind when its first signature fails.
+      await ensureCelo();
       const senderId = await ensureSender(address);
       const sb = supabase();
 

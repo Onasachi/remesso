@@ -1,5 +1,17 @@
-import { isMiniPay } from "./wagmi";
+import { getAccount, switchChain } from "wagmi/actions";
+import { activeChain, isMiniPay, wagmiConfig } from "./wagmi";
 import { attributionSuffix } from "./attribution";
+
+/// Put the wallet on Celo before it signs. Browser wallets often sit on
+/// Ethereum or another chain, and a transaction there would fail or go
+/// nowhere. wagmi's injected connector asks the wallet to switch, and if the
+/// wallet has never heard of Celo it offers to add it (wallet_addEthereumChain),
+/// so nobody types RPC URLs and chain ids by hand. MiniPay is Celo-only.
+export async function ensureCelo(): Promise<void> {
+  if (isMiniPay()) return;
+  if (getAccount(wagmiConfig).chainId === activeChain.id) return;
+  await switchChain(wagmiConfig, { chainId: activeChain.id });
+}
 
 /// Transaction overrides for the connected wallet.
 ///
