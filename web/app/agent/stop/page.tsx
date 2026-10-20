@@ -50,7 +50,7 @@ export default function StopAgentPage() {
           )}
         </div>
       ) : !session ? (
-        <EmailCodeSignIn intro="Sign in with the email you used to connect Remesso to Claude. We'll send you a 6-digit code." onSignedIn={setSession} />
+        <EmailCodeSignIn intro="Sign in with the email you used to connect Remesso to Claude. We'll send you an 8-digit code." onSignedIn={setSession} />
       ) : (
         <div className="mt-6">
           <p className="text-[16px] leading-relaxed text-ink-2">Signed in as <span className="text-ink">{session.email}</span>.</p>

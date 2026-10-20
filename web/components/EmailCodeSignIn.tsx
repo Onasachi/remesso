@@ -3,9 +3,14 @@
 import { useMemo, useState } from "react";
 import { createClient } from "@supabase/supabase-js";
 
-/// Sign in with a 6-digit email code, for the connector's pages (authorize and
+/// Sign in with an 8-digit email code, for the connector's pages (authorize and
 /// stop). The session lives only in this component's memory: no storage and no
 /// automatic refresh, and it never touches the app's own anonymous session.
+
+/// The code's length is Supabase's "Email OTP Length" (Authentication →
+/// Providers → Email), 8 on this project. The intros on /oauth/authorize and
+/// /agent/stop say "8-digit" too: change all three with the setting.
+export const CODE_DIGITS = 8;
 
 export type CodeSession = { access_token: string; email: string };
 
@@ -67,7 +72,7 @@ export function EmailCodeSignIn({ intro, onSignedIn }: { intro: string; onSigned
           }}
         >
           <p className="text-[16px] leading-relaxed text-ink-2">We sent a code to {email}. It can take a minute to arrive.</p>
-          <label className="label mt-5" htmlFor="code">6-digit code</label>
+          <label className="label mt-5" htmlFor="code">{CODE_DIGITS}-digit code</label>
           <input
             id="code"
             className="field mono text-[20px]"
@@ -77,7 +82,7 @@ export function EmailCodeSignIn({ intro, onSignedIn }: { intro: string; onSigned
             value={code}
             onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))}
           />
-          <button className="btn-primary mt-4 w-full" disabled={busy || code.length < 6}>
+          <button className="btn-primary mt-4 w-full" disabled={busy || code.length < CODE_DIGITS}>
             {busy ? "Checking…" : "Continue"}
           </button>
           <button type="button" className="btn-ghost mt-2 w-full" disabled={busy} onClick={() => setStep("email")}>

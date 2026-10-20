@@ -62,7 +62,7 @@ export function AuthorizeFlow(p: Props) {
       <h1 className="mt-2 font-display text-[32px] leading-[1.08] text-ink">Let {name} use your Remesso agent.</h1>
 
       {!session ? (
-        <EmailCodeSignIn intro="Enter your email and we'll send you a 6-digit code. No password, no wallet needed here." onSignedIn={setSession} />
+        <EmailCodeSignIn intro="Enter your email and we'll send you an 8-digit code. No password, no wallet needed here." onSignedIn={setSession} />
       ) : (
         <div className="mt-6">
           <p className="text-[16px] leading-relaxed text-ink-2">Signed in as <span className="text-ink">{session.email}</span>.</p>
