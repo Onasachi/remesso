@@ -3,7 +3,7 @@ import type { ReactNode } from "react";
 /// Layout for /terms and /privacy. Plain server-rendered text, readable in
 /// MiniPay's webview and by the plugin directory's link checker alike.
 
-export const LEGAL_UPDATED = "October 19, 2026";
+export const LEGAL_UPDATED = "October 20, 2026";
 export const LEGAL_CONTACT = "support@crackedstudios.xyz";
 
 export function LegalPage({ title, intro, children }: { title: string; intro: ReactNode; children: ReactNode }) {

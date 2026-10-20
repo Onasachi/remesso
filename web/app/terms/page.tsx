@@ -41,7 +41,8 @@ export default function TermsPage() {
             </>,
             <>
               &quot;Agent&quot; means the automated system that sends due payments under your Schedules, and, where you
-              use the Claude plugin, the agent wallet on your own device.
+              use Claude, an agent wallet: on your own device with the Claude plugin, or one you own at Privy when you
+              sign in for hands-free payments.
             </>,
             <>&quot;User&quot; or &quot;you&quot; means any person who accesses or uses the Services.</>,
           ]}
@@ -111,10 +112,11 @@ export default function TermsPage() {
         </p>
       </Section>
 
-      <Section n={7} title="The Remesso plugin for Claude and agent wallets">
+      <Section n={7} title="Remesso for Claude and agent wallets">
         <List
           items={[
             "The plugin creates an agent key on your own device. We never receive it and cannot recover it.",
+            "With hands-free payments in the Claude app, your agent wallet is created at Privy and owned by you. Remesso is added only as a signer limited to payments within your spending policy, and you can remove it at any time at remesso.crackedstudios.xyz/agent/stop. Remesso never sees the private key. This feature is new and offered as a test; it may change or be withdrawn.",
             "The agent can spend from your Wallet only within a spending policy you create on-chain: a token, a cap per payment, a daily cap, a total, and an expiry. You can stop it at any time.",
             "You are responsible for the policies you create and for the instructions you give the AI assistant. An AI assistant can make mistakes; keep limits small.",
           ]}

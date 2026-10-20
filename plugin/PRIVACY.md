@@ -1,6 +1,6 @@
 # Remesso plugin — privacy
 
-What the Remesso plugin for Claude does with data, as of 2026-10-19.
+What the Remesso plugin for Claude does with data, as of 2026-10-20.
 
 ## What stays on your machine
 
@@ -20,9 +20,10 @@ Delete `~/.remesso-agent` to remove both.
 | Celo mainnet | `pay`, and the top-up in `pay_x402` | the payment: sender, recipient, amount and an optional 32-character memo. Public and permanent, like every blockchain transaction |
 | Remesso's API (`engaboljiqudghvzmebq.supabase.co`) | `request_payment` only | the payer's address, the agent's address, and the amount, token, cadence and note you give. Stored so the payer sees the request in the Remesso app |
 | The x402 seller you name | `pay_x402` only | your request to that URL and a payment authorisation signed by the agent. That seller's own privacy terms apply |
+| Remesso's connector (`remesso.crackedstudios.xyz/mcp`), bundled since 0.3.1 | its tools, when Claude calls them | the addresses and amounts you give it. If you sign in there for hands-free payments, your email too; see the [Remesso privacy policy](https://remesso.crackedstudios.xyz/privacy) |
 
 The plugin sends no analytics or telemetry and keeps no logs of its own.
-Remesso receives nothing from the plugin except `request_payment` calls.
+The local wallet sends Remesso nothing except `request_payment` calls; the bundled connector is a Remesso service, covered by the Remesso privacy policy.
 
 ## Contact
 

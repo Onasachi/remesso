@@ -15,8 +15,9 @@ export default function PrivacyPage() {
         <p>
           Cracked Studio (&quot;we,&quot; &quot;us,&quot; or &quot;our&quot;) operates Remesso. This policy explains
           what information we handle when you use Remesso on the web, inside MiniPay, through our APIs, or through the
-          Remesso plugin for Claude, and the choices you have. Remesso does not ask for your name, email address or
-          password, and never has access to your wallet&apos;s private keys.
+          Remesso plugin and connector for Claude, and the choices you have. Remesso does not ask for your name or a
+          password, asks for an email address only if you sign in to use hands-free payments through Claude, and never
+          has access to any private key.
         </p>
       }
     >
@@ -50,6 +51,11 @@ export default function PrivacyPage() {
             <>
               <strong>Notices and usage counters</strong>: reminders our system creates about upcoming payments, and a
               count of phone-number lookups per session per day, used to limit them.
+            </>,
+            <>
+              <strong>Your email address</strong>, only if you sign in to use hands-free payments through Claude: kept by
+              our sign-in provider, with an identifier that links it to the agent wallet you own at Privy and to your
+              active Claude sessions. We do not keep your sign-in session after you approve.
             </>,
           ]}
         />
@@ -91,9 +97,10 @@ export default function PrivacyPage() {
               a result.
             </>,
             <>
-              <strong>Infrastructure providers</strong> that host and run Remesso, including Supabase (database and
-              server functions), Vercel (website) and Goldsky (indexing of public blockchain data). They process data on
-              our behalf.
+              <strong>Infrastructure providers</strong> that host and run Remesso, including Supabase (database, sign-in
+              and server functions), Vercel (website), Goldsky (indexing of public blockchain data), Resend (sending
+              sign-in codes) and Privy (the agent wallet you own for hands-free payments). They process data on our
+              behalf.
             </>,
             <>
               <strong>Self</strong>, if you choose to verify your identity, under Self&apos;s own privacy policy.
@@ -125,14 +132,27 @@ export default function PrivacyPage() {
         </p>
       </Section>
 
-      <Section n={6} title="Stored on your device">
+      <Section n={6} title="Hands-free payments through Claude">
+        <p>
+          If you connect Remesso to Claude and sign in with an email code, an agent wallet is created for you at Privy,
+          a wallet infrastructure provider. You own it. Remesso is added to it only as a signer that can make payments
+          within the spending policy you create on-chain from your own wallet, and Privy refuses anything else. We never
+          see the wallet&apos;s private key. You can remove Remesso from your agent at any time at{" "}
+          <Link className="text-ink underline" href="/agent/stop">
+            remesso.crackedstudios.xyz/agent/stop
+          </Link>
+          , which also ends your Claude sessions, and you can revoke the spending policy from your own wallet.
+        </p>
+      </Section>
+
+      <Section n={7} title="Stored on your device">
         <p>
           The app keeps a few preferences in your browser&apos;s local storage, such as the country you last chose for
           phone numbers, and a session token for the anonymous session. Clearing your browser data removes them.
         </p>
       </Section>
 
-      <Section n={7} title="Retention and security">
+      <Section n={8} title="Retention and security">
         <p>
           We keep the information above while your schedules exist and for as long as needed to show your payment
           history, unless you ask us to delete it. We protect it with access controls, encryption in transit, and
@@ -140,26 +160,26 @@ export default function PrivacyPage() {
         </p>
       </Section>
 
-      <Section n={8} title="Your rights">
+      <Section n={9} title="Your rights">
         <p>
           Depending on where you live, you may have the right to access, correct or delete your information, or to
           object to how we use it. To ask, email <Mail /> from an address you control and tell us the wallet address
-          involved. We cannot delete data recorded on the blockchain.
+          or sign-in email involved. We cannot delete data recorded on the blockchain.
         </p>
       </Section>
 
-      <Section n={9} title="Children">
+      <Section n={10} title="Children">
         <p>Remesso is not intended for anyone under 18, and we do not knowingly collect information from them.</p>
       </Section>
 
-      <Section n={10} title="International processing">
+      <Section n={11} title="International processing">
         <p>
           Our providers may process information in countries other than yours, including in the European Union and the
           United States.
         </p>
       </Section>
 
-      <Section n={11} title="Changes">
+      <Section n={12} title="Changes">
         <p>
           We may update this policy. We will change the date above, and show material changes in the app. See also our{" "}
           <Link className="text-ink underline" href="/terms">
@@ -169,7 +189,7 @@ export default function PrivacyPage() {
         </p>
       </Section>
 
-      <Section n={12} title="Contact">
+      <Section n={13} title="Contact">
         <p>
           Privacy questions: <Mail />.
         </p>
