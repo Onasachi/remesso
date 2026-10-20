@@ -83,14 +83,25 @@ const ERC20 = parseAbi([
 
 let privyClient: PrivyClient | null = null;
 export function privy(): PrivyClient {
-  if (!privyClient) privyClient = new PrivyClient({ appId: process.env.PRIVY_APP_ID!, appSecret: process.env.PRIVY_APP_SECRET! });
+  if (!privyClient) privyClient = new PrivyClient({ appId: setting("PRIVY_APP_ID"), appSecret: setting("PRIVY_APP_SECRET") });
   return privyClient;
 }
+/// A setting as typed into a dashboard: stray spaces, quotes or backticks are
+/// dropped, because Privy rejects an id with any of them ("Invalid cuid2"),
+/// and a bad paste should fail loudly here, not as a mystery at sign-in.
+function setting(name: string, shape?: RegExp): string {
+  const v = (process.env[name] ?? "").trim().replace(/^["'`]+|["'`]+$/g, "").trim();
+  if (!v) throw new Error(`${name} is not set`);
+  if (shape && !shape.test(v)) throw new Error(`${name} does not look like a Privy id (check it for extra characters)`);
+  return v;
+}
+const PRIVY_ID = /^[a-z][a-z0-9]{15,31}$/;
+
 /// Remesso signing as itself, the signer: a request without this signature
 /// is refused by Privy, so the app secret alone moves nothing.
-const asRemesso = () => ({ authorization_private_keys: [process.env.PRIVY_AUTHORIZATION_KEY!] });
-const SIGNER = () => process.env.PRIVY_SIGNER_QUORUM_ID!;
-const remessoSigner = () => ({ signer_id: SIGNER(), override_policy_ids: [process.env.PRIVY_AGENT_POLICY_ID!] });
+const asRemesso = () => ({ authorization_private_keys: [setting("PRIVY_AUTHORIZATION_KEY")] });
+const SIGNER = () => setting("PRIVY_SIGNER_QUORUM_ID", PRIVY_ID);
+const remessoSigner = () => ({ signer_id: SIGNER(), override_policy_ids: [setting("PRIVY_AGENT_POLICY_ID", PRIVY_ID)] });
 
 export type Agent = { walletId: string; address: `0x${string}`; privyUserId: string };
 type PrivyUser = Awaited<ReturnType<ReturnType<PrivyClient["users"]>["_get"]>>;
