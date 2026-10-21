@@ -4,7 +4,7 @@
     {
       "name": "web",
       "runtimeExecutable": "sh",
-      "runtimeArgs": ["-c", "cd /Users/0t41k1/Documents/Remesso/web && exec npx next dev -p ${PORT:-3000}"],
+      "runtimeArgs": ["-c", "cd /Users/0t41k1/Documents/newstuff/remesso/web && exec npx next dev -p ${PORT:-3000}"],
       "port": 3000,
       "autoPort": true
     }
