@@ -21,6 +21,8 @@ export default {
         clay: c("clay"),
         "clay-deep": c("clay-deep"),
         "clay-soft": c("clay-soft"),
+        "clay-light": c("clay-light"),
+        marigold: c("marigold"),
         naira: c("naira"),
         "naira-soft": c("naira-soft"),
         amber: c("amber"),
@@ -63,6 +65,17 @@ export default {
           "0%, 100%": { opacity: "1" },
           "50%": { opacity: "0.35" },
         },
+        // The mark's lap: one turn per transfer. The ring reaches 360° at 62%
+        // and rests for the remainder, which is the beat the dot pops into.
+        orbit: {
+          "0%": { transform: "rotate(0deg)" },
+          "62%, 100%": { transform: "rotate(360deg)" },
+        },
+        pop: {
+          "0%, 58%": { transform: "scale(1)" },
+          "66%": { transform: "scale(1.35)" },
+          "76%, 100%": { transform: "scale(1)" },
+        },
       },
       animation: {
         rise: "rise 0.5s cubic-bezier(0.22, 1, 0.36, 1) both",
@@ -70,6 +83,13 @@ export default {
         fade: "fade 0.25s ease-out both",
         shimmer: "shimmer 1.6s linear infinite",
         pulse2: "pulse2 1.8s ease-in-out infinite",
+        // 2.4s is the brand's timing. `-once` is the same lap run a single
+        // time, for something that just happened rather than something being
+        // waited on.
+        orbit: "orbit 2.4s cubic-bezier(.65,0,.35,1) infinite",
+        "orbit-once": "orbit 2.4s cubic-bezier(.65,0,.35,1) both",
+        pop: "pop 2.4s ease-out infinite",
+        "pop-once": "pop 2.4s ease-out both",
       },
     },
   },

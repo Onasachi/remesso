@@ -11,6 +11,7 @@ import { IdentityCard } from "@/components/IdentityCard";
 import { PaymentRequests } from "@/components/PaymentRequests";
 import { Notices } from "@/components/Notices";
 import { Icon } from "@/components/Icon";
+import { Mark } from "@/components/Mark";
 import { ripioRampUrl } from "@/lib/ripio";
 import { TEXTILE_NAIRA_WITHDRAW, TEXTILE_SWAP_TO_CNGN } from "@/lib/textile";
 import { ReapproveButton, useApprovalCover } from "@/components/Reapprove";
@@ -458,7 +459,12 @@ function Landing() {
       <div className="mt-6">
         {/* No button until we know this is not MiniPay — see ConnectBar. */}
         {miniPay !== false ? (
-          <p className="text-[14px] text-ink-3">Connecting to your wallet…</p>
+          // The one moment the sender is genuinely waiting on first open, and
+          // the mark's own meaning — a lap in progress — is what is happening.
+          <p className="flex items-center gap-2.5 text-[14px] text-ink-3">
+            <Mark className="h-5 w-5 text-clay" motion="loop" />
+            Connecting to your wallet…
+          </p>
         ) : (
           <button
             className="btn-primary w-full"
