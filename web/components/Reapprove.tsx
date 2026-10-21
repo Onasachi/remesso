@@ -56,6 +56,11 @@ export function useApprovalCover(token: TokenInfo) {
             intervalSeconds: s.interval_seconds,
             maxRuns: s.max_runs,
             expiresAtMs: s.expires_at ? Date.parse(s.expires_at) : null,
+            // Counted from its next transfer, which goes as soon as it is due
+            // (no date yet means due now, as the cron reads it). Counting
+            // from now left a schedule mid-life one transfer short again.
+            startNow: true,
+            fromMs: s.next_run_at ? Math.max(Date.parse(s.next_run_at), Date.now()) : undefined,
           }),
         ),
     0n,

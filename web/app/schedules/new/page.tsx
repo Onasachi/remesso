@@ -99,6 +99,7 @@ export default function NewSchedulePage() {
     intervalSeconds: terms.intervalSeconds,
     maxRuns: terms.maxRuns ? Number(terms.maxRuns) : 0,
     expiresAtMs: terms.expiresAt ? Date.parse(`${terms.expiresAt}T23:59:59Z`) : null,
+    startNow: terms.startNow,
   });
   const requiredAllowance = amountIn ? amountIn * BigInt(runs) : 0n;
   // Always approve, and approve what is already there PLUS this schedule's

@@ -27,18 +27,24 @@ export function runsToCover(s: {
   intervalSeconds: number;
   maxRuns: number;
   expiresAtMs: number | null;
+  /// A transfer goes at `fromMs` itself, as it does for a schedule that
+  /// starts now. Required so no caller can forget it: the count is one
+  /// transfer short without it.
+  startNow: boolean;
   fromMs?: number;
 }): number {
   const interval = Math.max(1, s.intervalSeconds);
-  const from = s.fromMs ?? Date.now();
 
   const limits = [MAX_RUNS_PER_APPROVAL, Math.ceil(HORIZON_SECONDS / interval)];
   if (s.maxRuns > 0) limits.push(s.maxRuns);
-  if (s.expiresAtMs) {
-    // Shrinks as the expiry nears, which also keeps a re-approval from
-    // covering runs the schedule no longer has time to make.
-    limits.push(Math.floor((s.expiresAtMs - from) / 1000 / interval));
-  }
+  // Shrinks as the expiry nears, which also keeps a re-approval from
+  // covering runs the schedule no longer has time to make. Counted in
+  // transfers, not whole intervals: the form ends a schedule on the day of
+  // its last transfer, so one that starts now has one more transfer than
+  // intervals, and counting intervals approved 11 of the default 12. The
+  // 12th was then skipped for want of allowance.
+  const fits = transfersBeforeExpiry(s);
+  if (fits !== null) limits.push(fits);
   return Math.max(1, Math.min(...limits));
 }
 

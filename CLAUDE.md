@@ -37,6 +37,9 @@ deno test --unstable-sloppy-imports web/lib/history.test.ts
 # review-screen amounts — small fees must not round to 0.00
 deno test --allow-env --unstable-sloppy-imports web/lib/format.test.ts
 
+# approval size — one approval covers every transfer the contract will run
+deno test --allow-env --unstable-sloppy-imports web/lib/allowance.test.ts
+
 # phone numbers — E.164 normalisation and masking for MiniPay recipients
 (cd web && deno test --unstable-sloppy-imports lib/phone.test.ts)   # from web/: needs its node_modules
 
