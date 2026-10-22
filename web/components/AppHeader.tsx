@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { ConnectBar } from "./ConnectBar";
 import { Icon } from "./Icon";
+import { Wordmark } from "./Mark";
 
 /// The header is contextual rather than a tab bar. There are only two places to
 /// be — the list and one schedule — so on the list it is the wordmark, and
@@ -33,8 +34,11 @@ export function AppHeader() {
             <span>{title}</span>
           </button>
         ) : (
-          <Link href="/" className="font-display text-[26px] leading-none text-ink">
-            Remesso
+          // 27px is the size the design sets for the header lockup, and it
+          // puts the wordmark just over the 80px minimum width the brand
+          // allows; below that it says to use the mark alone.
+          <Link href="/" className="transition active:scale-[0.98]">
+            <Wordmark className="text-[27px]" />
           </Link>
         )}
         {/* Sub-pages get the compact form: the name only. "Sign out" is a

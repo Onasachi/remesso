@@ -4,6 +4,7 @@ import "./globals.css";
 import { Providers } from "./providers";
 import Link from "next/link";
 import { AppHeader } from "@/components/AppHeader";
+import { Splash } from "@/components/Splash";
 
 /// Both fonts are self-hosted by next/font at build time: nothing is fetched
 /// from Google at runtime, so they add no origin to the network manifest
@@ -36,13 +37,22 @@ export const viewport: Viewport = {
   initialScale: 1,
   maximumScale: 1,
   viewportFit: "cover",
-  themeColor: "#f5f8f8",
+  // Brand paper. The browser chrome and the page ground are the same material;
+  // a few points off reads as a seam at the top of the screen.
+  themeColor: "#f3f8f8",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" className={`${sans.variable} ${display.variable}`}>
       <body>
+        {/* With scripting off nothing would ever take the splash down, so it
+            is never put up. The app needs JS regardless; this just fails to
+            the page rather than to a teal ring on an empty screen. */}
+        <noscript>
+          <style>{`.splash{display:none}`}</style>
+        </noscript>
+        <Splash />
         <Providers>
           <div className="mx-auto flex min-h-[100dvh] w-full max-w-lg flex-col">
             <AppHeader />

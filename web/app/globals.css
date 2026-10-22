@@ -34,6 +34,15 @@
   --clay: 0.56 0.105 195;
   --clay-deep: 0.47 0.105 198;
   --clay-soft: 0.955 0.03 195;
+  /* The ring on an ink ground. The accent itself is too dark to hold its shape
+     against #0f2125, so the dark lockups lift it rather than reuse `clay`. */
+  --clay-light: 0.7 0.11 192;
+
+  /* The dot in the mark, and nothing else. It is deliberately NOT `amber`:
+     amber means "in flight, be careful" and is read as a state, so spending it
+     on the identity would make the logo look like a warning. They sit close in
+     hue and must stay separate roles. */
+  --marigold: 0.76 0.16 65;
 
   --naira: 0.55 0.13 150;
   --naira-soft: 0.955 0.04 150;
@@ -61,10 +70,23 @@
     @apply bg-clay-soft text-clay-deep;
   }
   /* Fraunces' optical size axis makes small text spiky; hero amounts and
-     headings are the only place it appears, always large. */
+     headings are the only place it appears, always large.
+     SOFT stays at 30 for running display type. The brand sheet sets its own
+     headings at SOFT 100, but that is the brand page's voice at 44–88px; the
+     app screens hold 30, and a heading is read, not looked at. */
   .font-display {
     font-variation-settings: "opsz" 144, "SOFT" 30, "WONK" 0;
     letter-spacing: -0.02em;
+  }
+
+  /* The wordmark only — SOFT and WONK fully on. WONK leans the r, m and s like
+     handwriting, which is right for six letters appearing once per screen and
+     wrong for anything a person has to read a paragraph of. */
+  .font-wordmark {
+    font-family: var(--font-display), Georgia, serif;
+    font-variation-settings: "opsz" 144, "SOFT" 100, "WONK" 1;
+    font-weight: 600;
+    letter-spacing: -0.03em;
   }
   @media (prefers-reduced-motion: reduce) {
     *, ::before, ::after {
@@ -217,6 +239,26 @@
   .icon-btn {
     @apply flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-ink-3 transition
            hover:bg-sand hover:text-ink;
+  }
+
+  /* The boot screen (components/Splash.tsx). Paper, so when it goes the ground
+     does not change — only the mark leaves. */
+  .splash {
+    @apply fixed inset-0 z-50 grid place-items-center bg-paper;
+    transition: opacity 320ms cubic-bezier(0.22, 1, 0.36, 1);
+    /* Backstop: if React never hydrates, this uncovers the page anyway. React
+       removes the node long before 4s, so in a healthy load it never runs.
+       Reduced-motion clamps the duration, not the delay, so it still fires. */
+    animation: splash-give-up 0s 4s forwards;
+  }
+  .splash-out {
+    @apply pointer-events-none opacity-0;
+  }
+  @keyframes splash-give-up {
+    to {
+      opacity: 0;
+      visibility: hidden;
+    }
   }
 
   /* Circle holding an icon or an initial. */

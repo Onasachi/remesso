@@ -46,6 +46,7 @@ import {
 } from "@/components/TermsStep";
 import { ActionBar, Amount, MINIPAY_DEPOSIT_URL, Row } from "@/components/ui";
 import { Icon } from "@/components/Icon";
+import { Mark } from "@/components/Mark";
 import { useIsMiniPay } from "@/lib/hooks";
 import { runsToCover } from "@/lib/allowance";
 import { isEmptyPayLink, parsePayLink, type PayLink } from "@/lib/payLink";
@@ -564,7 +565,12 @@ function Signing({
 
       <div className="card mt-4 px-4 py-[18px]">
         <div className="flex items-center justify-between text-[12px] text-ink-3">
-          <span className="font-semibold uppercase tracking-[0.12em]">Setting it up</span>
+          {/* One lap is one transfer: the mark turning is the thing being set
+              up, drawn once at the top rather than per step. */}
+          <span className="flex items-center gap-2">
+            <Mark className="h-4 w-4 text-clay" motion="loop" />
+            <span className="font-semibold uppercase tracking-[0.12em]">Setting it up</span>
+          </span>
           <span>
             {at + 1} of {shown.length}
           </span>
@@ -590,8 +596,11 @@ function Signing({
                         : "border border-line text-ink-3"
                   }`}
                 >
+                  {/* The lap at the top of the card is the one thing turning.
+                      A second spinner here competed with it; the current step
+                      is already marked by its fill, its weight and this pulse. */}
                   {state === "now" && (
-                    <span className="absolute -inset-[3px] animate-spin rounded-full border-2 border-clay/20 border-t-clay" aria-hidden />
+                    <span className="absolute -inset-[3px] animate-pulse2 rounded-full border-2 border-clay/35" aria-hidden />
                   )}
                   <Icon name={state === "done" ? "check" : meta.icon} size={18} />
                 </span>

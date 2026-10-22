@@ -32,7 +32,53 @@ terminal, not a bank. Confidence comes from clarity, never decoration.
 
 ---
 
-## 2. Colour
+## 2. Identity
+
+**A ring for the schedule. A dot for the next transfer.** The mark replaces the
+final `o` of the wordmark: a ring broken at the upper right, with a marigold dot
+sitting in the break *on the ring's own circle*. The ring is the mandate signed
+once; the dot is the money travelling round to the next date. Both are drawn
+from one description in `components/Mark.tsx`, and
+`scripts/build-brand-assets.mjs` rasterises the app icons from the same
+geometry — so the icon on a home screen cannot drift from the mark on screen.
+
+Geometry (100×100 viewBox): ring centred 50,50 at r=35, stroke 22, undrawn from
+−81° to −9°; dot at 74.75,25.25 r=14. Butt caps, so the break is two clean
+radial edges.
+
+**Wordmark** — `remess` + the mark, set in Fraunces 600 at 27px in the header,
+with `SOFT 100, WONK 1` and −0.03em tracking. Lowercase on purpose: it reads as
+a person, not a bank. WONK leans the r, m and s like handwriting; it belongs to
+the wordmark alone and never to running text.
+
+The brand sheet sets its *own* headings at `SOFT 100` as well. That is the
+brand page speaking at 44–88px, not an instruction for the product: the app
+screens hold display type at `SOFT 30` (§4), and the two documents differ here
+deliberately. Raising the app to 100 makes every heading read like signage.
+
+| Ground | Letters | Ring | Dot |
+|---|---|---|---|
+| Paper / surface | `ink` | `clay` | marigold |
+| Ink | `paper` | `clay-light` | marigold |
+| Teal | `surface` | `surface` | marigold |
+
+Rules
+
+- **The dot stays marigold on every ground.** Only the one-colour version
+  (`mono`) gives it up, and that exists for embossing, not for styling.
+- **Clear space:** one ring-width (0.22 of the mark's own width) on every side.
+- **Minimum size:** the wordmark is never below 80px wide — in the app that is
+  26px type. Below it, use the mark alone.
+- The ring never matches the letters. On ink it lifts to `clay-light`, because
+  `clay` loses its shape against `#0f2125`.
+- `app/icon.png`, `apple-icon.png` and `favicon.ico` are **generated**. Edit the
+  geometry, run `node scripts/build-brand-assets.mjs`, and commit the output;
+  `--check` fails on drift. `public/brand/` holds the SVGs for anything outside
+  this repo.
+
+---
+
+## 3. Colour
 
 Light theme only (MiniPay is a light in-wallet browser). Defined as OKLCH
 channels so the palette can be retuned in one place; hex is given for stacks
@@ -54,6 +100,8 @@ for historical reasons; it is teal.
 | **Accent** | `clay` | 0.56 0.105 195 | `#008787` | primary buttons, selected state, progress, focus ring, headline emphasis |
 | Accent, pressed | `clay-deep` | 0.47 0.105 198 | `#006c70` | hover/active on accent, text on accent-soft |
 | Accent, tint | `clay-soft` | 0.955 0.03 195 | `#daf7f6` | selected tile fill, initials disc, review hero, selection |
+| Accent on ink | `clay-light` | 0.7 0.11 192 | `#5fc9c6` | the mark's ring on an ink ground; nothing else |
+| **Identity** | `marigold` | 0.76 0.16 65 | `#f59926` | the dot in the mark. Not a state, not a button |
 | Money received / success | `naira` | 0.55 0.13 150 | `#298646` | naira amounts, delivered/paid-out, verified account, ✓ marks, live dot |
 | Success tint | `naira-soft` | 0.955 0.04 150 | `#def8e2` | success notices, good pills |
 | Caution | `amber` | 0.72 0.14 72 | `#da942c` | in-progress dots, warn pills |
@@ -65,6 +113,9 @@ Rules
 
 - One accent. It marks *the* action and *the* selection on a screen, nothing
   else. Two accent-coloured things competing is a bug.
+- **Marigold is identity, never state.** It sits a few degrees from `amber`,
+  which means "in flight, be careful". Spending marigold on anything but the
+  dot makes the logo read as a warning, and makes a warning read as decoration.
 - Green means money arrived or a check passed. Never use it for a button.
 - Amber means "in flight" or "be careful"; it is the colour of a bank payout
   until the bank confirms. Red means it failed.
@@ -75,11 +126,12 @@ Rules
 
 ---
 
-## 3. Typography
+## 4. Typography
 
 | Role | Font | Notes |
 |---|---|---|
 | Display | **Fraunces** (variable) | Headings and hero amounts only. `opsz 144, SOFT 30, WONK 0`, letter-spacing −0.02em. Never below ~22px. |
+| Wordmark | **Fraunces** 600 | `opsz 144, SOFT 100, WONK 1`, −0.03em. The lockup only — see §2. |
 | Text | **DM Sans** (variable, `opsz` axis) | Everything else. |
 | Numbers | DM Sans with `tnum` | Tabular figures are on globally so amounts line up in lists. |
 | Digit strings | DM Sans + 0.04em tracking (`.mono`) | Account numbers, references. Not a monospace font. |
@@ -106,7 +158,7 @@ recipient wherever possible ("No more transfers to Mum").
 
 ---
 
-## 4. Space, shape, depth
+## 5. Space, shape, depth
 
 - **Base unit 4px.** Page gutter 16px. Content max-width 512px, centred.
 - **Rhythm, not uniformity:** tight inside a group (8–12px), generous between
@@ -125,7 +177,7 @@ recipient wherever possible ("No more transfers to Mum").
 
 ---
 
-## 5. Motion
+## 6. Motion
 
 - Easing: `cubic-bezier(0.22, 1, 0.36, 1)` (ease-out-quint). No bounce.
 - Entry: `rise` — opacity 0→1, translateY 8px→0, 500ms. Lists stagger children
@@ -135,12 +187,23 @@ recipient wherever possible ("No more transfers to Mum").
   colour/border. Progress segments animate colour over 500ms.
 - Live state: a slow 1.8s opacity pulse on "working" dots and the current
   signing phase. Skeletons shimmer at 1.6s.
+- **The lap** — the mark turns one full 360°, eases to a stop at 62%, and the
+  dot pops to 1.35 and settles. 2.4s, `cubic-bezier(.65, 0, .35, 1)`. One lap
+  means one transfer, so it is used for waiting (`motion="loop"`) and for
+  something that just happened (`motion="once"`), and **never looped behind
+  text somebody is reading**. It is the only animation allowed to run
+  indefinitely besides the working-dot pulse and the skeleton shimmer.
+  Three places, and adding a fourth needs a reason: the splash, the signing
+  card's header, and "Connecting to your wallet…" on the landing. **One lap
+  per screen** — a second thing turning beside it is the same bug as two
+  accent-coloured things, which is why the signing steps pulse rather than
+  spin.
 - Only `transform` and `opacity` are animated. Reduced-motion collapses
   everything to ~0ms.
 
 ---
 
-## 6. Components
+## 7. Components
 
 Sizes are minimums; all interactive elements are ≥44px tall.
 
@@ -213,8 +276,18 @@ radii, drag handle, 22px display title, body, then a stacked destructive
 button and a ghost dismiss. Escape and backdrop tap close it. Used only for
 irreversible decisions.
 
+**Splash** — the boot screen: the mark alone, 64px, orbiting on paper, while
+the bundle loads. Server-rendered so the webview paints it instead of a white
+rectangle, and taken down the moment React hydrates (450ms floor so a warm
+load does not flicker, 320ms fade). It never replays on an in-app navigation,
+and it cannot get stuck: a CSS backstop uncovers the page at 4s if React never
+arrives, and with scripting off it is never shown. Not a brand interstitial —
+if the app booted instantly it would be right to delete it.
+
 **Skeleton** — sand→line shimmer, drawn in the shape of the content it
 replaces (a disc + two lines for a list card, a wide bar for an amount).
+Skeletons still own *content* loading; the lap is only for the app itself
+starting and for a wallet action in flight.
 
 **Timeline** — 11px dot per item on a 1px vertical rule, dot colour by outcome
 (green delivered/paid, amber in-flight, red failed, grey skipped). Each item:
@@ -227,11 +300,11 @@ USDT in your wallet") with a fix line beneath, which may be a link.
 
 ---
 
-## 7. Screens and UX flows
+## 8. Screens and UX flows
 
 ### Shell
-- Header is contextual: wordmark (display, 26px) on the list; a chevron + page
-  title as a back button everywhere else. Sticky, paper at 85% with blur.
+- Header is contextual: the wordmark lockup (26px) on the list; a chevron +
+  page title as a back button everywhere else. Sticky, paper at 85% with blur.
 - Right side: session name pill (green dot + generated two-word name, never
   an address). "Sign out" appears only on the list screen and never inside
   MiniPay, where the wallet owns the session. Inside MiniPay there is no
@@ -338,9 +411,11 @@ lines, one full-width primary button. No cards.
 
 ---
 
-## 8. Anti-patterns (don't)
+## 9. Anti-patterns (don't)
 
 - Dark mode, neon accents, gradients on text, glassmorphism as decoration.
+- Recolouring the dot, matching the ring to the letters, setting the wordmark
+  in capitals, or hand-editing a generated icon.
 - Card inside card; identical icon-heading-text card grids; centred everything.
 - A disabled button with no stated reason.
 - "Loading…" as text; use a skeleton in the content's shape.
