@@ -2,7 +2,7 @@
 
 **Send money home on a schedule, in the currency your family spends — signed once, carried out by an agent on Celo.**
 
-Live on Celo mainnet · App: https://remesso.crackedstudios.xyz · Demo video: https://youtu.be/2LVKKX02wO0 · Repo: https://bitbucket.org/crackedstudios/remesso
+Live on Celo mainnet · App: https://remesso.crackedstudios.xyz · Demo video: https://youtu.be/DENKhZiVFNk · Repo: https://bitbucket.org/crackedstudios/remesso
 
 ---
 
