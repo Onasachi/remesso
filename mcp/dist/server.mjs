@@ -26115,7 +26115,7 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 var RPC = process.env.REMESSO_RPC_URL || "https://forno.celo.org";
 var FUNCTIONS = "https://engaboljiqudghvzmebq.supabase.co/functions/v1";
-var APP = "https://remesso.crackedstudios.xyz";
+var APP = "https://remesso.xyz";
 var ALLOWANCE = process.env.REMESSO_ALLOWANCE_ADDRESS || "0xA6351fAeEb097698289586C4D6188530300DB209";
 var ERC8004 = "0x8004A169FB4a3325136EB29fA0ceB6D2e539a432";
 var HOME = process.env.REMESSO_AGENT_HOME || join(homedir(), ".remesso-agent");
@@ -26381,7 +26381,11 @@ async function payThroughPolicy(d, to, units, memo) {
   if (receipt.status !== "success") throw new Error(`transaction reverted: ${hash3}`);
   return hash3;
 }
-var server = new McpServer({ name: "remesso-wallet", version: "0.3.0" });
+var server = new McpServer({
+  name: "remesso-wallet",
+  version: "0.3.1",
+  icons: [{ src: `${APP}/icon.png`, mimeType: "image/png", sizes: ["512x512"] }]
+});
 server.tool(
   "wallet",
   "Start here. This agent's Celo address, what it holds, and a readiness checklist read from the chain: spending policy, the human's funds, network fees, and a simulated test payment, with the one next step if anything is missing. Policies naming this agent are found and linked automatically.",

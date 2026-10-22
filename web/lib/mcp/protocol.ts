@@ -28,8 +28,9 @@ export type Tool = {
 
 /// An icon as MCP 2025-11-25 describes one. Claude's apps do not show it yet:
 /// claude.ai draws a custom connector with Google's favicon for the URL's last
-/// two labels — crackedstudios.xyz here, so the studio's green mark — whatever
-/// the server sends (anthropics/claude-ai-mcp#152). Other clients read this.
+/// two labels, whatever the server sends (anthropics/claude-ai-mcp#152) — which
+/// is why the connector's address is remesso.xyz, not a crackedstudios.xyz
+/// subdomain that showed the studio's green mark. Other clients read this.
 export type Icon = { src: string; mimeType: string; sizes: string[] };
 
 export type ServerInfo = { name: string; title: string; version: string; instructions: string; icons?: Icon[] };

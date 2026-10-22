@@ -1,6 +1,6 @@
 {
   "name": "remesso-wallet",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "An agent wallet on Celo whose spending is capped on-chain by its human. MCP server for Codex, Cursor, Claude and any MCP host: pay people and agents in USD₮, USDC or USA₮, pay x402 APIs, ask to be paid on a schedule.",
   "type": "module",
   "bin": {
@@ -27,7 +27,7 @@
     "remittances"
   ],
   "author": "Cracked Studio (https://bitbucket.org/crackedstudios)",
-  "homepage": "https://remesso.crackedstudios.xyz",
+  "homepage": "https://remesso.xyz",
   "repository": {
     "type": "git",
     "url": "git+https://bitbucket.org/crackedstudios/remesso.git",

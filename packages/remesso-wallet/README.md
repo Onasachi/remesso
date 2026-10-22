@@ -59,7 +59,7 @@ put them somewhere else.
 Ask the agent: *"Set up my Remesso wallet."*
 
 1. The agent creates the agent's key on your machine and gives you a setup
-   link (`remesso.crackedstudios.xyz/agent-wallet?agent=0x…`).
+   link (`remesso.xyz/agent-wallet?agent=0x…`).
 2. Open it in MiniPay or a browser wallet. Choose USD₮, USDC or USA₮, set the
    most for one payment, per day and for how long, and approve the two steps
    in your wallet. The agent waits while you do, finds the policy on-chain

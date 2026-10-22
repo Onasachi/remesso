@@ -17,7 +17,7 @@ export default function TermsPage() {
           <p>
             Cracked Studio (&quot;Cracked Studio,&quot; &quot;we,&quot; &quot;us,&quot; or &quot;our&quot;) builds and
             operates Remesso, a service for sending stablecoin payments on the Celo blockchain on a schedule, available
-            at remesso.crackedstudios.xyz, inside MiniPay, through our public APIs, and through the Remesso plugin for
+            at remesso.xyz and remesso.crackedstudios.xyz, inside MiniPay, through our public APIs, and through the Remesso plugin for
             Claude (together, the &quot;Services&quot;).
           </p>
           <p>
@@ -116,7 +116,7 @@ export default function TermsPage() {
         <List
           items={[
             "The plugin creates an agent key on your own device. We never receive it and cannot recover it.",
-            "With hands-free payments in the Claude app, your agent wallet is created at Privy and owned by you. Remesso is added only as a signer limited to payments within your spending policy, and you can remove it at any time at remesso.crackedstudios.xyz/agent/stop. Remesso never sees the private key. This feature is new and offered as a test; it may change or be withdrawn.",
+            "With hands-free payments in the Claude app, your agent wallet is created at Privy and owned by you. Remesso is added only as a signer limited to payments within your spending policy, and you can remove it at any time at remesso.xyz/agent/stop. Remesso never sees the private key. This feature is new and offered as a test; it may change or be withdrawn.",
             "The agent can spend from your Wallet only within a spending policy you create on-chain: a token, a cap per payment, a daily cap, a total, and an expiry. You can stop it at any time.",
             "You are responsible for the policies you create and for the instructions you give the AI assistant. An AI assistant can make mistakes; keep limits small.",
           ]}

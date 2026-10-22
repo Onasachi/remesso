@@ -10,7 +10,7 @@ export const metadata: Metadata = {
 
 /// How to add Remesso to Claude. The connector URL is the one thing people
 /// get wrong by retyping, so it carries a copy button; so do the commands.
-const CONNECTOR = "https://remesso.crackedstudios.xyz/mcp";
+const CONNECTOR = "https://remesso.xyz/mcp";
 
 function Step({ n, children }: { n: number; children: React.ReactNode }) {
   return (
@@ -88,7 +88,7 @@ export default function ClaudePage() {
             <Icon name="shield_lock" />
             <span>
               Stop it any time at{" "}
-              <Link className="text-ink underline" href="/agent/stop">remesso.crackedstudios.xyz/agent/stop</Link>.
+              <Link className="text-ink underline" href="/agent/stop">remesso.xyz/agent/stop</Link>.
             </span>
           </li>
         </ul>

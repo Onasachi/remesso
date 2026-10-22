@@ -23,7 +23,7 @@ later, so it runs in Claude Code and Cowork on a computer, not in the phone app.
 Run `/remesso:setup`, or ask Claude: *"Set up my Remesso wallet."*
 
 1. Claude creates the agent's key on your machine and gives you a setup
-   link (`remesso.crackedstudios.xyz/agent-wallet?agent=0x…`).
+   link (`remesso.xyz/agent-wallet?agent=0x…`).
 2. Open it in MiniPay or a browser wallet. Choose USD₮, USDC or USA₮, set the
    most for one payment, per day and for how long, and approve the two steps
    in your wallet. Claude waits while you do, finds the policy on-chain

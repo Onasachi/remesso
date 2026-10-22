@@ -23,7 +23,7 @@ import { join } from "node:path";
 
 const RPC = process.env.REMESSO_RPC_URL || "https://forno.celo.org";
 const FUNCTIONS = "https://engaboljiqudghvzmebq.supabase.co/functions/v1";
-const APP = "https://remesso.crackedstudios.xyz";
+const APP = "https://remesso.xyz";
 // RemessoAgentAllowance on Celo mainnet, deployed 2026-10-19 (verified, ownerless).
 // The env override exists for tests against a fork.
 const ALLOWANCE = process.env.REMESSO_ALLOWANCE_ADDRESS || "0xA6351fAeEb097698289586C4D6188530300DB209";
@@ -317,7 +317,12 @@ async function payThroughPolicy(d, to, units, memo) {
 
 // ---- the server ----
 
-const server = new McpServer({ name: "remesso-wallet", version: "0.3.0" });
+// The brand mark, for MCP hosts that show a server's icon (MCP 2025-11-25).
+const server = new McpServer({
+  name: "remesso-wallet",
+  version: "0.3.1",
+  icons: [{ src: `${APP}/icon.png`, mimeType: "image/png", sizes: ["512x512"] }],
+});
 
 server.tool(
   "wallet",

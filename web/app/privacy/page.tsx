@@ -139,7 +139,7 @@ export default function PrivacyPage() {
           within the spending policy you create on-chain from your own wallet, and Privy refuses anything else. We never
           see the wallet&apos;s private key. You can remove Remesso from your agent at any time at{" "}
           <Link className="text-ink underline" href="/agent/stop">
-            remesso.crackedstudios.xyz/agent/stop
+            remesso.xyz/agent/stop
           </Link>
           , which also ends your Claude sessions, and you can revoke the spending policy from your own wallet.
         </p>

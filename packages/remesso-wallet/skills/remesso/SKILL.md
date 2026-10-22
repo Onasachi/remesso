@@ -52,9 +52,9 @@ the wallet, with a wallet that holds only what they are willing to lose.
 | | |
 |---|---|
 | Contract | `RemessoExecutorV5` `0x3C357af3300f383Ea49B6D6ED8e084199a92bEd8` (Celo mainnet, 42220) |
-| Start here | `https://remesso.crackedstudios.xyz/.well-known/agent.json` — every endpoint, the contract, the registrations |
+| Start here | `https://remesso.xyz/.well-known/agent.json` — every endpoint, the contract, the registrations |
 | Capabilities | `GET https://engaboljiqudghvzmebq.supabase.co/functions/v1/agent` — prices and refusals, free |
-| This file | `https://remesso.crackedstudios.xyz/skill.md` |
+| This file | `https://remesso.xyz/skill.md` |
 | ERC-8004 | agent `9879`, held by the agent wallet that sends every payment (`0xA351d65c15b8a342B6ECbC7f2B9eFE62B17cdb21`); agent `9867`, held by the owner. Registry `0x8004A169FB4a3325136EB29fA0ceB6D2e539a432` |
 | Proof of human | Self Agent ID `191`, soulbound, zero-knowledge passport proof |
 | Source | https://bitbucket.org/crackedstudios/remesso |

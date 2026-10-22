@@ -647,7 +647,7 @@ quoting; the number moves with the gas price and with CELO.
 ## The Claude connector — links, never keys (2026-10-20)
 
 `web/app/mcp/route.ts` is a remote MCP server for Claude's hosted apps (web,
-desktop, iOS, Android): `https://remesso.crackedstudios.xyz/mcp`, added once as
+desktop, iOS, Android): `https://remesso.xyz/mcp`, added once as
 a custom connector on claude.ai. Stateless Streamable HTTP, one JSON-RPC
 message per POST, answered as JSON (`lib/mcp/protocol.ts`, no MCP SDK).
 
@@ -667,12 +667,22 @@ message per POST, answered as JSON (`lib/mcp/protocol.ts`, no MCP SDK).
   `directTokenAllowed`, never from a list.
 - Pay once = a one-payment schedule; the form starts schedules immediately by
   default, so it is paid within a minute of signing.
-- **Its icon in the Claude apps is not ours to set.** claude.ai draws a custom
-  connector with Google's favicon for the URL's last two labels, so this one
-  shows crackedstudios.xyz's green mark, and it ignores `serverInfo.icons`
-  (anthropics/claude-ai-mcp#152, open, checked 2026-10-22). We send the brand
-  mark there anyway (`serverIcons`) for clients that read it. Only a domain of
-  Remesso's own would change what Claude shows.
+- **Its icon in the Claude apps comes from Google, not from us.** claude.ai
+  draws a custom connector with Google's favicon for the URL's last two labels
+  and ignores `serverInfo.icons` (anthropics/claude-ai-mcp#152, open, checked
+  2026-10-22). That is why the connector moved to `remesso.xyz` on 2026-10-22:
+  at `remesso.crackedstudios.xyz` it showed crackedstudios.xyz's green mark.
+  Google must have indexed remesso.xyz's favicon first, and
+  `https://www.google.com/s2/favicons?domain=remesso.xyz&sz=64` shows what
+  Claude will. We send the brand mark in `serverIcons` too, for clients that
+  read it.
+- **The connector URL is a host that answers, never one that redirects.**
+  OAuth's protected-resource `resource` is built from the request's origin,
+  and a client checks it against the URL it was given. So `remesso.xyz` must
+  serve the app itself (in Vercel, www redirects to the apex, not the reverse).
+  `remesso.crackedstudios.xyz` serves the same deployment and stays up:
+  MiniPay, connectors added before the move and the Edge Functions'
+  `WEB_ORIGIN` still use it. Never redirect it.
 
 ## The hosted agent — hands-free from the Claude app (2026-10-20)
 

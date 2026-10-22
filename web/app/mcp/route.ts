@@ -4,7 +4,7 @@ import { HOSTED_TOOL_NAMES, hostedTools } from "@/lib/mcp/hosted";
 import { SCOPE, hostedEnabled, issuerFor, resourceFor } from "@/lib/oauth/server";
 import { verify, type Claims } from "@/lib/oauth/tokens";
 
-/// The Remesso connector: add `https://remesso.crackedstudios.xyz/mcp` in
+/// The Remesso connector: add `https://remesso.xyz/mcp` in
 /// claude.ai (Customize > Connectors > Add custom connector) and it follows the
 /// person to Claude on desktop, iOS and Android. Claude reaches it from
 /// Anthropic's servers, so it is a public MCP endpoint; see lib/mcp/tools.ts

@@ -3,7 +3,7 @@
 **Send money home on a schedule, in the currency your family spends — signed
 once, carried out by an agent on Celo.**
 
-[App](https://remesso.crackedstudios.xyz) ·
+[App](https://remesso.xyz) ·
 [Demo video](https://youtu.be/DENKhZiVFNk) ·
 [Agent document](https://engaboljiqudghvzmebq.supabase.co/functions/v1/agent) ·
 [Hackathon write-up](docs/submission.md)
@@ -147,7 +147,7 @@ Remesso is tested in MiniPay's developer mode and is not yet a listed Mini App.
 | ERC-8004 identity, held by the owner | agent 9867 |
 | Proof of a human behind it | Self Agent ID **191**, soulbound, from a passport proof |
 | Capabilities (free, machine-readable) | `GET https://engaboljiqudghvzmebq.supabase.co/functions/v1/agent` |
-| Agent card | https://remesso.crackedstudios.xyz/.well-known/agent.json |
+| Agent card | https://remesso.xyz/.well-known/agent.json |
 
 **Paying a due schedule is deliberately mechanical:** the contract decides
 whether it may go. The judgement sits before that, in the **pre-flight
@@ -188,7 +188,7 @@ pinned byte for byte to `@celo/attribution-tags`.
 The plugin gives Claude a wallet of its own on Celo, plus the Remesso skills.
 The agent's key is created on your machine (`~/.remesso-agent/`) and never
 reaches the model. It spends from **your** wallet only through a policy you
-create on [`/agent-wallet`](https://remesso.crackedstudios.xyz/agent-wallet),
+create on [`/agent-wallet`](https://remesso.xyz/agent-wallet),
 which [`RemessoAgentAllowance`](https://celoscan.io/address/0xA6351fAeEb097698289586C4D6188530300DB209)
 enforces: one token, a cap per payment and per day, a total, and an expiry,
 optionally only to listed addresses. Your money stays in your wallet until a
@@ -222,7 +222,7 @@ stays on the machine and what leaves it.
 
 ### Claude on the web, iOS and Android
 
-Add `https://remesso.crackedstudios.xyz/mcp` once in claude.ai (**Customize →
+Add `https://remesso.xyz/mcp` once in claude.ai (**Customize →
 Connectors → Add custom connector**) and Remesso follows you to Claude on
 your phone. No sign-in, and **no keys**: this connector reads the chain and
 turns every payment into a link you sign in your own wallet.

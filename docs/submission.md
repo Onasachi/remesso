@@ -2,7 +2,7 @@
 
 **Send money home on a schedule, in the currency your family spends — signed once, carried out by an agent on Celo.**
 
-Live on Celo mainnet · App: https://remesso.crackedstudios.xyz · Demo video: https://youtu.be/DENKhZiVFNk · Repo: https://bitbucket.org/crackedstudios/remesso
+Live on Celo mainnet · App: https://remesso.xyz · Demo video: https://youtu.be/DENKhZiVFNk · Repo: https://bitbucket.org/crackedstudios/remesso
 
 ---
 
@@ -61,7 +61,7 @@ the 0.25% fee always covers the network fee the agent pays to send it.
 | ERC-8004 identity held by the owner | agent #9867 |
 | Proof of a human behind it | Self Agent ID **#191** — soulbound, zero-knowledge passport proof |
 | Capabilities (machine-readable, free) | `GET https://engaboljiqudghvzmebq.supabase.co/functions/v1/agent` |
-| Agent card | https://remesso.crackedstudios.xyz/.well-known/agent.json |
+| Agent card | https://remesso.xyz/.well-known/agent.json |
 
 ### What the agent decides — the pre-flight check
 
@@ -308,7 +308,7 @@ in a contract, not in the prompt.
 - **The agent's key is generated on the user's machine** and never reaches the
   model. No tool returns it.
 - **The human sets the limits from their own wallet** on
-  `remesso.crackedstudios.xyz/agent-wallet`, in MiniPay or a browser wallet:
+  `remesso.xyz/agent-wallet`, in MiniPay or a browser wallet:
   one token, a cap per payment and per day, a total, an expiry, optionally an
   allowlist of recipients.
 - **`RemessoAgentAllowance`** (`0xA6351fAeEb097698289586C4D6188530300DB209`,

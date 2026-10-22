@@ -75,7 +75,7 @@ export function AuthorizeFlow(p: Props) {
             </ul>
             <p className="text-ink-2">
               It can never spend more than the per-payment and daily caps you set on-chain. You can remove Remesso
-              from your agent any time at remesso.crackedstudios.xyz/agent/stop, and only you can.
+              from your agent any time at remesso.xyz/agent/stop, and only you can.
             </p>
           </div>
           <p className="hint">You&apos;ll go back to {p.redirectHost}.</p>
