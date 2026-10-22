@@ -16,7 +16,7 @@ import { executorAbi, erc20Abi } from "@/lib/abi";
 import { DIRECT_TOKENS, EXECUTOR_ADDRESS, RPC_URL, minRunUnits, type TokenInfo } from "@/lib/config";
 import { formatExact, intervalLabel, parseUnits } from "@/lib/format";
 import { buildPayLink } from "@/lib/payLink";
-import { refuse, text, type ServerInfo, type Tool } from "@/lib/mcp/protocol";
+import { refuse, text, type Icon, type ServerInfo, type Tool } from "@/lib/mcp/protocol";
 
 const FUNCTIONS = (process.env.NEXT_PUBLIC_SUPABASE_URL ?? "").replace(/\/+$/, "") + "/functions/v1";
 const ERC8004 = "0x8004A169FB4a3325136EB29fA0ceB6D2e539a432" as const;
@@ -351,3 +351,10 @@ export const SERVER: ServerInfo = {
     "show it and ask. If the user does not know their own address, ask them to copy it from their wallet.",
   ].join(" "),
 };
+
+/// The brand mark, from whichever deployment answered, as links are. PNG first:
+/// a client must support PNG and only should support SVG.
+export const serverIcons = (origin: string): Icon[] => [
+  { src: `${origin}/icon.png`, mimeType: "image/png", sizes: ["512x512"] },
+  { src: `${origin}/brand/remesso-app-icon.svg`, mimeType: "image/svg+xml", sizes: ["any"] },
+];

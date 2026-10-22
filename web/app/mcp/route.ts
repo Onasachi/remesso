@@ -1,5 +1,5 @@
 import { handleRpc } from "@/lib/mcp/protocol";
-import { remessoTools, SERVER } from "@/lib/mcp/tools";
+import { remessoTools, SERVER, serverIcons } from "@/lib/mcp/tools";
 import { HOSTED_TOOL_NAMES, hostedTools } from "@/lib/mcp/hosted";
 import { SCOPE, hostedEnabled, issuerFor, resourceFor } from "@/lib/oauth/server";
 import { verify, type Claims } from "@/lib/oauth/tokens";
@@ -69,7 +69,7 @@ export async function POST(req: Request) {
   // preview deployment links to itself rather than to production.
   const origin = new URL(req.url).origin;
   const tools = [...remessoTools(origin), ...(hostedEnabled() ? hostedTools(origin, who) : [])];
-  const out = await handleRpc(rpc, tools, SERVER);
+  const out = await handleRpc(rpc, tools, { ...SERVER, icons: serverIcons(origin) });
   return out === undefined ? new Response(null, { status: 202 }) : json(out);
 }
 

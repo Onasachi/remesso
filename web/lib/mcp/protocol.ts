@@ -26,7 +26,13 @@ export type Tool = {
   run: (args: Record<string, unknown>) => Promise<ToolResult>;
 };
 
-export type ServerInfo = { name: string; title: string; version: string; instructions: string };
+/// An icon as MCP 2025-11-25 describes one. Claude's apps do not show it yet:
+/// claude.ai draws a custom connector with Google's favicon for the URL's last
+/// two labels — crackedstudios.xyz here, so the studio's green mark — whatever
+/// the server sends (anthropics/claude-ai-mcp#152). Other clients read this.
+export type Icon = { src: string; mimeType: string; sizes: string[] };
+
+export type ServerInfo = { name: string; title: string; version: string; instructions: string; icons?: Icon[] };
 
 /// Newest first. A client asking for one of these gets it back; anything else
 /// gets the newest, which is what the spec tells a server to do.
@@ -56,7 +62,7 @@ export async function handleRpc(msg: Rpc, tools: Tool[], info: ServerInfo): Prom
       return reply({
         protocolVersion: VERSIONS.includes(asked) ? asked : VERSIONS[0],
         capabilities: { tools: { listChanged: false } },
-        serverInfo: { name: info.name, title: info.title, version: info.version },
+        serverInfo: { name: info.name, title: info.title, version: info.version, icons: info.icons },
         instructions: info.instructions,
       });
     }

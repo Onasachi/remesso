@@ -667,6 +667,12 @@ message per POST, answered as JSON (`lib/mcp/protocol.ts`, no MCP SDK).
   `directTokenAllowed`, never from a list.
 - Pay once = a one-payment schedule; the form starts schedules immediately by
   default, so it is paid within a minute of signing.
+- **Its icon in the Claude apps is not ours to set.** claude.ai draws a custom
+  connector with Google's favicon for the URL's last two labels, so this one
+  shows crackedstudios.xyz's green mark, and it ignores `serverInfo.icons`
+  (anthropics/claude-ai-mcp#152, open, checked 2026-10-22). We send the brand
+  mark there anyway (`serverIcons`) for clients that read it. Only a domain of
+  Remesso's own would change what Claude shows.
 
 ## The hosted agent — hands-free from the Claude app (2026-10-20)
 
