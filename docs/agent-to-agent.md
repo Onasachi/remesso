@@ -1,16 +1,24 @@
 # Agent-to-agent remittance: letting developers build on Remesso
 
-**Status: planned, nothing built yet (2026-10-23).** This is the plan for the
-next feature. It lets developers build agents that pay each other through
-Remesso, and it lets Remesso tell an agent when it has been paid.
+**Status: planned, nothing built yet.** Written 2026-10-23. Revised the same
+day after an audit of this plan against the contracts, the Supabase functions
+and migrations, both MCP servers and the web app. Every finding below was
+checked in the code before it went in.
+
+This is the plan for the next feature. It lets developers build agents that pay
+each other through Remesso, and it lets Remesso tell an agent when it has been
+paid.
+
+**The promise it has to keep:** an agent pays the intended invoice once, within
+its actual budget, and both sides can verify and recover the outcome.
 
 Today Remesso serves two cases. A person pays someone (the app), and a person's
 agent pays within limits that person signed (the Claude plugin and the Claude
-app). Most of what a paying agent needs already exists. Three pieces are
-missing:
+app). The live system doesn't fully keep that promise yet, so the plan starts by
+fixing it (step 1). After that, three pieces are missing:
 
-- **The receiving side.** A recipient's agent can't tell when it has been
-  paid. It also can't tell whether a request it sent was accepted.
+- **The receiving side.** A recipient's agent can't tell when it has been paid.
+  It also can't tell whether a request it sent was accepted.
 - **Recurring payments from a person's money.** An agent spending its person's
   money, under a `RemessoAgentAllowance` policy, can only make one-off
   payments. A recurring payment still needs the person to sign a V5 schedule.
@@ -29,21 +37,23 @@ missing:
 
 ## The flow we're aiming for
 
-1. The recipient's agent publishes how it wants to be paid: its wallet, the
-   tokens it accepts, and whether a payment must carry a reference.
+1. The recipient's agent publishes how it wants to be paid: the tokens it
+   accepts, and whether a payment must carry a reference. Its wallet comes from
+   the ERC-8004 registry.
 2. It asks the payer's agent to pay, through `request-payment`.
 3. The payer's agent checks the request against the limits its person signed.
    Then it pays once or sets up a standing order.
 4. Our agent runs each payment. The recipient's agent gets a signed "you were
-   paid" message and acts on it: it cashes out through Ripio or Textile,
-   saves, or issues a receipt.
+   paid" message, checks the transaction, and acts on it: it cashes out through
+   Ripio or Textile, saves, or issues a receipt.
 
 Where each step stands today:
 
 1. Publishing gives a wallet and nothing else.
 2. A request reaches the person's app, but not their agent.
-3. The payer's agent can only pay once.
-4. Our agent runs each payment, but no message goes out.
+3. The payer's agent can only pay once, and a retry can pay twice.
+4. Our agent runs each payment, but no message goes out, and a reverted run can
+   be recorded as delivered.
 
 ## What developers can use today
 
@@ -58,145 +68,344 @@ Where each step stands today:
 | History | The public Goldsky subgraph indexes V5. | `indexer/` |
 | Capabilities | `/functions/v1/agent` and `/.well-known/agent.json` | |
 
+Two caveats apply until steps 1 and 2 land. A policy's "total" is not enforced
+for that policy alone (1a), and a retried policy payment can pay twice (2b).
+
 ---
 
 ## What to build, in this order
 
-### 1. The receiving side (no contract change)
+| Step | What | Contract change |
+|---|---|---|
+| 1 | Fix the live system: what a run records, who can touch requests, what a budget means | no |
+| 2 | Testnet, one deployment manifest, and payments that can't be paid twice | no |
+| 3 | The receiving side: request tracking, payment events, webhooks | no |
+| 4 | The developer kit, built on what steps 2 and 3 proved | no |
+| 5 | Standing orders for agents | yes, plus an independent audit |
+| 6 | Builder codes | no |
 
-Every receiving agent needs this first, and it is the smallest step.
+### 1. Fix the live system first
 
-#### Payment webhooks
+These already break the promise, for people as well as agents. Each was
+confirmed in the code on 2026-10-23.
 
-An agent registers a URL for its receiving address. We then send that URL a
-signed message for every payment to the address, from either contract.
+#### 1a. "Most in total" isn't a limit per policy
 
-- **Read the events from the chain.** A new cron function (`notify-payees`,
-  every minute) reads `RunExecuted` (V5) and `Paid` (allowance) logs from a
-  stored block checkpoint. It stores every event and delivers each one to the
-  URLs subscribed to its recipient.
-  - It has to be one path for every source. An early send by a third party's
-    trigger never passes through our functions, and neither does a policy
-    payment from the plugin. A hook inside `execute-due-runs` would miss both.
-  - Don't use the subgraph for this. It indexes V5 only, and a receiver acts on
-    a "you were paid" message.
-  - Neither event names the token. Read it once from `getSchedule(id)` or
-    `policy(id)` and store it with the event.
-- **Sign the messages like the webhooks we receive.** Use the Standard Webhooks
-  format: `webhook-id`, `webhook-timestamp`, `webhook-signature: v1,<HMAC-SHA256>`
-  and a `whsec_…` secret. Svix sends us Self's webhooks in this format, and
-  `_shared/self.ts` already verifies it. The SDK can ship the same check.
-- **Deliver at least once.**
-  - Retry with backoff for 24 hours. Receivers deduplicate on `webhook-id`.
-  - Also serve a free pull endpoint: payments to an address after a cursor.
-    A receiver that was down can then catch up.
-  - cNGN's webhooks fire exactly once (trap 3 in `CLAUDE.md`). Ours must never
-    make a receiver depend on one delivery arriving.
-- **Only the address may subscribe.** Registering needs a signature from the
-  receiving address (ERC-1271 for smart accounts). Without that, anyone could
-  take an address's subscription slots, or point our deliveries at someone
-  else's server.
-- **Only safe URLs.** Accept HTTPS only, and refuse private and link-local
-  addresses: a function that fetches a URL someone typed is an SSRF risk.
+- The setup screen adds each new policy's total to the owner's single token
+  approval for the allowance contract (`web/app/agent-wallet/page.tsx:145`).
+- The contract tracks a limit per payment and per day
+  (`contracts/src/RemessoAgentAllowance.sol:35`). It has no total.
+- So every policy on a token shares one approval. Give agent A a total of 20
+  and agent B another 20, and A can spend all 40 over two days. The audit
+  reproduced this.
+
+Fix now: say on the setup screen that the total is shared by every policy on
+that token, and stop presenting it as one agent's limit. Fix for good: add
+`totalLimit` and `totalSpent` to each policy in the next contract (step 5).
+
+#### 1b. A reverted run can be recorded as delivered
+
+- `executeRun` and `runNow` in `supabase/functions/_shared/celo.ts` (lines 343
+  and 129) wait for the receipt but never check `receipt.status`. viem returns
+  a reverted receipt without throwing.
+- `execute-due-runs` then writes `delivered`
+  (`supabase/functions/execute-due-runs/index.ts:331`). `trigger-run` answers
+  `ok: true` to a payer it has already charged
+  (`supabase/functions/trigger-run/index.ts:212`).
+- A Direct run also records the wrong amount. It stores the amount sent as
+  `amount_out`, because line 242 uses the amount in as its quote. The recipient
+  actually gets that amount minus the commission.
+
+Fix: accept a run only when `status === "success"` and the receipt holds the
+expected `RunExecuted` log (this contract, this schedule id). Record the amount
+from that event's `amountOut`, which is after the fee. The local MCP wallet and
+the hosted connector already check the status on `pay()`
+(`mcp/src/server.mjs:314`, `web/lib/mcp/hosted.ts:415`).
+
+#### 1c. Runs can get stuck or collide
+
+- `due_schedules` skips any schedule with a run in `pending` or `swapping`.
+  Nothing moves such a row on, except `cngn-webhook` for bank payouts. If an
+  invocation dies after writing the row and before finishing the run, that
+  schedule silently drops out of every later pass.
+- `execute-due-runs` and `trigger-run` sign with the same executor key, and
+  neither manages nonces. A paid early send that lands during a cron pass can
+  collide with it, and then fail after the payer was charged.
+
+Fix:
+
+- A recovery pass that checks stale `pending` and `swapping` rows against the
+  chain. It asks whether a `RunExecuted` for that schedule landed after the row
+  was written, then settles or fails the row.
+- One nonce authority for the executor key, shared by both functions, for
+  example a lock in Postgres around each send.
+
+#### 1d. Anyone can hide or block a payer's requests
+
+- `dismiss_payment_request` needs only the request's id.
+  `payment_requests_for` hands the ids to anyone who names the payer's address
+  (`supabase/migrations/20260928000002_payment_requests.sql:69`). So anyone can
+  hide every request a payer gets. The first version of this doc called that
+  harmless. It isn't.
+- The limit of ten pending requests also counts requests older than 30 days
+  (`supabase/functions/request-payment/index.ts:137`). The inbox stops showing
+  those after 30 days, so nobody dismisses them. Ten abandoned requests then
+  block a payer for good.
+- The count and the insert are separate steps, so requests sent at the same
+  moment can get past the limit.
+
+Fix:
+
+- **Dismissing in the app hides a request for that session only.** An
+  anonymous session's claimed wallet is not proof of anything, and MiniPay
+  can't sign, so it must not change anything for anyone else.
+- **Agents decline with a signature.** An agent holds a key, so it can sign a
+  decline. A signed decline is the only kind the requester is ever told about
+  (step 3).
+- **Expire requests the same way everywhere**, including in the pending count.
+- **Make the limit atomic.** Check it and insert in one database function that
+  locks on the payer.
+
+**Done when:**
+
+- A forced revert, in a test or on a fork, shows as failed in `runs` and in
+  `trigger-run`'s answer.
+- A schedule whose invocation was killed mid-run runs again on a later pass.
+- A dismissal from another session hides nobody's request.
+- Requests older than 30 days no longer count toward the limit.
+- The setup screen says what the total really covers.
+
+### 2. Testnet, one deployment manifest, and payments that can't be paid twice
+
+#### 2a. Celo Sepolia and one manifest
+
+- **One versioned deployment manifest.** Several clients still hardcode the
+  mainnet chain, addresses, tokens or function URLs. For example, the local MCP
+  wallet sets `chain: celo` (`mcp/src/server.mjs:101`). Generate one manifest
+  per network from the deployments: chain id, contract addresses, tokens and
+  their decimals, function URLs. The web app, both MCP servers, the skills and
+  the SDK all read it.
+- **Check the chain.** Every client checks that the connected chain matches the
+  manifest before it signs anything.
+- **Keep caches apart.** The local wallet's saved state
+  (`~/.remesso-agent/config.json`) is one file today. Key it by network and
+  contract, so a testnet policy id can never be used against mainnet.
+- **Deploy to Celo Sepolia, Celo's testnet**, with test tokens that use the
+  real decimals (6 and 18). Decimal mistakes then show up there first.
+- **Run a test executor in a second Supabase project.** Schedule ids repeat
+  across deployments. With separate projects, no testnet row can reach the
+  mainnet executor, and no mainnet key sits in a testnet environment.
+
+#### 2b. Payments that can't be paid twice
+
+`pay()` doesn't check the memo. The audit made two successful payments with the
+same policy, recipient, amount and memo. Suppose an agent's tool call times out
+after the transaction was sent, and the agent tries again. It pays twice, within
+every cap.
+
+- **An idempotency key per payment**, in the local MCP wallet and the hosted
+  connector. The same key returns the first payment's result, never a second
+  payment.
+- **Save the tx hash before waiting** for the receipt.
+- **Reconcile before retrying.** Check an uncertain outcome, such as a timeout
+  or a dropped connection, against the chain first. Look for the saved hash, or
+  a `Paid` event with the same reference.
+- **The contract fix comes in step 5.** The next contract refuses a payment
+  reference that was already used.
+
+#### 2c. People can always find a policy to stop it
+
+- The setup screen looks only at the newest 200 policies across all users
+  (`RECENT_IDS`, `web/app/agent-wallet/page.tsx:40`). The hosted connector
+  looks at the newest 1,000 (`web/lib/mcp/hosted.ts:193`).
+- Once there are more policies than that, older live ones disappear from the
+  screens people use to inspect and stop them.
+- Find policies by owner instead, from `PolicyCreated`, whose `owner` field is
+  indexed. The screens get them through the subgraph, and the backend through
+  the event pipeline in step 3.
+- The screens scan ids today because forno answers `getLogs` over at most 5,000
+  blocks. The next contract can also keep its own list of policies per owner.
+
+**Done when:**
+
+- A developer runs the whole flow on Celo Sepolia by changing one network
+  setting.
+- A client pointed at the wrong chain refuses to sign.
+- A payment retried with the same key pays once.
+- A policy older than the newest 1,000 still shows on the setup screen.
+
+### 3. The receiving side: request tracking, payment events, webhooks
+
+#### 3a. Requests: accepted, scheduled and paid are different things
+
+A schedule existing doesn't mean money arrived. An agent must never read
+"accepted" as "release the goods". So a request has its own states, and
+payments have theirs:
+
+- **Request:** `pending`, then `accepted`, `accepted with changes`, `declined`
+  (signed, see 1d) or `expired`.
+- **Payment, per request:** `scheduled`, then `paid` for each payment that
+  settled (with its tx), or `failed`.
+
+Only `paid`, with a transaction the receiver has checked, means money arrived.
+
+**Evidence has to name this request, not just the same two wallets.** Matching
+only payer and recipient would tie an old schedule, or an unrelated payment, to
+a new request. Bind each answer to:
+
+- **The request reference.** For a policy payment, the request id goes in the
+  memo: a UUID is 32 characters without dashes, which fits exactly. V5
+  schedules have no memo, so the payer's app or agent reports the schedule id
+  against the request.
+- **The chain, contract and token address.**
+- **The amount.**
+- **The timing.** The schedule was created, or the payment made, after the
+  request.
+- **One answer per schedule.** A schedule that answered one request can't
+  answer another.
+
+**Gross or net.** Today the form's amount is what the payer spends, and the
+recipient receives it minus the 25bps commission. An invoice names what is
+owed. So define a requested amount as what the recipient receives, and have the
+form add the commission on top. Then check evidence against
+`RunExecuted.amountOut`, which is after the fee. This is still an open question
+(see the end of this doc).
+
+**Changed terms are an answer too.** If the payer changes the amount, token or
+cadence, the request reads `accepted with changes`. It shows the terms actually
+signed, so the requester can agree or ask again.
+
+**Also needed:**
+
+- The app's prefill link carries the request id (`req=`, validated in
+  `web/lib/payLink.ts`), and the form reports the schedule after
+  `confirm-schedule`.
+- `request-payment` answers status queries for a request id.
+- The paying agent gets an inbox: `payment_requests` and `decline_request`
+  tools in the MCP wallet and the connector. Today neither can see requests
+  addressed to the person's wallet.
+
+#### 3b. One durable record of payment events
+
+Everything downstream reads one table of payment events, built from the chain:
+webhooks, request states, the pull endpoint and policy discovery.
+
+- **Sources.** `RunExecuted` and `RunTriggered` from V5. `Paid`,
+  `PolicyCreated` and `PolicyRevoked` from the allowance contract.
+- **Read the chain, not the subgraph.** The subgraph indexes V5 only, and
+  receivers act on these events.
+- **One path for every source.** An early send by a third party's trigger
+  never passes through our functions, and neither does a policy payment from
+  the plugin.
+- **A unique identity per event:** chain id, contract, tx hash and log index.
+  Store the block hash too.
+- **Commit the event rows and the checkpoint together**, in one transaction, so
+  a crash can't skip a range or repeat one.
+- **An explicit finality rule.** An event counts as final some number of blocks
+  behind the head. Measure that number on Celo; don't assume it. Messages say
+  whether an event is final.
+- **Reorg recovery.** Before reading further, compare the stored block hash at
+  the checkpoint with the chain. If it changed, roll back to the last matching
+  block and read again.
+- **Neither event names the token.** Read it once from `getSchedule(id)` or
+  `policy(id)` and keep it with the event.
+- **Separate delivery workers** read the table and send webhooks. A slow
+  receiver never holds up reading the chain, and failed deliveries can be
+  replayed.
+- **A free pull endpoint** serves the same events by address, after a cursor,
+  for a receiver that was down.
+
+#### 3c. Webhooks
+
+**Delivery:**
+
+- **Use the Standard Webhooks format:** `webhook-id`, `webhook-timestamp`,
+  `webhook-signature: v1,<HMAC-SHA256>` and a `whsec_…` secret. Svix sends us
+  Self's webhooks this way, and `_shared/self.ts` already verifies it, so the
+  SDK can ship the same check.
+- **Keep the id the same across retries.** The timestamp and signature are new
+  on every attempt, as the spec says. Receivers deduplicate on the id.
+- **Deliver at least once.** Retry with backoff for 24 hours, then keep
+  failures replayable. cNGN's webhooks fire exactly once (trap 3 in
+  `CLAUDE.md`); ours must never make a receiver depend on one delivery.
 - **The payload says what to verify:**
   - chain id and contract
   - `schedule` or `policy`, with its id
   - from, to and token
   - amount received, in base units as a string. For a run this is
-    `RunExecuted.amountOut`, which is after the fee.
+    `RunExecuted.amountOut`.
   - memo, for policy payments
-  - for runs: the run number, and whether it was an early send (`RunTriggered`
-    in the same transaction)
-  - tx hash, log index and block number
+  - for runs: the run number, and whether it was an early send
+  - tx hash, log index, block number and block hash
+  - whether the event is final
 
-  A receiver about to release goods should check the transaction itself. The
-  block number lets it wait for more confirmations.
+  A receiver about to release goods checks the transaction itself.
 
-#### Request outcomes
+**Subscribing:**
 
-How requests work today, checked in the code:
+- **The receiving wallet signs an EIP-712 message.** It names the recipient
+  address, the endpoint URL, the chain, the action (subscribe, rotate or
+  revoke), a nonce and an expiry. Smart accounts sign through ERC-1271. Without
+  this, anyone could fill an address's subscription slots, or point our
+  deliveries at someone else's server.
+- **The endpoint proves it wants the messages.** It has to echo a challenge
+  before any payment event is sent there.
+- **Each subscription has its own secret**, which can be rotated and revoked.
 
-- `request-payment` returns the request's id, but the prefill link carries no
-  id. A schedule made from a request can't be traced back to it.
-- The table has a `used` status, but nothing sets it. A request stays `pending`
-  until the payer dismisses it, and drops off their list after 30 days.
-- `dismiss_payment_request` takes only the id, and `payment_requests_for` hands
-  the ids to anyone who names the payer's address. So anyone can clear any
-  payer's requests. That's harmless while requests are advisory. Fix it before
-  a request's state means anything to an agent.
-- Neither the MCP wallet nor the Claude connector can see requests addressed to
-  the person's wallet. The paying agent never sees the request at all.
+**Fetching someone else's URL safely**, following
+[OWASP's SSRF guidance](https://cheatsheetseries.owasp.org/cheatsheets/Server_Side_Request_Forgery_Prevention_Cheat_Sheet.html):
 
-What to build:
+- HTTPS only, and no redirects.
+- Resolve the name first. Refuse private, loopback and link-local addresses, in
+  IPv4 and IPv6.
+- Connect to the address that was checked, so DNS rebinding can't swap it.
+- Run delivery workers with no access to our internal network.
+- The same rules cover `find_agent` when it fetches an agent's metadata (3d).
 
-- **Anyone can report what answered a request, because we check it on-chain.**
-  `request-payment` takes the request id plus a schedule id or a tx hash.
-  - A schedule answers it if its `sender` is the request's payer and its
-    `destination` is the request's `to`.
-  - A tx answers it if it holds a `Paid` event from a policy the payer owns,
-    sent to the request's `to`.
-  - On a match, set `status = 'used'`. Add columns for the schedule id and
-    executor address, because ids repeat across deployments, or for the tx hash.
-- **The app reports its own schedules.** The prefill link carries the request
-  id (`req=`, validated in `web/lib/payLink.ts`), and the form reports the
-  schedule after `confirm-schedule`.
-- **A policy payment needs no extra call.** A request id is a UUID: 32
-  characters without dashes, which fits the memo exactly. `notify-payees` sees
-  the memo and marks the request.
-- **The asking agent can check the status.** `request-payment` returns
-  `pending`, `accepted` or `expired`:
-  - `accepted` comes with the schedule or tx, and the terms actually signed,
-    which can differ from the terms asked for.
-  - The webhook also sends `request.accepted`.
-- **The paying agent gets an inbox.** Add `payment_requests` and
-  `dismiss_request` tools to the MCP wallet and the connector.
+#### 3d. Payee profile
 
-#### Payee profile
-
-`find_agent` reads only `getAgentWallet`. Add a payments entry to the ERC-8004
-registration file. A payer's agent then learns which tokens a payee accepts and
-whether it needs a reference, not just its wallet.
-
-- Our own registration already has `services` and a `payment` block
-  (`docs/erc8004/registration.json`). Define a `remesso` entry that other
-  agents can add the same way.
-- Teach `find_agent` to read the agent's URI, whether it is `data:`, `https:`
-  or `ipfs:`.
-- Before inventing anything, check the ERC-8004 spec and Celo's agent docs for
-  an existing convention, and follow it if there is one.
+- **What to add.** `find_agent` reads only `getAgentWallet`. Add a payments
+  entry to the ERC-8004 registration file, so a payer's agent learns which
+  tokens a payee accepts and whether it needs a reference.
+- **Never take an address from the profile.** The registration file can
+  change, `data:` URI or not: the token's owner can call `setAgentURI` at any
+  time, and `scripts/erc8004-v5.ts` in this repo does exactly that. The address
+  to pay always comes from `getAgentWallet`. Only that wallet's own signature
+  can set it, and the registry clears it when the token changes hands.
+- **Check for a convention first.** Our own registration has `services` and a
+  `payment` block (`docs/erc8004/registration.json`). Before defining a
+  `remesso` entry other agents can add the same way, check the
+  [ERC-8004 spec](https://eips.ethereum.org/EIPS/eip-8004) and Celo's agent
+  docs, and follow any convention they already set.
+- **Read every kind of URI.** Teach `find_agent` to read `data:`, `https:` and
+  `ipfs:` URIs, under the fetching rules above.
 
 **Done when:**
 
-- A test agent on mainnet registers a webhook. It gets a signed delivery
-  within two minutes of a V5 run to it, and of a policy payment to it. The same
-  code as `self.ts` verifies both.
-- A request reads `accepted`, with its schedule, after the payer signs in the
-  app. It also reads `accepted` after a policy payment carrying its id.
-- The MCP wallet lists requests addressed to it.
-- `find_agent` returns a payee profile.
+- A test agent subscribes with a signature, passes the endpoint check, and gets
+  signed deliveries within two minutes of a V5 run to it and of a policy
+  payment to it. The same code as `self.ts` verifies them.
+- A request moves through `accepted`, `scheduled` and `paid`. An older schedule
+  between the same two wallets doesn't move it.
+- A reorg in a test rolls events back and delivers the corrected ones.
+- `find_agent` returns a payee profile, and the address it gives comes from
+  `getAgentWallet`.
 
-### 2. A developer kit (no contract change)
+### 4. The developer kit
 
-- **`@remesso/sdk` in TypeScript, on viem.** Most of it exists already and
-  needs extracting, not writing:
+Build this after steps 2 and 3, from the interfaces they proved.
+
+- **`@remesso/sdk` in TypeScript, on viem.** Most of it is extracted, not
+  written:
   - schedules, from `examples/create-schedule.ts`
-  - policy payments and agent lookup, from `mcp/src/server.mjs`
+  - policy payments with idempotency keys, and agent lookup, from the MCP
+    wallet
   - links, from `web/lib/payLink.ts`
-  - the webhook check, from `_shared/self.ts`
-  - requests and the step 1 calls
-
-  Generate the addresses and token lists from the live `/agent` document, with
-  a `--check` for drift, the way `scripts/build-skill-manifest.ts` does for the
-  skills. People will believe an SDK that describes something we no longer
-  serve.
-- **Celo Sepolia, Celo's testnet.**
-  - Deploy both contracts there, with test tokens that use the real decimals
-    (6 and 18). Decimal mistakes then show up on testnet, not mainnet.
-  - Run a test executor in a second Supabase project: `execute-due-runs`,
-    `sync-schedules` and `notify-payees` against the testnet contracts.
-  - Why a separate project: schedule ids repeat across deployments. Separated,
-    no testnet row can ever reach the mainnet executor, and no mainnet key sits
-    in a testnet environment.
+  - request states, the event pull, and the webhook check from
+    `_shared/self.ts`
+  - networks, from the deployment manifest (2a), with a `--check` for drift
+    like `scripts/build-skill-manifest.ts`. People will believe an SDK that
+    describes something we no longer serve.
 - **A developer page** at `remesso.xyz/developers`, next to `/claude`. Bring
   `docs/AGENTS.md` up to date too.
 - **Two example agents in `examples/`.** Each shows the whole loop: request,
@@ -208,50 +417,63 @@ whether it needs a reference, not just its wallet.
 page alone. They get from `npm install` to a testnet payment and its webhook in
 under 15 minutes.
 
-### 3. Standing orders for agents (new contract and audit)
+### 5. Standing orders for agents (new contract and independent audit)
 
 This is the piece that makes it fully agent-to-agent. A person signs one
 policy, and their agent then sets up recurring payments within it without
-asking again.
-
-Today, the allowance contract makes one-off payments only, and a V5 schedule
-needs the payer's own signature. So a person's agent can't start "pay this
-freelancer 200 wARS every month" unless the person signs a schedule.
+asking again. Today a person's agent can't start "pay this freelancer 200 wARS
+every month" unless the person signs a V5 schedule.
 
 The fix is a second version of `RemessoAgentAllowance`. V5 stays as it is.
-Settle these in the design:
 
-- **Caps in the terms a person thinks in.** Per payment, per day, per month
-  ("up to 50 USDT a month"), an end date and an allowlist of payees. Today's
-  policy has no monthly cap: a cap of 50 a day allows 1,500 a month.
-- **Orders live under the policy.**
-  - The agent creates, changes and cancels orders (payee, amount, interval,
-    number of payments, memo), always within the caps.
-  - Each run counts against the same caps as one-off payments, so the caps
-    bound everything the agent can cause.
-  - Revoking the policy stops every order at once. The person keeps one Stop
-    button.
+**What the contract must have:**
+
+- **Real budgets.** `totalLimit` and `totalSpent` per policy (1a). Caps per
+  payment, per day and per month, an end date and an allowlist of payees.
+- **Unique payment references.** The contract refuses a reference it has
+  already seen. Each payment of an order gets its own: the order's reference
+  plus the payment number (2b).
+- **One Stop button.** Revoking the policy stops every order under it.
+- **Orders inside the policy.** The agent creates, changes and cancels orders
+  (payee, amount, interval, number of payments), always within the caps. Every
+  run counts against the same caps as one-off payments.
+- **The same events.** Each run emits `Paid` with its own reference, so step 3
+  covers it with no new work.
+- **An owner index**, so the screens can list a person's policies without
+  scanning (2c).
+
+**Decide before writing code:**
+
+- **Missed payments.** If a payment can't run when due (no balance, over a
+  cap), is it retried, skipped or caught up later?
+- **One budget, many claims.** One-off payments and several orders may want
+  the same day's or month's cap. Which goes first?
+- **Edits.** Can an agent change an order's amount or cadence, or only cancel
+  it and create a new one? Does the person see the change either way?
+- **Months.** A calendar month, or a 30-day window? People think "the 1st of
+  every month", and a 30-day window drifts away from it.
+- **A cancel against a run.** If a cancel and a run land in the same block,
+  which wins, and what does the person see?
 - **Who runs a due order.** By default our executor, as with V5. These are
   plain transfers with no price to protect, so letting anyone run a due order
-  is also safe. It would let a payee's own agent collect while we are down.
-  Decide this in the design review.
+  is also safe. A payee's own agent could then collect while we're down.
 - **Fee.** V5 runs carry the 25bps commission and policy payments carry none.
-  Our executor would pay gas on every run, about 92k gas each, as for a V5 run.
-- **The same events.** Each run emits `Paid` with the order's memo, so the
-  step 1 webhooks cover it with no new work.
+  Our executor would pay about 92k gas per run.
 
-Until it ships, a paying agent can call `pay()` on its own timer, with the
-payee on the policy's allowlist. That only works if the agent is running when a
-payment falls due: the hosted agent is, a laptop isn't.
+**Until it ships,** a paying agent can call `pay()` on its own timer, with the
+payee on the policy's allowlist. That only works for an agent a developer runs
+on a server. The plugin on a laptop has no timer, and neither does the hosted
+connector, which acts only when the person talks to Claude.
 
 **Done when:**
 
-- Forge tests for the new contract pass with the existing 96.
-- A person has audited it.
+- Forge tests for the new contract pass, along with the existing 96.
+- An independent audit is done.
 - On mainnet, a person signs one policy, and their agent starts, runs and
   cancels a monthly order with no further signature.
+- The same reference can't be paid twice.
 
-### 4. Builder codes: a reason for developers to choose Remesso
+### 6. Builder codes: a reason for developers to choose Remesso
 
 An integrator's own ERC-8021 code rides on every payment of the schedules it
 creates. Celo's rewards then count that volume for the integrator, not only for
@@ -281,22 +503,26 @@ carries that code, checked with the attribution SDK's `verifyTx`.
 
 ## Before inviting developers to move real money
 
-- **An audit.** A person has to audit both live contracts, and the
-  standing-orders contract before it ships. Neither live contract has had one.
+- **An independent audit** of both live contracts, and of the standing-orders
+  contract before it ships. Neither live contract has had one.
 - **The lawyer.** When agents pay across borders for other people, the
   money-transmission question gets harder. That question already keeps the
   naira rails off and the hosted agent invite-only.
 
 ## Open questions
 
-- **Dismissed requests.** Do we tell the asking agent when a payer dismisses its
-  request? An invoice that's declined usually says so, but a person ignoring a
-  stranger's request may not want to. Proposed: no. The request reads `expired`
-  once it drops off the payer's list after 30 days.
-- **Payee profile format.** Is there already a convention for a payee profile in
-  ERC-8004 registrations, or in Celo's agent docs?
-- **Standing orders.** Do they carry a fee, and who may run a due order?
+- **Gross or net.** Is a requested amount what the payer spends, or what the
+  recipient receives? Proposed: what the recipient receives, because an invoice
+  names what is owed. The form then adds the commission on top.
+- **Declines.** Now that declines are signed (1d), do we tell the requester?
+  Proposed: yes for a signed decline from the paying agent. A dismissal in the
+  app stays private.
+- **Finality.** How many blocks behind the head counts as final on Celo?
+  Measure it rather than assume it.
+- **Payee profile format.** Is there already a convention in ERC-8004
+  registrations, or in Celo's agent docs?
+- **Standing orders.** The decisions listed under step 5.
 - **npm name.** `@remesso/sdk` needs the `remesso` npm organisation. Otherwise
   use `remesso-sdk`, next to `remesso-wallet`.
-- **Testnet tokens.** Which real tokens exist on Celo Sepolia, if any, and which
-  do we deploy as test tokens?
+- **Testnet tokens.** Which real tokens exist on Celo Sepolia, and which do we
+  deploy ourselves?
