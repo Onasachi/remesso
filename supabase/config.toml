@@ -90,3 +90,9 @@ verify_jwt = false
 
 [functions.latam-route]
 verify_jwt = false
+
+# Phase 0 of the agent-to-agent plan: samples Celo's safe and finalized heads
+# every minute for two days. Cron-invoked with the service role, like the other
+# pollers.
+[functions.measure-finality]
+verify_jwt = true

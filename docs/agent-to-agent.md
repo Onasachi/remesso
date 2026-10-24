@@ -399,7 +399,7 @@ webhooks, request states, the pull endpoint and policy discovery.
 
 Build this after steps 2 and 3, from the interfaces they proved.
 
-- **`@remesso/sdk` in TypeScript, on viem.** Most of it is extracted, not
+- **`remesso-sdk` in TypeScript, on viem.** Most of it is extracted, not
   written:
   - schedules, from `examples/create-schedule.ts`
   - policy payments with idempotency keys, and agent lookup, from the MCP
@@ -529,14 +529,14 @@ contracts are unaudited and to start small.
   form adds the commission on top.
 - **Declines:** a signed decline from the paying agent is reported to the
   requester. A dismissal in the app stays private.
-- **Finality:** measured on Celo before step 3 starts, not assumed (Phase 0 of
-  the implementation plan).
+- **Finality:** measured on Celo mainnet before step 3 starts, not assumed. A
+  Supabase cron samples it every minute from 2026-10-24 to 2026-10-26 (Phase 0
+  of the implementation plan).
 - **Payee profile format:** follow an existing ERC-8004 or Celo convention if
   there is one. Otherwise define a `remesso` entry (Phase 0).
 - **Standing orders:** the proposed answers under step 5, confirmed in the
   design review.
-- **npm name:** `@remesso/sdk` if the `remesso` npm organisation can be
-  claimed, otherwise `remesso-sdk`.
+- **npm name:** `remesso-sdk`.
 - **Network:** Celo mainnet only, with no testnet. We build and test with
   small amounts. Failures that can't be forced safely on mainnet are tested on
   a local fork.

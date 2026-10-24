@@ -1,6 +1,6 @@
 # Agent-to-agent: implementation plan
 
-**Status: not started (2026-10-24).** This turns
+**Status: Phase 0 under way (started 2026-10-24).** This turns
 [`agent-to-agent.md`](agent-to-agent.md) into phases of work.
 
 - That doc says what to build and why. This one says in what order, in which
@@ -54,19 +54,38 @@ shows agent-to-agent end to end.
 
 ## Phase 0: measure and research
 
-Start now. Nothing here changes the product.
+Started 2026-10-24. Nothing here changes the product.
 
-- [ ] **Finality.** `scripts/measure-finality.ts` records the `latest`, `safe`
-  and `finalized` block numbers every minute into a CSV. Run it for at least 24
-  hours on a machine that stays awake. Pick how many blocks deep Phase 3 waits
-  before calling an event final, and record it in `CLAUDE.md`.
+- [ ] **Finality (measuring).** It runs on Supabase, so no machine has to stay
+  awake:
+  - the `measure-finality` function reads the `latest`, `safe` and `finalized`
+    blocks in one batched request. It writes their numbers, hashes and times
+    to `finality_samples` (migration `20261024000001`);
+  - the cron `remesso-measure-finality` calls it every minute, from
+    2026-10-24 19:32 UTC. A second job, `remesso-measure-finality-stop`,
+    removes both at 2026-10-26 20:00 UTC;
+  - `scripts/finality-report.ts` prints how far each tag ran behind (p50 to
+    max, in blocks and seconds), any gaps in the sampling, and any block that
+    was replaced after we saw it.
+
+  First readings: `safe` 150–240 blocks behind the head (about 2.5–4
+  minutes), `finalized` 1,300–1,390 (about 23 minutes). Celo makes a block a
+  second.
+
+  **Still to do:**
+  1. From 2026-10-25 19:32 UTC, run the report.
+  2. Pick how many blocks deep Phase 3 waits before calling an event final,
+     and record it in `CLAUDE.md`.
+  3. After the stop, drop the table and the function in a migration.
 - [ ] **Payee profile convention.** Read the ERC-8004 registration format and
   Celo's agent docs. Write the result into the design doc: follow an existing
   convention, or define a `remesso` entry.
-- [ ] **npm name.** Check whether the `remesso` organisation is free on
-  npmjs.com, and claim it by hand if so. Otherwise the SDK is `remesso-sdk`.
-- [ ] **Stuck runs today.** Run a read-only query for `pending` and `swapping`
-  runs older than an hour, so Phase 1 knows what its recovery will find.
+- [x] **npm name: `remesso-sdk`** (decided 2026-10-24). It was free on npm when
+  checked that day. Nothing is reserved now: you publish it by hand in Phase 4.
+- [x] **Stuck runs today: none.** At 2026-10-24 19:28 UTC no run of any age was
+  `pending`, `swapping` or `redeeming`. All 274 rows were `skipped` (244) or
+  `delivered` (30). Phase 1's recovery is a safeguard, with nothing to clean up
+  yet.
 
 **Done when:** the finality depth, the profile format and the npm name are
 written down.
