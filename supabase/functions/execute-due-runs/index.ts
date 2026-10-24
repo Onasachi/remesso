@@ -2,7 +2,8 @@
 ///
 /// Ordering matters and is the whole point of this file:
 ///
-///   wallet payout   quote -> simulate -> executeRun -> delivered
+///   wallet payout   quote -> sign executeRun -> save its hash -> broadcast
+///                         -> receipt -> delivered
 ///   bank payout     quote -> redeemAsset (get deposit address)
 ///                         -> executeRun sending cNGN there
 ///                         -> redeeming -> [poll/webhook] -> paid_out
@@ -11,6 +12,14 @@
 /// says naira reached the account. Marking it earlier is the mistake that
 /// tells a sender money arrived when it has not.
 ///
+/// A run counts only from its receipt: `delivered` needs a successful receipt
+/// holding this contract's `RunExecuted` for the schedule, and `amount_out` is
+/// that event's, after the commission (`_shared/receipt.ts`). Until 2026-10-24
+/// a reverted run could be recorded as delivered, at the quoted amount. The
+/// hash is saved before the transaction is broadcast, so an invocation that
+/// dies mid-run leaves something to look up, and each pass starts by settling
+/// such rows from the chain (`_shared/recovery.ts`).
+///
 /// The work is split into two phases for throughput:
 ///
 ///   prepare   read-only and parallel — runnability, limits, liquidity, quote
@@ -18,20 +27,29 @@
 ///
 /// Settling stays sequential because every run is signed by one executor EOA.
 /// Broadcasting in parallel makes them all claim the same nonce and all but one
-/// is rejected. Batching them into a single transaction is the way past that,
-/// and it needs a batcher contract set via setExecutor — see README.
+/// is rejected. `trigger-run` signs with the same key, so each run also holds
+/// the executor lease (`_shared/lease.ts`) from its nonce to its receipt.
+/// Batching them into a single transaction is the way past that, and it needs a
+/// batcher contract set via setExecutor — see README.
 import { createClient } from "npm:@supabase/supabase-js@2";
+import type { Hex } from "npm:viem@2";
 import { CELO, requireEnv, runAmountProblem } from "../_shared/config.ts";
 import {
-  executeRun,
+  broadcast,
+  confirmRun,
   feeOf,
+  findOwnRunSince,
   getSchedule,
   isPaused,
   liquidityIsHealthy,
+  lookupRunTx,
   runnability,
+  signRun,
 } from "../_shared/celo.ts";
 import { assertCeloSupported, CngnError, redeemToBank } from "../_shared/cngn.ts";
+import { takeExecutorLease } from "../_shared/lease.ts";
 import { CNGN_RAILS_ENABLED } from "../_shared/rails.ts";
+import { decide, type PayoutType } from "../_shared/recovery.ts";
 import { mirrorStatus } from "../_shared/schedule-status.ts";
 
 const db = createClient(
@@ -51,6 +69,27 @@ const SETTLE_DEADLINE_MS = 45_000;
 
 /// Never claim more than one invocation can plausibly finish.
 const BATCH = 20;
+
+/// The executor lease: how long one run may hold it (from its nonce to its
+/// receipt, seconds in practice; it expires by itself if this invocation
+/// dies), and how long a run waits for `trigger-run` to finish with it.
+const LEASE_TTL_S = 120;
+const LEASE_WAIT_MS = 20_000;
+
+/// After this the outcome is unknown and the row is left for recovery. Celo
+/// makes a block a second, so a receipt normally arrives in two or three.
+const CONFIRM_TIMEOUT_MS = 45_000;
+
+/// A paid early send polls for the lease every 150ms. Taking it straight back
+/// after each run would keep it out until the pass ends.
+const YIELD_MS = 300;
+
+/// A `pending` or `swapping` row older than this belonged to an invocation
+/// that is over: a pass lasts a couple of minutes at most.
+const STALE_MS = 10 * 60_000;
+
+/// Stale rows settled per pass. A bound: each is a few chain reads.
+const RECOVER_BATCH = 5;
 
 type DueSchedule = {
   schedule_id: string;
@@ -77,6 +116,10 @@ Deno.serve(async () => {
     return json({ error: (e as Error).message }, 500);
   }
 
+  // Rows an earlier invocation left in flight, before anything new is
+  // claimed: until they settle, `due_schedules` won't offer their schedules.
+  const recovered = await recoverStale();
+
   // Scoped to the contract this executor is configured with. Schedule ids are
   // per-contract and every deployment numbers from 1, so an unscoped query
   // would hand V4 a V3 row's id and run a different sender's schedule.
@@ -84,10 +127,10 @@ Deno.serve(async () => {
     p_limit: BATCH,
     p_executor: CELO.executor,
   });
-  if (error) return json({ error: error.message }, 500);
+  if (error) return json({ error: error.message, recovered }, 500);
 
   let schedules = (due ?? []) as DueSchedule[];
-  if (!schedules.length) return json({ processed: 0, results: [] });
+  if (!schedules.length) return json({ processed: 0, recovered, results: [] });
 
   // Naira payouts are refused here rather than in the contract, which has all
   // three rails compiled in and cannot be changed. Refused BEFORE a `runs` row
@@ -105,14 +148,14 @@ Deno.serve(async () => {
     }
     schedules = runnable;
   }
-  if (!schedules.length) return json({ processed: 0, results: refused });
+  if (!schedules.length) return json({ processed: 0, recovered, results: refused });
 
   // The deployed contract's runnability() does not report paused state, so ask
   // directly. Without this, a pause turns every tick into a fresh cNGN
   // redemption opened for a run that cannot execute — the emergency lever
   // making the emergency worse. Security review 2026-09-14.
   if (await isPaused()) {
-    return json({ processed: 0, paused: true, results: [] });
+    return json({ processed: 0, paused: true, recovered, results: [] });
   }
 
   // One cached call per environment, not per run: confirm cNGN still lists Celo
@@ -138,7 +181,7 @@ Deno.serve(async () => {
 
   // --- phase 2: sequential, one nonce at a time -----------------------------
   const deadline = startedAt + SETTLE_DEADLINE_MS;
-  for (const p of prepared) {
+  for (const [i, p] of prepared.entries()) {
     if (Date.now() > deadline) {
       // Release the claim rather than recording a failure. Nothing was
       // attempted, no redemption was opened, and a `skipped` row here would
@@ -148,10 +191,11 @@ Deno.serve(async () => {
       results.push({ schedule: p.s.schedule_id, status: "deferred" });
       continue;
     }
-    results.push(await settle(p));
+    results.push(await settle(p, deadline));
+    if (i < prepared.length - 1) await new Promise((r) => setTimeout(r, YIELD_MS));
   }
 
-  return json({ processed: results.length, ms: Date.now() - startedAt, results });
+  return json({ processed: results.length, ms: Date.now() - startedAt, recovered, results });
 });
 
 /// Read-only. Claims the run row, then decides whether this schedule can run at
@@ -269,18 +313,42 @@ async function prepare(
 
 /// Moves money. Sequential by construction — see the note at the top of the
 /// file about nonces.
-async function settle(p: Prepared) {
+async function settle(p: Prepared, deadline: number) {
   const { s, runId, onchainId, quote } = p;
 
-  const fail = async (reason: string, status: "failed" | "skipped" = "failed") => {
+  const fail = async (
+    reason: string,
+    status: "failed" | "skipped" = "failed",
+    mined: { block_number?: number; gas_used?: string } = {},
+  ) => {
     await db.from("runs").update({
       status,
       failure_reason: reason,
       settled_at: new Date().toISOString(),
+      ...mined,
     }).eq("id", runId);
     return { schedule: s.schedule_id, status, reason };
   };
 
+  // Taken before anything external happens, so a key busy with an early send
+  // defers this run cleanly instead of leaving a redemption opened for a swap
+  // that never went.
+  let lease = null;
+  try {
+    lease = await takeExecutorLease(db, "execute-due-runs", {
+      ttlSec: LEASE_TTL_S,
+      waitMs: Math.max(0, Math.min(LEASE_WAIT_MS, deadline - Date.now())),
+    });
+  } catch (e) {
+    console.error("execute-due-runs:", (e as Error).message);
+  }
+  if (!lease) {
+    // Released, not failed: nothing was attempted. Same as the deadline path.
+    await db.from("runs").delete().eq("id", runId);
+    return { schedule: s.schedule_id, status: "deferred", reason: "executor key busy" };
+  }
+
+  let minedNonce: number | undefined;
   try {
     // 4. For a bank payout, open the redemption immediately before the swap, so
     //    the swap can deliver straight to the address cNGN gives us. This stays
@@ -324,33 +392,157 @@ async function settle(p: Prepared) {
     }
 
     // 5. Execute. The contract re-checks every limit.
-    const { hash, receipt } = await executeRun(onchainId, quote.minOut);
+    const signed = await signRun("executeRun", onchainId, quote.minOut, lease.nonceFloor);
+
+    // Saved before the broadcast. If this invocation dies from here on, the
+    // recovery pass settles the row from this hash instead of guessing. A run
+    // that can't be written down first isn't sent.
+    const { error: saveErr } = await db.from("runs").update({
+      tx_hash: signed.hash,
+      token_address: s.token_address,
+    }).eq("id", runId);
+    if (saveErr) return await fail(`not sent: could not record the transaction first (${saveErr.message})`);
+
+    try {
+      await broadcast(signed);
+    } catch (e) {
+      // Maybe sent, maybe not; the receipt says which.
+      console.error(`execute-due-runs: broadcast of ${signed.hash} failed`, (e as Error).message);
+    }
+
+    let confirmed;
+    try {
+      confirmed = await confirmRun(signed.hash, onchainId, { confirmations: 2, timeoutMs: CONFIRM_TIMEOUT_MS });
+    } catch {
+      // No receipt in time. The row stays `swapping` with its hash, and a
+      // later pass settles it from the chain.
+      return { schedule: s.schedule_id, status: "unconfirmed", hash: signed.hash };
+    }
+    const { receipt, outcome } = confirmed;
+    // Mined, so the nonce is used, whether the run succeeded or reverted.
+    minedNonce = signed.nonce;
+    const mined = { block_number: Number(receipt.blockNumber), gas_used: receipt.gasUsed.toString() };
+
+    if (!outcome.ok) return await fail(outcome.reason, "failed", mined);
 
     await db.from("runs").update({
-      token_address: s.token_address,
       status: s.payout_type === "ngn_bank" ? "redeeming" : "delivered",
-      tx_hash: hash,
-      block_number: Number(receipt.blockNumber),
-      gas_used: receipt.gasUsed.toString(),
-      amount_out: quote.amountOut.toString(),
+      ...mined,
+      // What the recipient received, from the event: after the commission on
+      // the Direct rail. The quote was what was sent.
+      amount_out: outcome.run.amountOut.toString(),
       settled_at: s.payout_type === "ngn_bank" ? null : new Date().toISOString(),
     }).eq("id", runId);
 
-    // The contract flips `active` false on the run that reaches `maxRuns`, and
-    // nothing else notices. Without this the mirror keeps the schedule `active`
-    // with a next_run_at that advances forever, the UI shows a finished
-    // schedule as live, and every cycle writes another "not due" skipped row.
-    const [r, onchain] = await Promise.all([runnability(onchainId), getSchedule(onchainId)]);
-    const status = mirrorStatus(onchain);
-    await db.from("schedules").update({
-      next_run_at: new Date(Number(r.nextRunAt) * 1000).toISOString(),
-      ...(status !== "active" ? { status } : {}),
-    }).eq("id", s.schedule_id);
-
-    return { schedule: s.schedule_id, status: "ok", hash, awaitingPayout: !!cngnTrxRef };
+    await refreshMirror(s.schedule_id, onchainId, outcome.run.nextRunAt, receipt.blockNumber);
+    return { schedule: s.schedule_id, status: "ok", hash: signed.hash, awaitingPayout: !!cngnTrxRef };
   } catch (e) {
     return await fail(describe(e));
+  } finally {
+    await lease.release(minedNonce);
   }
+}
+
+/// The contract flips `active` false on the run that reaches `maxRuns`, and
+/// nothing else notices. Without this the mirror keeps the schedule `active`
+/// with a next_run_at that advances forever, the UI shows a finished schedule
+/// as live, and every cycle writes another "not due" skipped row.
+///
+/// The next date comes from the run's own event. The status read is pinned to
+/// the run's block when there is one: right after a receipt, forno can answer
+/// from a block behind. A failed read here is logged and nothing more: the run
+/// is already recorded and must not be undone by a mirror.
+async function refreshMirror(scheduleId: string, onchainId: bigint, nextRunAt: bigint, atBlock?: bigint) {
+  try {
+    const onchain = await getSchedule(onchainId, atBlock ? { blockNumber: atBlock } : {});
+    const status = mirrorStatus(onchain);
+    await db.from("schedules").update({
+      next_run_at: new Date(Number(nextRunAt) * 1000).toISOString(),
+      ...(status !== "active" ? { status } : {}),
+    }).eq("id", scheduleId);
+  } catch (e) {
+    console.error(`execute-due-runs: mirror refresh for ${scheduleId} failed`, (e as Error).message);
+  }
+}
+
+type StaleRow = {
+  id: string;
+  schedule_id: string;
+  tx_hash: string | null;
+  started_at: string;
+  schedules: Rel<{ onchain_id: string | number; recipients: Rel<{ payout_type: PayoutType }> }>;
+};
+
+/// supabase-js types an embedded relation as an array regardless of cardinality.
+type Rel<T> = T | T[] | null;
+const one = <T>(r: Rel<T>): T | null => (Array.isArray(r) ? r[0] ?? null : r);
+
+/// Settle what a dead invocation left in flight (`_shared/recovery.ts`).
+/// Errors are logged per row and never stop the pass: recovery is
+/// housekeeping, and the due payments behind it matter more.
+async function recoverStale(): Promise<unknown[]> {
+  const { data, error } = await db
+    .from("runs")
+    .select("id, schedule_id, tx_hash, started_at, schedules!inner(onchain_id, executor_address, recipients(payout_type))")
+    .in("status", ["pending", "swapping"])
+    .lt("started_at", new Date(Date.now() - STALE_MS).toISOString())
+    .ilike("schedules.executor_address", CELO.executor)
+    .order("started_at")
+    .limit(RECOVER_BATCH);
+  if (error) {
+    console.error("execute-due-runs: stale-run query failed", error.message);
+    return [];
+  }
+
+  const out: unknown[] = [];
+  for (const row of (data ?? []) as unknown as StaleRow[]) {
+    try {
+      const schedule = one(row.schedules);
+      if (!schedule) continue;
+      const onchainId = BigInt(schedule.onchain_id);
+      const seen = row.tx_hash
+        ? await lookupRunTx(row.tx_hash as Hex, onchainId)
+        : await findOwnRunSince(onchainId, Date.parse(row.started_at));
+      const d = decide(seen, one(schedule.recipients)?.payout_type ?? "direct");
+      if (d.action === "wait") {
+        out.push({ run: row.id, action: "wait" });
+        continue;
+      }
+
+      const now = new Date().toISOString();
+      const update = d.action === "settle"
+        ? {
+          status: d.status,
+          tx_hash: d.hash,
+          block_number: Number(d.blockNumber),
+          gas_used: d.gasUsed.toString(),
+          amount_out: d.amountOut.toString(),
+          failure_reason: null,
+          settled_at: d.status === "redeeming" ? null : now,
+        }
+        : {
+          status: "failed",
+          failure_reason: d.reason,
+          settled_at: now,
+          ...(d.hash ? { tx_hash: d.hash } : {}),
+          ...(d.blockNumber !== undefined
+            ? { block_number: Number(d.blockNumber), gas_used: String(d.gasUsed) }
+            : {}),
+        };
+      // Only while still in flight, so two overlapping passes can't both
+      // write it.
+      await db.from("runs").update(update).eq("id", row.id).in("status", ["pending", "swapping"]);
+
+      // Ten minutes on, the latest state is past the run: no block pin.
+      if (seen.kind === "mined" && seen.outcome.ok) {
+        await refreshMirror(row.schedule_id, onchainId, seen.outcome.run.nextRunAt);
+      }
+      out.push({ run: row.id, action: d.action, ...(d.action === "fail" ? { reason: d.reason } : { hash: d.hash }) });
+    } catch (e) {
+      console.error(`execute-due-runs: recovering run ${row.id} failed`, (e as Error).message);
+    }
+  }
+  return out;
 }
 
 /// Run `fn` over `items` with at most `limit` in flight.
