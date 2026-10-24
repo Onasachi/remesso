@@ -26383,7 +26383,7 @@ async function payThroughPolicy(d, to, units, memo) {
 }
 var server = new McpServer({
   name: "remesso-wallet",
-  version: "0.3.1",
+  version: "0.3.2",
   icons: [{ src: `${APP}/icon.png`, mimeType: "image/png", sizes: ["512x512"] }]
 });
 server.tool(

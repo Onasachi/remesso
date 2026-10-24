@@ -26,9 +26,11 @@ If the Remesso wallet is installed, you already have a wallet: the
 `remesso-wallet` tools
 `wallet`, `await_setup`, `link_policy`, `limits`, `pay`, `pay_x402`, `request_payment` and
 `find_agent`. **Use them instead of the code below.** They spend from the user's
-wallet only within a `RemessoAgentAllowance` policy the user set on-chain (cap
-per payment and per day, a total, an expiry), and the key never passes through
-the conversation. The `remesso-wallet` skill says how to use them.
+wallet only within a `RemessoAgentAllowance` policy the user set on-chain (a cap
+per payment and per day, and an expiry), and the key never passes through the
+conversation. A policy has no total of its own: every policy on a token draws on
+the one approval the user gave the contract. The `remesso-wallet` skill says how
+to use them.
 
 It installs as a plugin in Claude Code (`/plugin marketplace add
 https://bitbucket.org/crackedstudios/remesso.git`, then `/plugin install remesso@remesso`) and as the

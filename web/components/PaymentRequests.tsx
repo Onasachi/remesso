@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useQueryClient } from "@tanstack/react-query";
 import { useAccount } from "wagmi";
 import { usePaymentRequests } from "@/lib/hooks";
-import { supabase } from "@/lib/supabase";
+import { ensureSession, supabase } from "@/lib/supabase";
 import { buildPayLink } from "@/lib/payLink";
 import { everyLabel } from "@/lib/format";
 import type { PaymentRequest } from "@/lib/types";
@@ -13,9 +13,14 @@ import type { PaymentRequest } from "@/lib/types";
 ///
 /// Deliberately not styled as a notification, a badge or anything that nags. A
 /// request is a stranger's suggestion, and the screen should read as one:
-/// here is what someone asked for, open it or dismiss it. Nothing counts down,
+/// here is what someone asked for, open it or hide it. Nothing counts down,
 /// nothing expires in front of the sender, and ignoring it entirely is a
 /// complete answer.
+///
+/// Hiding is for this session only. The session's wallet is a claim, not a
+/// proof (MiniPay can't sign), so it must not change anything anyone else
+/// sees, and the person asking is not told. Only a signed decline, which an
+/// agent can send to `request-payment`, answers a request for everyone.
 ///
 /// The card never says the request is legitimate, because we have no way to
 /// know: anybody can POST to `request-payment`. What it says is who claims to
@@ -64,8 +69,14 @@ function RequestCard({ request: r }: { request: PaymentRequest }) {
     note: r.note ?? undefined,
   });
 
-  async function dismiss() {
-    await supabase().rpc("dismiss_payment_request", { p_id: r.id });
+  async function hide() {
+    // A hide belongs to a session, so make sure there is one.
+    if (!(await ensureSession())) return;
+    const { error } = await supabase().rpc("hide_payment_request", { p_id: r.id });
+    if (error) {
+      console.error("hide_payment_request failed:", error.message);
+      return;
+    }
     queryClient.invalidateQueries({ queryKey: ["payment-requests", address] });
   }
 
@@ -89,8 +100,13 @@ function RequestCard({ request: r }: { request: PaymentRequest }) {
         <Link href={href} className="btn-soft btn-sm">
           Review
         </Link>
-        <button type="button" onClick={dismiss} className="btn-ghost btn-sm">
-          Dismiss
+        <button
+          type="button"
+          onClick={hide}
+          className="btn-ghost btn-sm"
+          title="Hides it from this list. The person asking isn't told."
+        >
+          Hide
         </button>
         {/* Said on every card, not once at the top of the list: a sender
             scrolling a list reads one card, and the reassurance has to be

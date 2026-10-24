@@ -320,7 +320,7 @@ async function payThroughPolicy(d, to, units, memo) {
 // The brand mark, for MCP hosts that show a server's icon (MCP 2025-11-25).
 const server = new McpServer({
   name: "remesso-wallet",
-  version: "0.3.1",
+  version: "0.3.2",
   icons: [{ src: `${APP}/icon.png`, mimeType: "image/png", sizes: ["512x512"] }],
 });
 
