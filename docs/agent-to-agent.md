@@ -3,7 +3,9 @@
 **Status: planned, nothing built yet.** Written 2026-10-23. Revised the same
 day after an audit of this plan against the contracts, the Supabase functions
 and migrations, both MCP servers and the web app. Every finding below was
-checked in the code before it went in.
+checked in the code before it went in. The open questions were decided on
+2026-10-24 (see Decisions at the end). The phases, files and shipping steps
+are in [`agent-to-agent-implementation.md`](agent-to-agent-implementation.md).
 
 This is the plan for the next feature. It lets developers build agents that pay
 each other through Remesso, and it lets Remesso tell an agent when it has been
@@ -24,8 +26,8 @@ fixing it (step 1). After that, three pieces are missing:
   payments. A recurring payment still needs the person to sign a V5 schedule.
   An agent paying from its own funded wallet can already create a schedule:
   schedule #7 was one.
-- **A developer kit.** There is no SDK and no testnet, so mainnet is the only
-  place to build. Both contracts are live there and unaudited.
+- **A developer kit.** There is no SDK. We build on Celo mainnet only, with no
+  testnet (decided 2026-10-24), and both contracts there are unaudited.
 
 | | |
 |---|---|
@@ -78,7 +80,7 @@ for that policy alone (1a), and a retried policy payment can pay twice (2b).
 | Step | What | Contract change |
 |---|---|---|
 | 1 | Fix the live system: what a run records, who can touch requests, what a budget means | no |
-| 2 | Testnet, one deployment manifest, and payments that can't be paid twice | no |
+| 2 | One deployment manifest, and payments that can't be paid twice | no |
 | 3 | The receiving side: request tracking, payment events, webhooks | no |
 | 4 | The developer kit, built on what steps 2 and 3 proved | no |
 | 5 | Standing orders for agents | yes, plus an independent audit |
@@ -175,26 +177,29 @@ Fix:
 - Requests older than 30 days no longer count toward the limit.
 - The setup screen says what the total really covers.
 
-### 2. Testnet, one deployment manifest, and payments that can't be paid twice
+### 2. One deployment manifest, and payments that can't be paid twice
 
-#### 2a. Celo Sepolia and one manifest
+There is no testnet: we build and test on Celo mainnet with small amounts
+(decided 2026-10-24). Some failures can't be forced safely on mainnet, such as
+a revert after the simulation passed. Those are tested on a local fork of
+mainnet.
+
+#### 2a. One deployment manifest
 
 - **One versioned deployment manifest.** Several clients still hardcode the
   mainnet chain, addresses, tokens or function URLs. For example, the local MCP
   wallet sets `chain: celo` (`mcp/src/server.mjs:101`). Generate one manifest
-  per network from the deployments: chain id, contract addresses, tokens and
-  their decimals, function URLs. The web app, both MCP servers, the skills and
-  the SDK all read it.
+  from the deployments: chain id, contract addresses, tokens and their
+  decimals, function URLs. The web app, both MCP servers, the skills and the
+  SDK all read it, so a redeploy, like the contract in step 5, changes one
+  file.
 - **Check the chain.** Every client checks that the connected chain matches the
   manifest before it signs anything.
 - **Keep caches apart.** The local wallet's saved state
-  (`~/.remesso-agent/config.json`) is one file today. Key it by network and
-  contract, so a testnet policy id can never be used against mainnet.
-- **Deploy to Celo Sepolia, Celo's testnet**, with test tokens that use the
-  real decimals (6 and 18). Decimal mistakes then show up there first.
-- **Run a test executor in a second Supabase project.** Schedule ids repeat
-  across deployments. With separate projects, no testnet row can reach the
-  mainnet executor, and no mainnet key sits in a testnet environment.
+  (`~/.remesso-agent/config.json`) is one file today, including how far it has
+  scanned for policies. Key it by chain and contract. Policy ids restart at 1
+  in every deployment. Otherwise the wallet would scan the step 5 contract
+  from the old contract's position and miss its first policies.
 
 #### 2b. Payments that can't be paid twice
 
@@ -228,8 +233,8 @@ every cap.
 
 **Done when:**
 
-- A developer runs the whole flow on Celo Sepolia by changing one network
-  setting.
+- Every client's addresses and tokens match the manifest, and the drift check
+  passes.
 - A client pointed at the wrong chain refuses to sign.
 - A payment retried with the same key pays once.
 - A policy older than the newest 1,000 still shows on the setup screen.
@@ -264,12 +269,11 @@ a new request. Bind each answer to:
 - **One answer per schedule.** A schedule that answered one request can't
   answer another.
 
-**Gross or net.** Today the form's amount is what the payer spends, and the
-recipient receives it minus the 25bps commission. An invoice names what is
-owed. So define a requested amount as what the recipient receives, and have the
-form add the commission on top. Then check evidence against
-`RunExecuted.amountOut`, which is after the fee. This is still an open question
-(see the end of this doc).
+**Gross or net (decided: net).** Today the form's amount is what the payer
+spends, and the recipient receives it minus the 25bps commission. An invoice
+names what is owed, so a requested amount is what the recipient receives, and
+the form adds the commission on top. Evidence is checked against
+`RunExecuted.amountOut`, which is after the fee.
 
 **Changed terms are an answer too.** If the payer changes the amount, token or
 cadence, the request reads `accepted with changes`. It shows the terms actually
@@ -414,8 +418,9 @@ Build this after steps 2 and 3, from the interfaces they proved.
   - A family allowance agent that pays cNGN every week.
 
 **Done when:** a developer who has never seen the repo follows the developer
-page alone. They get from `npm install` to a testnet payment and its webhook in
-under 15 minutes.
+page alone. They get from `npm install` to a small mainnet payment and its
+webhook in under 15 minutes. The page says the contracts are unaudited and to
+start small.
 
 ### 5. Standing orders for agents (new contract and independent audit)
 
@@ -442,23 +447,29 @@ The fix is a second version of `RemessoAgentAllowance`. V5 stays as it is.
 - **An owner index**, so the screens can list a person's policies without
   scanning (2c).
 
-**Decide before writing code:**
+**Proposed answers (2026-10-24), to confirm in the design review:**
 
-- **Missed payments.** If a payment can't run when due (no balance, over a
-  cap), is it retried, skipped or caught up later?
-- **One budget, many claims.** One-off payments and several orders may want
-  the same day's or month's cap. Which goes first?
-- **Edits.** Can an agent change an order's amount or cadence, or only cancel
-  it and create a new one? Does the person see the change either way?
-- **Months.** A calendar month, or a 30-day window? People think "the 1st of
-  every month", and a 30-day window drifts away from it.
-- **A cancel against a run.** If a cancel and a run land in the same block,
-  which wins, and what does the person see?
-- **Who runs a due order.** By default our executor, as with V5. These are
-  plain transfers with no price to protect, so letting anyone run a due order
-  is also safe. A payee's own agent could then collect while we're down.
-- **Fee.** V5 runs carry the 25bps commission and policy payments carry none.
-  Our executor would pay about 92k gas per run.
+- **Missed payments: like V5.** A payment that can't run when due (no
+  balance, over a cap) is retried while it stays due. The next date counts
+  from when it actually ran, as V5 does (`nextRunAt = block.timestamp +
+  interval`). Nothing is caught up, so a person is never charged for two
+  periods at once.
+- **One budget, many claims: first come, first served.** Whichever
+  transaction lands first uses the cap. An order run that would go over waits
+  for its retry, like a payment with no balance.
+- **Edits: none.** A change is a cancel plus a new order. The person sees
+  both, and an order's terms stay fixed, like a V5 schedule's.
+- **Months: 30 days**, like V5 and the app's "every month" (30 × 86,400
+  seconds). The monthly cap is a rolling 30-day window, and the app shows the
+  actual next date.
+- **A cancel against a run: the chain's order decides.** A run that lands
+  before the cancel counts, and one after it reverts. The app shows what the
+  chain says, including "one last payment went out before the cancel".
+- **Who runs a due order: anyone, with our executor as the default.** These
+  are plain transfers with no price to protect, so letting anyone run a due
+  order is safe. A payee's own agent can then collect while we're down.
+- **Fee: the 25bps commission on order runs**, as on V5. It pays for the
+  executor's gas, about 92k per run. One-off payments stay free.
 
 **Until it ships,** a paying agent can call `pay()` on its own timer, with the
 payee on the policy's allowlist. That only works for an agent a developer runs
@@ -509,20 +520,23 @@ carries that code, checked with the attribution SDK's `verifyTx`.
   money-transmission question gets harder. That question already keeps the
   naira rails off and the hosted agent invite-only.
 
-## Open questions
+There is no testnet, so until both are done the developer page says the
+contracts are unaudited and to start small.
 
-- **Gross or net.** Is a requested amount what the payer spends, or what the
-  recipient receives? Proposed: what the recipient receives, because an invoice
-  names what is owed. The form then adds the commission on top.
-- **Declines.** Now that declines are signed (1d), do we tell the requester?
-  Proposed: yes for a signed decline from the paying agent. A dismissal in the
-  app stays private.
-- **Finality.** How many blocks behind the head counts as final on Celo?
-  Measure it rather than assume it.
-- **Payee profile format.** Is there already a convention in ERC-8004
-  registrations, or in Celo's agent docs?
-- **Standing orders.** The decisions listed under step 5.
-- **npm name.** `@remesso/sdk` needs the `remesso` npm organisation. Otherwise
-  use `remesso-sdk`, next to `remesso-wallet`.
-- **Testnet tokens.** Which real tokens exist on Celo Sepolia, and which do we
-  deploy ourselves?
+## Decisions (2026-10-24)
+
+- **Gross or net:** a requested amount is what the recipient receives. The
+  form adds the commission on top.
+- **Declines:** a signed decline from the paying agent is reported to the
+  requester. A dismissal in the app stays private.
+- **Finality:** measured on Celo before step 3 starts, not assumed (Phase 0 of
+  the implementation plan).
+- **Payee profile format:** follow an existing ERC-8004 or Celo convention if
+  there is one. Otherwise define a `remesso` entry (Phase 0).
+- **Standing orders:** the proposed answers under step 5, confirmed in the
+  design review.
+- **npm name:** `@remesso/sdk` if the `remesso` npm organisation can be
+  claimed, otherwise `remesso-sdk`.
+- **Network:** Celo mainnet only, with no testnet. We build and test with
+  small amounts. Failures that can't be forced safely on mainnet are tested on
+  a local fork.
