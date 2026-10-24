@@ -368,19 +368,73 @@ webhooks, request states, the pull endpoint and policy discovery.
 
 #### 3d. Payee profile
 
-- **What to add.** `find_agent` reads only `getAgentWallet`. Add a payments
-  entry to the ERC-8004 registration file, so a payer's agent learns which
-  tokens a payee accepts and whether it needs a reference.
+- **What to add.** `find_agent` reads only `getAgentWallet`. Add a `remesso`
+  entry to the `services` list of the ERC-8004 registration file, so a payer's
+  agent learns which tokens a payee accepts and whether it needs a reference.
 - **Never take an address from the profile.** The registration file can
   change, `data:` URI or not: the token's owner can call `setAgentURI` at any
   time, and `scripts/erc8004-v5.ts` in this repo does exactly that. The address
   to pay always comes from `getAgentWallet`. Only that wallet's own signature
   can set it, and the registry clears it when the token changes hands.
-- **Check for a convention first.** Our own registration has `services` and a
-  `payment` block (`docs/erc8004/registration.json`). Before defining a
-  `remesso` entry other agents can add the same way, check the
-  [ERC-8004 spec](https://eips.ethereum.org/EIPS/eip-8004) and Celo's agent
-  docs, and follow any convention they already set.
+- **No existing convention covers this** (checked 2026-10-24):
+  - The [ERC-8004 spec](https://eips.ethereum.org/EIPS/eip-8004) says
+    "Payments are orthogonal to this protocol and not covered here". Its only
+    payment field is `x402Support`. It also says "The number and type of
+    endpoints are fully customizable", so a `remesso` entry is within the
+    spec.
+  - [Celo's agent docs](https://docs.celo.org/build/agents/8004) call the
+    service names examples rather than a fixed set, and add no payment fields
+    beyond `x402Support`.
+  - The [ERC-8004 best practices](https://github.com/erc-8004/best-practices)
+    advertise payments with an `agentWallet` entry that holds the address.
+    That breaks the rule above.
+  - x402 names a chain and a token, but per request and next to `payTo`.
+
+  So we define the entry ourselves. It borrows x402's field names (`network`,
+  `asset`) and the `{ "required": … }` shape of x402's `payment-identifier`
+  extension.
+- **The entry:**
+
+  ```json
+  {
+    "name": "remesso",
+    "endpoint": "https://engaboljiqudghvzmebq.supabase.co/functions/v1/request-payment",
+    "version": "1",
+    "assets": [
+      { "network": "eip155:42220", "asset": "0x48065fbbe25f71c9282ddf5e1cd6d6a887483d5e" },
+      { "network": "eip155:42220", "asset": "0xcebA9300f2b948710d2653dD7B07f33A8B32118C" }
+    ],
+    "reference": { "required": true }
+  }
+  ```
+
+  - `endpoint` is Remesso's request service, where a payer checks a request
+    and answers it (3a).
+  - `assets` lists the tokens the payee accepts: the chain as CAIP-2, and the
+    token's address.
+  - `reference.required` means the payment must carry the payee's request id.
+    A policy payment puts it in the `bytes32` memo of `pay()`: ASCII letters,
+    digits, `-` and `_`, at most 32 bytes. A request id without its dashes is
+    exactly 32. A V5 schedule has no memo, so the payer answers the request
+    with the schedule id instead (3a). Without `reference`, none is needed.
+- **How a reader uses it:**
+  1. Pay `getAgentWallet(agentId)` on the registry of the token's chain. If
+     it returns the zero address, don't pay. Ignore every address in the file.
+  2. Match tokens by address, ignoring case, and read `decimals()` on-chain.
+  3. Ignore fields it doesn't know. If it doesn't implement the `version`, it
+     treats the profile as absent. A breaking change bumps `version`.
+- **Not every parser keeps it.** We ran the agent0 SDKs (1.7.1) on our file.
+  agent0-ts keeps a custom entry's `endpoint` and `version` and drops the
+  rest, so `find_agent` parses the raw JSON. agent0-py rejects any service
+  name outside its six (MCP, A2A, ENS, DID, wallet, OASF), and already
+  rejects our file at `capabilities`. 8004scan accepts custom names.
+- **Never write an address entry into a file** (`agentWallet` or `wallet`).
+  agent0-ts takes one as the agent's wallet without reading the chain.
+- **Our two identities share one file but not one wallet.**
+  `getAgentWallet(9867)` is the cold owner `0xcDEA…3Ae2`, and
+  `getAgentWallet(9879)` is the V5 executor's hot key `0xA351…cdb21`, which
+  should hold gas only. A payee entry in the shared file would send #9879's
+  payers to the hot key, so our own file gets none.
 - **Read every kind of URI.** Teach `find_agent` to read `data:`, `https:` and
   `ipfs:` URIs, under the fetching rules above.
 
@@ -532,8 +586,9 @@ contracts are unaudited and to start small.
 - **Finality:** measured on Celo mainnet before step 3 starts, not assumed. A
   Supabase cron samples it every minute from 2026-10-24 to 2026-10-26 (Phase 0
   of the implementation plan).
-- **Payee profile format:** follow an existing ERC-8004 or Celo convention if
-  there is one. Otherwise define a `remesso` entry (Phase 0).
+- **Payee profile format:** a `remesso` entry in the registration file's
+  `services` list (3d). No ERC-8004 or Celo convention covers being paid by
+  transfer (checked 2026-10-24).
 - **Standing orders:** the proposed answers under step 5, confirmed in the
   design review.
 - **npm name:** `remesso-sdk`.

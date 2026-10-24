@@ -77,9 +77,10 @@ Started 2026-10-24. Nothing here changes the product.
   2. Pick how many blocks deep Phase 3 waits before calling an event final,
      and record it in `CLAUDE.md`.
   3. After the stop, drop the table and the function in a migration.
-- [ ] **Payee profile convention.** Read the ERC-8004 registration format and
-  Celo's agent docs. Write the result into the design doc: follow an existing
-  convention, or define a `remesso` entry.
+- [x] **Payee profile: no convention exists, so a `remesso` entry**
+  (2026-10-24). ERC-8004 leaves payments out and allows custom service names.
+  Celo's docs add no payment fields. The entry, the reader's rules and what we
+  found are in step 3d of the design doc.
 - [x] **npm name: `remesso-sdk`** (decided 2026-10-24). It was free on npm when
   checked that day. Nothing is reserved now: you publish it by hand in Phase 4.
 - [x] **Stuck runs today: none.** At 2026-10-24 19:28 UTC no run of any age was
@@ -234,6 +235,12 @@ and no stuck rows are left.
   database today, by design: sign-in state lives in Privy metadata
   (`web/lib/oauth/sessions.ts`). Decide where its keys live: Privy metadata for
   the last few, or a table behind a server-only key.
+- [ ] **Memos are measured in bytes.** Both servers cut the memo at 32
+  characters and then encode it as UTF-8 (`mcp/src/server.mjs:306`,
+  `web/lib/mcp/hosted.ts:399`). An accented letter or an emoji makes it longer
+  than `bytes32`, and `pay` fails with an encoding error. Check the length in
+  bytes and refuse with a clear message. Don't cut it: a cut reference no
+  longer matches its request.
 - [ ] **Tell agents.** Both tool descriptions say never to retry a payment
   without its key.
 
@@ -345,15 +352,22 @@ and no stuck rows are left.
 
 ### 3.4 Payee profiles
 
-- [ ] **Document the entry.** The `remesso` entry from Phase 0 goes in
-  `docs/AGENTS.md`.
+- [ ] **Document the entry.** The `remesso` entry (step 3d of the design doc)
+  goes in `docs/AGENTS.md`, with the reader's rules.
 - [ ] **`find_agent` reads the profile** in both servers (`mcp/src/server.mjs`,
   `web/lib/mcp/tools.ts`).
   - It reads the agent's URI (`data:`, `https:` or `ipfs:`) through
     `safe-fetch`, and returns the profile.
+  - It parses the raw JSON. agent0-ts would drop the entry's fields.
   - The address still comes only from `getAgentWallet`.
-- [ ] **Our own registration.** `docs/erc8004/registration.json` lists the new
-  services. `scripts/erc8004-v5.ts` writes it to #9867 and #9879: two mainnet
+- [ ] **Our own registration.** `docs/erc8004/registration.json`:
+  - lists the new services;
+  - adds the spec fields it lacks: `registrations` (both ids), `active: true`
+    and `x402Support: true`. agent0-ts reads the file today as inactive and
+    without x402;
+  - gets no payee entry. #9879's wallet is the executor's hot key (3d).
+
+  `scripts/erc8004-v5.ts` writes it to #9867 and #9879: two mainnet
   transactions, about two cents each, with your OK.
 
 ### 3.5 Tell agents what changed
