@@ -1,6 +1,6 @@
 # Agent-to-agent: implementation plan
 
-**Status: Phase 0 under way (started 2026-10-24).** This turns
+**Status: Phase 0 measuring; Phase 1 built and tested, not deployed (2026-10-24).** This turns
 [`agent-to-agent.md`](agent-to-agent.md) into phases of work.
 
 - That doc says what to build and why. This one says in what order, in which
@@ -95,92 +95,150 @@ written down.
 
 These are the problems in step 1 of the design doc. No contract change.
 
+**Built and tested 2026-10-24. Not deployed yet:** see "Ship Phase 1".
+
 ### 1.1 Runs record what happened on-chain
 
-- [ ] **Check every receipt.**
-  - Split `executeRun` and `runNow` in `supabase/functions/_shared/celo.ts`
-    (lines 343 and 129) into a send, which returns the hash, and a confirm.
-  - The confirm requires `status === "success"` and a `RunExecuted` log from
-    this contract for this schedule id.
-  - A new pure helper, `_shared/receipt.ts`, decodes that log.
-    `receipt.test.ts` pins it to a real V5 receipt and to a reverted one.
-- [ ] **Record runs from the receipt in `execute-due-runs`.**
-  - Write `tx_hash` on the run row as soon as the transaction is sent, before
-    waiting.
-  - Record `amount_out` from `RunExecuted.amountOut`, which is after the fee,
-    instead of from the quote (`index.ts:242` and `:335`).
-  - Mark a run failed when its receipt reverted.
-- [ ] **`trigger-run` stops reporting reverted runs as sent.** It treats a
-  reverted receipt like a thrown error: the existing 409, "you were charged but
-  the run did not go through". It never answers `ok: true` for one
-  (`index.ts:212`).
-- [ ] **A new failure reason.** Add it to `_shared/failures.ts` and its
-  sentence to `web/lib/failures.ts`. `failures.test.ts` pins the exact strings,
-  so extend it too.
-- [ ] **Check past runs.** A script, run read-only first:
-  - It confirms that every `delivered` run's receipt succeeded.
-  - It rewrites Direct runs' `amount_out` to the net amount from their
-    `RunExecuted` event.
-  - The history screen already shows the net amount when it reads the subgraph
-    (`web/lib/history.ts:46`), so today the two sources disagree.
+- [x] **Check every receipt.** `_shared/celo.ts` replaces `executeRun` and
+  `runNow` with three steps:
+  - `signRun` simulates, then signs, so the hash and the nonce are known
+    before anything is sent;
+  - `broadcast` sends it;
+  - `confirmRun` asks `_shared/receipt.ts`, which accepts a run only when the
+    receipt succeeded and holds this contract's `RunExecuted` for this
+    schedule.
+
+  `receipt.test.ts` pins it to V5's first real run and to a real reverted
+  `executeRun` from a mainnet fork.
+- [x] **Record runs from the receipt in `execute-due-runs`.**
+  - The hash is written to the row before the broadcast, which goes further
+    than the plan: a run that can't be written down isn't sent.
+  - `amount_out` comes from `RunExecuted.amountOut`.
+  - A reverted receipt marks the run failed, keeping its block and gas.
+  - With no receipt within 45 seconds, the row is left `swapping` for the
+    recovery pass instead of guessed at.
+  - The schedule's next date comes from the event, and its status is read at
+    the run's block. A failed read there no longer turns a delivered run into
+    a failed one.
+- [x] **`trigger-run` stops reporting reverted runs as sent.**
+  - A reverted receipt is the existing 409, "you were charged but the run did
+    not go through", now with the hash.
+  - With no receipt within 30 seconds it answers 504, with the hash to check.
+- [x] **Two new failure categories**, in `_shared/failures.ts` and
+  `web/lib/failures.ts`, pinned by `failures.test.ts`:
+  - `reverted`: sent and rejected on-chain;
+  - `interrupted`: abandoned before sending, or sent and never mined.
+- [x] **Check past runs.** `scripts/check-past-runs.ts` reads only, unless
+  given `--write`. The dry run on 2026-10-24 found:
+  - all 30 runs recorded as sent succeeded on-chain;
+  - the 18 V4 and V5 runs recorded the amount sent, not the amount after the
+    fee;
+  - the 12 earlier runs, from contracts that charged no fee, are right.
+
+  `--write` fixes the 18 at ship time.
 
 ### 1.2 Stuck runs and nonces
 
-- [ ] **Recover stuck runs.** At the start of each `execute-due-runs` pass,
-  check `pending` and `swapping` rows older than 10 minutes:
-  - A row with a `tx_hash` is settled from its receipt.
-  - A row without one is checked for a `RunExecuted` of its schedule since the
-    row was written. forno answers `getLogs` over 5,000 blocks, about 83
-    minutes. For an older row, compare the schedule's on-chain run count with
-    its delivered rows.
-  - The row is then settled, or failed as "abandoned before sending".
-  - The decision is a pure function with tests, the way `preflight.ts` works.
+- [x] **Recover stuck runs.** Each `execute-due-runs` pass first looks at up
+  to 5 `pending` or `swapping` rows older than 10 minutes:
+  - **A row with a hash** is settled from its receipt. A hash the chain still
+    doesn't know after three tries fails as never mined.
+  - **A row without a hash** was never sent by today's code. For a row from
+    before this change, it looks for our own `executeRun` of that schedule
+    since the row was written. That costs one read when nothing has run since,
+    otherwise one log window of 5,000 blocks. It doesn't compare run counts,
+    because an early send through `trigger-run` writes no row.
+  - The decision is `_shared/recovery.ts`, a pure function, tested by
+    `recovery.test.ts`.
   - `redeeming` rows stay with `reconcile-redemptions`.
-- [ ] **One sender at a time for the executor key.**
-  - A lease row in Postgres, taken and released through RPCs, with an expiry.
-  - Both `execute-due-runs` and `trigger-run` hold it from fetching the nonce
-    to broadcasting.
-  - A session advisory lock won't work here, because supabase-js calls don't
-    keep one database session between requests.
+- [x] **One sender at a time for the executor key.** Migration
+  `20261024000002_executor_lease.sql` and `_shared/lease.ts`:
+  - one lease row per executor key, taken and released through RPCs, with an
+    expiry;
+  - held from fetching the nonce until the receipt, not only until the
+    broadcast, so the next sender always fetches its nonce after the last
+    transaction was mined;
+  - the row keeps the last nonce a holder saw mined, and the next sender signs
+    at least one past it, in case a lagging node answers with the old count;
+  - `trigger-run` takes it before settling the payment, so a busy key is a 503
+    before anyone is charged;
+  - the cron waits 300ms between runs, so a waiting early send gets its turn.
+
+  Tested on a local Supabase:
+  - only one holder at a time, and the holder can extend it;
+  - it expires, and only the holder can release it;
+  - the nonce floor never goes down;
+  - anonymous and signed-in callers are refused;
+  - exactly one winner in 8 simultaneous attempts.
+- [x] **The money path, end to end.** `scripts/fork-e2e-runs.ts` runs the real
+  `execute-due-runs` against a mainnet fork and a local Supabase. All 19
+  checks passed:
+  - a due run is delivered and recorded at the amount after the fee;
+  - a run that reverts after it was signed is recorded as failed;
+  - an invocation killed after broadcasting is settled by the next pass;
+  - an invocation killed before sending is failed as abandoned, and the
+    schedule runs again.
+
+  `scripts/fork-forced-revert.ts` checks the same signing and recovery code
+  on its own. `trigger-run` wasn't run end to end, because its x402 payment
+  settles through Celo's facilitator, which a fork can't reach. Its revert
+  answer uses the same `confirmRun` and the same receipt check.
 
 ### 1.3 The request inbox
 
-- [ ] **A migration:**
-  - `payment_request_hides` (request id, session user).
-    `payment_requests_for` leaves out what the caller's session hid.
-    `hide_payment_request` replaces `dismiss_payment_request` and writes only
-    for `auth.uid()`.
-  - `declined` becomes an allowed status. Only the service role writes it,
-    after checking a signature.
-  - One definition of a live request, pending and under 30 days old, used by
-    both the inbox and the limit.
-  - `create_payment_request(...)` takes a transaction lock on the payer
-    (`pg_advisory_xact_lock`), counts live requests and inserts, all in one
-    call.
-- [ ] **`request-payment` changes.**
-  - It inserts through `create_payment_request`.
-  - A new decline action checks an EIP-712 signature from the payer (ERC-1271
-    for smart accounts) over the request id, the action and an expiry.
-- [ ] **The app hides instead of dismissing**
-  (`web/components/PaymentRequests.tsx`).
-- [ ] **Tests.** Deno tests for the validation and the signed message. Run the
-  migration on a local Supabase before `supabase db push`.
+- [x] **A migration**, `20261024000003_request_inbox.sql`:
+  - `payment_request_hides` stores hides. `payment_requests_for` leaves out
+    what the caller's session hid, and `hide_payment_request` writes only for
+    `auth.uid()`;
+  - `dismiss_payment_request` stays for the app that's live now, but it only
+    hides for the caller. Drop it once no deployed app calls it;
+  - `declined` is allowed, written only by the service role after a signature
+    check;
+  - `payment_request_live()` is the one definition of a live request, used by
+    both the inbox and the limit;
+  - `create_payment_request(...)` locks on the payer, counts and inserts, all
+    in one call.
+- [x] **`request-payment`** inserts through `create_payment_request`. It also
+  takes `action: "decline"`:
+  - the payer signs EIP-712 data over the request id, the action and an expiry
+    no more than a day ahead (`_shared/request-decline.ts`);
+  - it's checked with `verifyTypedData`, so smart accounts work too;
+  - the GET description documents the typed data.
+- [x] **The app hides instead of dismissing**
+  (`web/components/PaymentRequests.tsx`), and says the person asking isn't
+  told.
+- [x] **Tests.** `request-decline.test.ts` has 8 tests. On a local Supabase:
+  - one session's hide hides nothing for another;
+  - requests older than 30 days don't count toward the limit;
+  - a decline frees a slot;
+  - of two requests sent together when 9 are live, one is refused.
+- **Known limit:** hiding doesn't free a slot. A payer who can't sign, in
+  MiniPay, can have their 10 slots held by spam for up to 30 days. The design
+  accepts this, and the 429 says what frees a slot.
 
 ### 1.4 Say what a budget really is
 
-- [ ] The setup screen (`web/app/agent-wallet/page.tsx:226`) shows "Most in
-  total" as what it is. It's one approval shared by every policy on that token,
-  so also show how much other policies already count on.
-- [ ] `skills/remesso/SKILL.md:30` says a policy has "a total". Correct it,
-  then rebuild the plugin (`scripts/build-plugin.sh`).
+- [x] The setup screen calls the field "Add to the shared total". It shows the
+  current shared total and says every agent limit on that token draws from it.
+- [x] `skills/remesso/SKILL.md` no longer says a policy has a total. Plugin
+  0.3.3 and wallet 0.3.2 carry the change.
+- [ ] `web/app/terms/page.tsx:120` still says a policy has "a total". It's
+  legal text, so it waits for your decision.
 
 ### Ship Phase 1
 
-1. `supabase db push` (requests, the executor lease).
-2. `supabase functions deploy execute-due-runs trigger-run request-payment`.
-3. Merge to `main` for the web app (Vercel).
-4. Republish `remesso-wallet` by hand, since it ships the skill.
-5. Run the past-runs script: a dry run first, then the rewrite with your OK.
+In this order: the functions need the migrations, and the web app needs the
+functions.
+
+1. `supabase db push`: the executor lease and the request inbox.
+2. `supabase functions deploy execute-due-runs trigger-run request-payment ai-assist`.
+   `ai-assist` is included because it classifies failures into the new
+   categories.
+3. Merge to `main`, so Vercel deploys the web app.
+4. Publish `remesso-wallet` 0.3.2 by hand:
+   `cd packages/remesso-wallet && npm publish`.
+5. Run `scripts/check-past-runs.ts --write`, with your OK, to fix the 18
+   amounts.
 
 **Done when:** everything under "Done when" in step 1 of the design doc holds,
 and no stuck rows are left.

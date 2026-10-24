@@ -18,6 +18,22 @@ deno test --allow-env supabase/functions/_shared/self.test.ts
 # failure classifier — pins the rules to the strings the executor writes
 deno test --allow-env supabase/functions/_shared/failures.test.ts
 
+# run receipts — a run counts only from a successful receipt with its RunExecuted
+deno test supabase/functions/_shared/receipt.test.ts
+
+# stale-run recovery — what a pass does with a run a dead invocation left in flight
+deno test supabase/functions/_shared/recovery.test.ts
+
+# signed declines — the EIP-712 message request-payment checks before a decline
+deno test --allow-env supabase/functions/_shared/request-decline.test.ts
+
+# the money path on a mainnet fork. Both need `anvil --fork-url https://forno.celo.org
+# --port 8546`; the e2e one also needs a local Supabase (`supabase start -x studio,
+# imgproxy,realtime,storage-api,logflare,vector,edge-runtime,mailpit,supavisor,postgres-meta`).
+# They sign with the real executor key and refuse anything but anvil and localhost.
+deno run --allow-env --allow-read --allow-write --allow-net scripts/fork-forced-revert.ts
+deno run --allow-all scripts/fork-e2e-runs.ts
+
 # cNGN crypto — verifies our AES/Ed25519 against the docs' reference impls
 deno test --allow-env --allow-read --allow-write --allow-run --allow-net --allow-sys \
   supabase/functions/_shared/cngn.test.ts
@@ -600,8 +616,22 @@ forbid showing.
 column in `payment_requests` that moves money and no code path from a row to
 `createSchedule`. The form announces that a link filled it in, because a
 silently prefilled recipient is how a link becomes a trick. Rows are advisory,
-capped at 10 pending per payer, and readable by anyone who names the address —
+capped at 10 live per payer, and readable by anyone who names the address —
 they are inbound requests to be paid, which is what an invoice is.
+
+Since 2026-10-24 (`20261024000003_request_inbox.sql`):
+- **Live** means pending and under 30 days old. The inbox and the cap use the
+  one definition, `payment_request_live()`.
+- **The cap is checked and applied in one locked call**,
+  `create_payment_request`.
+- **Hiding a request in the app is per session**, and changes nothing for
+  anyone else. An anonymous session's wallet is a claim, not a proof, and
+  anyone who named the address could see the ids.
+- **Only the payer's own EIP-712 signature declines a request for everyone**:
+  `action: "decline"` on `request-payment`, defined in
+  `_shared/request-decline.ts`.
+- `dismiss_payment_request` survives only as a per-session hide for the app
+  deployed before then.
 
 **`_shared/x402-pay.ts`** is the other direction — Remesso paying somebody
 else's x402 service. Two ceilings (per call, and rolling 24h from the
@@ -758,6 +788,24 @@ is cancelled on-chain.
   UI must never render an `ngn_bank` run's `delivered` as a finished state.
 - **The contract is the authority; the database mirrors it.** Anything that
   tells a sender a run will go through reads `runnability()` on-chain.
+- **A run is what its receipt says.**
+  - `delivered` needs a successful receipt holding this contract's
+    `RunExecuted` for the schedule (`_shared/receipt.ts`).
+  - `amount_out` is that event's `amountOut`: after the commission on the
+    Direct rail, never the quote.
+  - viem returns a reverted receipt without throwing. Until 2026-10-24 nothing
+    checked it, so a reverted run could read as delivered, at the amount sent.
+  - `scripts/check-past-runs.ts` audits the recorded runs against their
+    receipts.
+- **Every send from the executor key holds the executor lease and saves its
+  hash first.**
+  - `execute-due-runs` and `trigger-run` both sign with that key. Each holds
+    `_shared/lease.ts` from fetching the nonce until the receipt.
+  - The hash goes on the run row before the broadcast, so a dead invocation
+    leaves a hash, never an unrecorded payment. Each pass starts by settling
+    such rows from the chain (`_shared/recovery.ts`).
+  - Anything new that signs with the executor key must do the same, or two
+    sends pick one nonce.
 - **The Goldsky subgraph is read by the UI only.** `useHistory` lets a
   `RunExecuted` event settle a row on screen seconds before the backend
   writes the receipt, and a bank run it settles is `redeeming`, never

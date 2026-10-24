@@ -1,11 +1,12 @@
 # Agent-to-agent remittance: letting developers build on Remesso
 
-**Status: planned, nothing built yet.** Written 2026-10-23. Revised the same
-day after an audit of this plan against the contracts, the Supabase functions
-and migrations, both MCP servers and the web app. Every finding below was
-checked in the code before it went in. The open questions were decided on
-2026-10-24 (see Decisions at the end). The phases, files and shipping steps
-are in [`agent-to-agent-implementation.md`](agent-to-agent-implementation.md).
+**Status: step 1 built and tested on 2026-10-24, not deployed yet; the rest is
+planned.** Written 2026-10-23. Revised the same day after an audit of this
+plan against the contracts, the Supabase functions and migrations, both MCP
+servers and the web app. Every finding below was checked in the code before it
+went in. The open questions were decided on 2026-10-24 (see Decisions at the
+end). The phases, files and shipping steps are in
+[`agent-to-agent-implementation.md`](agent-to-agent-implementation.md).
 
 This is the plan for the next feature. It lets developers build agents that pay
 each other through Remesso, and it lets Remesso tell an agent when it has been
