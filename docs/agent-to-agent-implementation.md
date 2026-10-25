@@ -1,6 +1,6 @@
 # Agent-to-agent: implementation plan
 
-**Status: Phase 0 measuring; Phases 1 to 3 built and tested, backends deployed, web app not merged yet (2026-10-25).** This turns
+**Status: Phase 0 measuring; Phases 1 to 3 built, tested and deployed; Phase 4 built and tested, not shipped (2026-10-25).** This turns
 [`agent-to-agent.md`](agent-to-agent.md) into phases of work.
 
 - That doc says what to build and why. This one says in what order, in which
@@ -551,34 +551,86 @@ After Phases 1 and 2.
 
 ## Phase 4: the developer kit
 
-- [ ] **The package name** comes from Phase 0.
-- [ ] **`packages/remesso-sdk/`** (TypeScript, viem, ESM) covers:
-  - schedules;
-  - policy payments with idempotency keys;
-  - agent lookup and payee profiles;
-  - requests, the event pull and webhook verification;
-  - links.
+**Built and tested 2026-10-25, on `feat/developer-kit`. Not shipped yet:** see
+"Ship Phase 4".
 
-  Networks come from the manifest, with `--check` for drift.
-- [ ] **Tests.** Unit tests with recorded receipts and events.
-  `scripts/e2e-sdk.ts` runs the whole loop on mainnet with the test wallet and
-  small amounts.
-- [ ] **`web/app/developers/page.tsx`**, next to `/claude`:
-  - a quickstart;
-  - what it costs: gas, the fee, and the $1 minimum for a schedule;
-  - the warning that the contracts are unaudited.
+- [x] **The package name:** `remesso-sdk`, from Phase 0.
+- [x] **`packages/remesso-sdk/`** (TypeScript, viem, ESM, Node 20+) covers:
+  - schedules: create (with `amount` or `receive`, optionally answering a
+    request), read, status, list, cancel, pause and trigger grants;
+  - agent payments through a policy, at most once per idempotency key, and
+    policies: find, read, create, revoke, allowlist;
+  - requests: create, status, the inbox, answer, a signed decline, paying one
+    by its reference, and waiting until it is paid;
+  - payment events, pulled or watched;
+  - webhooks: signed subscribe, rotate, revoke and replay, a fetch-style
+    handler, and verification;
+  - agent lookup with the payee profile, and pay links.
 
-  Also update `docs/AGENTS.md`, and link the page from the README.
-- [ ] **Two example agents:**
-  - `examples/freelancer-agent.ts` asks a client for wARS every month, waits
-    for the webhook and issues a receipt.
-  - `examples/family-allowance-agent.ts` pays cNGN every week and links
-    Textile for cashing out.
+  `remesso-sdk/node` adds a payment store on disk, the safe fetch for remote
+  registration files, and an adapter for `http.createServer`.
+- [x] **Nothing about the deployment is typed by hand.** `scripts/build-sdk.ts`
+  writes the deployment from the manifest, the ABIs from `indexer/abis/`, and
+  exact copies of the webhook, decline, fee, payee-profile and safe-fetch code.
+  `--check` fails on drift.
+- [x] **The executor's limits are published, and refused before signing.**
+  - `/agent` gains `limits.perRun`, from a new `runLimits` that
+    `config.test.ts` pins to `runAmountProblem`.
+  - The manifest carries each token's bounds, V5's `feeBps`, and the
+    `payment-events` and `webhooks` URLs.
+  - The SDK refuses a schedule outside the bounds, since one would be valid
+    on-chain and never run.
+  - `examples/create-schedule.ts` and the skill now say a transfer is at least
+    a dollar's worth.
+- [x] **`request-payment`'s link carries `req=`.** The inbox already added it.
+  Without it, a payer who paid from a shared link left the request
+  unanswered.
+- [x] **Tests:**
+  - 17 unit tests, with recorded mainnet receipts and a recorded
+    payment-events page. Every signed request is checked with the backend's
+    own files.
+  - `scripts/fork-sdk.ts`, 23 checks on a mainnet fork:
+    - limits refused before signing;
+    - exact approvals added on top of existing ones;
+    - the gross-up;
+    - a payment retried with its key paying once, including one whose
+      broadcast was lost;
+    - revocation, and the wrong chain.
+  - The packed tarball, installed in an empty project: it type-checks under
+    `NodeNext` and `bundler`, and its live reads work.
+  - `scripts/e2e-sdk.ts`, the whole loop on mainnet with the test wallet, is a
+    dry run unless `--send`. Its dry run works; the run itself hasn't
+    happened. It also proves gas paid in USDT, which a fork can't.
+- [x] **`web/app/developers/page.tsx`**, next to `/claude`:
+  - a six-step quickstart, from `npm install` to a payment and its webhook;
+  - getting paid by request, and agent payments;
+  - what it costs, and the warning that the contracts are unaudited.
+
+  The page's snippets are the README's, byte for byte, and type-check against
+  the SDK. `docs/AGENTS.md` gains "Using the SDK", the README and the agent
+  card link the page, and the skill mentions the SDK.
+- [x] **Two example agents**, each the whole loop:
+  - `examples/freelancer-agent.ts` asks a client for wARS every month, serves
+    the webhook and writes a receipt per payment, marked final when it is.
+  - `examples/family-allowance-agent.ts`: the child asks for cNGN every week
+    and is told of each payment with Textile's cash-out link. The parent's
+    agent lists the request and answers it, after a yes on the terminal.
 
 ### Ship Phase 4
 
-1. Publish the SDK by hand.
-2. Merge to `main` for the developer page.
+1. `supabase functions deploy agent request-payment`, with your OK. `/agent`
+   then publishes the limits and the developer links, and the request link
+   carries `req=`.
+2. `build-deployments.ts --check` against what is live: the manifest was built
+   from a local `/agent`. Then `build-sdk.ts --check` and
+   `build-skill-manifest.ts --check`.
+3. Fund the test wallet: it holds 0.27 USDT and the loop needs about 1.03.
+   Then run `scripts/e2e-sdk.ts --send`, with your OK.
+4. Publish `remesso-sdk` 0.1.0 by hand: `cd packages/remesso-sdk && npm publish`.
+5. Merge to `main`, for `/developers`, the agent card and the docs.
+6. Publish `remesso-wallet` 0.5.0 if it isn't out yet: it carries the skill
+   change too.
+7. Follow `/developers` alone from an empty folder, and time it.
 
 **Done when:** everything under "Done when" in step 4 of the design doc holds.
 

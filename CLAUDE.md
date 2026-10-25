@@ -88,6 +88,19 @@ deno run --allow-all scripts/receiving-e2e.ts       # real index-events/payment-
 deno run --allow-all scripts/webhooks-local-e2e.ts  # subscribe, deliver, retry, rotate, replay
 deno run --allow-all scripts/fork-agent-to-agent.ts # inbox, pay with request_id, bind by memo, paid
 
+# the developer kit (Phase 4): packages/remesso-sdk. Its generated parts (the
+# deployment, the ABIs, copies of shared code) must match their sources:
+deno run --allow-read --allow-write scripts/build-sdk.ts --check
+deno test --config packages/remesso-sdk/deno.json --unstable-sloppy-imports --allow-read --allow-write \
+  --allow-env --allow-net=127.0.0.1 packages/remesso-sdk/test/
+(cd packages/remesso-sdk && npx tsc -p tsconfig.json --noEmit)
+deno test --allow-env supabase/functions/_shared/config.test.ts   # the limits /agent publishes are the executor's
+# its money paths on a mainnet fork (both anvils, as for fork-wallet-pay.ts):
+deno run --allow-all --config packages/remesso-sdk/deno.json --unstable-sloppy-imports scripts/fork-sdk.ts
+# the whole loop on mainnet with the test wallet: a dry run unless --send (ask first)
+deno run --allow-all --config packages/remesso-sdk/deno.json --unstable-sloppy-imports scripts/e2e-sdk.ts
+# Publishing remesso-sdk to npm is done by hand: cd packages/remesso-sdk && npm publish
+
 # Claude plugin and the npm package — plugin/ and packages/remesso-wallet/ are
 # assembled from skills/ and mcp/; edit those, then rebuild (after
 # `cd mcp && npm run build` if the server changed). --check fails on drift.
@@ -880,6 +893,67 @@ payments are covered too. Neither passes through our functions.
 **The hosted connector can't decline a request.** Its Privy policy allows only
 `pay()`, so it can't sign typed data. The plugin wallet can: request-payment
 accepts a decline signed by an agent with a live policy from the payer.
+
+## The developer kit — `remesso-sdk` (Phase 4, 2026-10-25)
+
+`packages/remesso-sdk`, TypeScript on viem, Celo mainnet only. It covers:
+- schedules, and agent payments that pay once per idempotency key;
+- requests, payment events and webhooks;
+- agent lookup and links.
+
+`/developers` on the app is its quickstart. Not published as of 2026-10-25.
+
+**Nothing in it about the deployment is typed by hand.** People believe an SDK
+that describes something we no longer serve.
+- `src/generated/` is written by `scripts/build-sdk.ts`: the deployment comes
+  from the manifest, the ABIs from `indexer/abis/`.
+- `src/vendor/` holds exact copies of the code the backend and the app run:
+  the webhook, decline and Standard Webhooks files from `_shared`, and `fee`,
+  `payee-profile` and `safe-fetch` from `web/lib`. A payer signs what the
+  backend verifies because it's the same file.
+- Edit the original and re-run the script. `build-sdk.ts --check` fails while
+  a copy differs.
+
+**The chain of truth is live → manifest → SDK.**
+- `build-deployments.ts` reads `/agent` and the chain into
+  `deployments/celo-mainnet.json`. `build-sdk.ts` reads that.
+- `/agent` publishes `limits.perRun` (from `runLimits`, which
+  `config.test.ts` pins to `runAmountProblem`).
+- The manifest carries each token's `minPerRun` and `maxPerRun`, V5's
+  `feeBps`, and the `payment-events` and `webhooks` URLs.
+- To build ahead of deploying `agent`, serve it locally and set
+  `REMESSO_AGENT_URL`. `--check` refuses that, so the committed file is only
+  ever checked against what is live.
+
+**What it refuses before signing:**
+- a schedule outside the executor's per-run limits, which would be valid
+  on-chain and never run;
+- an RPC that isn't chain 42220;
+- an agent payment over its policy;
+- an identical payment within ten minutes without a key.
+
+**What it does differently from the examples it replaced:**
+- It reads `feeBps` live when grossing up a requested amount.
+- It approves on top of the existing allowance, as the app does.
+- It gives an approval and the next transaction consecutive nonces fetched
+  once, because a forno node can lag right after a transaction lands.
+
+**Agent payments are the plugin wallet's logic:** sign, record, broadcast,
+reconcile.
+- The store is memory by default.
+- `fileStore` in `remesso-sdk/node` holds across restarts.
+- `scripts/fork-sdk.ts` covers a broadcast lost on the way: it goes out later
+  with its own bytes, paid once.
+
+**The webhook handler** (`webhookHandler`, fetch-style):
+- It answers a challenge only for the addresses it was given.
+- It answers 503 until it has a secret.
+- It answers 500 when `onPayment` throws, so Remesso retries with the same
+  `webhook-id`.
+
+**`request-payment`'s link carries `req=` since this phase.** The inbox already
+added it. Without it, a payer who paid from a shared link left the request
+unanswered.
 
 ## Invariants — do not break
 
