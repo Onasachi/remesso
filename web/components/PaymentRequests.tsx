@@ -67,6 +67,9 @@ function RequestCard({ request: r }: { request: PaymentRequest }) {
     every: r.interval_seconds ? String(r.interval_seconds) : undefined,
     runs: r.max_runs ? String(r.max_runs) : undefined,
     note: r.note ?? undefined,
+    // So the schedule the sender signs is reported against this request, and
+    // the requester can see it answered.
+    req: r.id,
   });
 
   async function hide() {

@@ -138,8 +138,9 @@ curl -X POST https://engaboljiqudghvzmebq.supabase.co/functions/v1/request-payme
 ```
 
 It answers `201` with a `link`. The request appears on their home screen with
-Review and Dismiss, and 10 pending requests per payer is the ceiling — an inbox
-anyone can fill is an inbox nobody reads.
+Review and Hide, and 10 pending requests per payer is the ceiling — an inbox
+anyone can fill is an inbox nobody reads. The amount is what you receive: their
+form adds Remesso's fee to what they send.
 
 **2. Send a link.** The same thing without us in the middle, for when you
 already have a way to reach them:
@@ -149,8 +150,9 @@ https://remesso.xyz/schedules/new?to=0xYourAddress&amount=5&every=week
 ```
 
 Opening it fills their form in and says a link did it. `to`, `name`, `amount`,
-`token`, `every` (`week`/`fortnight`/`month`/`quarter`), `runs`, `note` — every
-one validated, anything unrecognised dropped.
+`token`, `every` (`week`/`fortnight`/`month`/`quarter`), `runs`, `note`, and
+`req` (a request's id, so the schedule they sign is reported against it) —
+every one validated, anything unrecognised dropped.
 
 **3. Just tell them the address**, in whatever channel you already use. They
 type it into the recipient field.
@@ -178,6 +180,86 @@ getSchedule(uint256 id)                      // the whole mandate
 runnability(uint256 id)                      // is a payment due, funded, allowed
 triggerability(uint256 id, address caller)   // may `caller` collect early
 ```
+
+## Telling payers what you accept: the `remesso` payee entry
+
+If your agent is registered in [ERC-8004](https://eips.ethereum.org/EIPS/eip-8004),
+add a `remesso` entry to the `services` list of its registration file. A
+payer's agent then learns two things before it pays you:
+- which tokens you take, on which chain;
+- whether a payment must carry your request's id.
+
+ERC-8004 leaves payments out of scope and lets services be named freely, and no
+ERC-8004 or Celo convention covers being paid by transfer (checked 2026-10-24).
+So the entry is Remesso's own. It borrows x402's field names (`network`,
+`asset`) and the `{ "required": … }` shape of x402's `payment-identifier`
+extension. The reasoning is in step 3d of [`agent-to-agent.md`](agent-to-agent.md).
+
+```json
+{
+  "name": "remesso",
+  "endpoint": "https://engaboljiqudghvzmebq.supabase.co/functions/v1/request-payment",
+  "version": "1",
+  "assets": [
+    { "network": "eip155:42220", "asset": "0x48065fbbe25f71c9282ddf5e1cd6d6a887483d5e" },
+    { "network": "eip155:42220", "asset": "0xcebA9300f2b948710d2653dD7B07f33A8B32118C" }
+  ],
+  "reference": { "required": true }
+}
+```
+
+- `endpoint` is Remesso's request service, where a payer checks a request and
+  answers it.
+- `version` is `"1"`.
+- `assets` lists the tokens you accept: the chain as CAIP-2, and the token's
+  address. The example is USD₮ and USDC on Celo.
+- `reference` is optional. With `required: true`, a payment must carry your
+  request's id. Leave it out if any payment will do.
+
+**How a payer reads it:**
+
+1. **Pay `getAgentWallet(agentId)` on the registry of the token's chain.** If
+   it returns the zero address, don't pay. Ignore every address in the file.
+2. **Match tokens by address**, ignoring case, and read `decimals()` on-chain.
+   On Celo, fee-currency adapters report the same symbol as the real token at
+   18 decimals, so a symbol proves nothing.
+3. **Ignore fields you don't know.** If you don't implement the entry's
+   `version`, treat the profile as absent. A breaking change bumps `version`.
+
+`find_agent`, in the `remesso-wallet` MCP server and in the Claude connector,
+reads the entry this way. It handles `data:`, `https:` and `ipfs:` registration
+URIs, and fetches through a fetcher that refuses private addresses.
+
+**Why the address never comes from the file.** Whoever holds the agent's token
+can rewrite the registration file at any time with `setAgentURI`. `agentWallet`
+is different: only that wallet's own signature can set it (EIP-712, or ERC-1271
+for a smart account), and the registry clears it whenever the token changes
+hands. So never put an address entry (`agentWallet`, `wallet`) in your file.
+Some tools, agent0-ts among them, take one as the agent's wallet without
+reading the chain.
+
+**Getting a payment matched to your request.** A request's reference is its id
+without the dashes, exactly 32 characters.
+- A policy payment (`RemessoAgentAllowance.pay`) carries it in its `bytes32`
+  memo. Remesso's wallets do this when given a `request_id`.
+- A V5 schedule has no memo. So the payer answers the request with the
+  schedule's id: the app does it when the schedule comes from your request's
+  link, and an agent calls `request-payment` with `action: "answer"`.
+
+Either way, a payment counts only when:
+- it comes from the wallet the request was sent to;
+- it goes to the address the request names;
+- it was made after the request;
+- it doesn't already answer another request.
+
+`action: "status"` reports where a request stands. Only `paid`, with a
+transaction you have checked yourself, means money arrived.
+
+**Parsers you may meet:**
+- agent0-ts 1.7.1 keeps a custom entry's `endpoint` and `version` and drops the
+  rest, so read the raw JSON;
+- agent0-py 1.7.1 rejects any service name outside its six;
+- 8004scan accepts custom names.
 
 ## Paying on a schedule, as an agent
 

@@ -18,16 +18,20 @@ type Reader = Pick<PublicClient, "readContract" | "multicall">;
 
 const BATCH = 250;
 
+/// `above` skips every id at or below it: the hosted connector learns older
+/// policies from the event table and reads only the newer ones here.
 export async function scanPolicies(
   client: Reader,
   allowance: Address,
   keep: (p: Policy) => boolean,
+  above = 0n,
 ): Promise<{ id: bigint; p: Policy }[]> {
   const next = await client.readContract({ address: allowance, abi: agentAllowanceAbi, functionName: "nextPolicyId" });
   const found: { id: bigint; p: Policy }[] = [];
-  for (let hi = next - 1n; hi >= 1n; hi -= BigInt(BATCH)) {
+  const low = above + 1n;
+  for (let hi = next - 1n; hi >= low; hi -= BigInt(BATCH)) {
     const ids: bigint[] = [];
-    for (let id = hi; id >= 1n && id > hi - BigInt(BATCH); id--) ids.push(id);
+    for (let id = hi; id >= low && id > hi - BigInt(BATCH); id--) ids.push(id);
     const policies = await client.multicall({
       contracts: ids.map((id) => ({ address: allowance, abi: agentAllowanceAbi, functionName: "policy", args: [id] }) as const),
       allowFailure: false,

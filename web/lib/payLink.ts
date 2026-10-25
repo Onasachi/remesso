@@ -30,7 +30,14 @@ export type PayLink = {
   maxRuns?: string;
   /// A short free-text note from whoever built the link — shown, never used.
   note?: string;
+  /// The payment request this link answers (`req=`). The form reports the
+  /// schedule it creates against it, and `confirm-schedule` decides from the
+  /// chain whether it really answers it: a link can name a request, it can't
+  /// make a schedule count as paying one.
+  request?: string;
 };
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /// Cadence spellings a link may use. The seconds are the source of truth; these
 /// are what an agent would plausibly write, and anything else is ignored.
@@ -89,6 +96,9 @@ export function parsePayLink(search: string): PayLink {
   const runs = (q.get("runs") ?? "").trim();
   if (/^\d{1,4}$/.test(runs) && Number(runs) > 0) out.maxRuns = runs;
 
+  const req = (q.get("req") ?? "").trim();
+  if (UUID.test(req)) out.request = req.toLowerCase();
+
   return out;
 }
 
@@ -102,7 +112,7 @@ export function isEmptyPayLink(p: PayLink): boolean {
 /// from a server component and from a test.
 export function buildPayLink(
   origin: string,
-  p: { to: string; name?: string; amount?: string; token?: string; every?: string; runs?: string; note?: string },
+  p: { to: string; name?: string; amount?: string; token?: string; every?: string; runs?: string; note?: string; req?: string },
 ): string {
   const q = new URLSearchParams();
   q.set("to", p.to);
@@ -113,6 +123,7 @@ export function buildPayLink(
     every: p.every,
     runs: p.runs,
     note: p.note,
+    req: p.req,
   })) {
     if (v) q.set(k, String(v));
   }

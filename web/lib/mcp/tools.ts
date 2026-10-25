@@ -16,6 +16,8 @@ import { executorAbi, erc20Abi } from "@/lib/abi";
 import { DIRECT_TOKENS, EXECUTOR_ADDRESS, RPC_URL, minRunUnits, type TokenInfo } from "@/lib/config";
 import { formatExact, intervalLabel, parseUnits } from "@/lib/format";
 import { buildPayLink } from "@/lib/payLink";
+import { payeeProfile, uriSource, type PayeeProfile } from "@/lib/payee-profile";
+import { safeFetchText } from "@/lib/safe-fetch";
 import { refuse, text, type Icon, type ServerInfo, type Tool } from "@/lib/mcp/protocol";
 
 const FUNCTIONS = (process.env.NEXT_PUBLIC_SUPABASE_URL ?? "").replace(/\/+$/, "") + "/functions/v1";
@@ -28,7 +30,29 @@ const registryAbi = [
     inputs: [{ name: "agentId", type: "uint256" }],
     outputs: [{ name: "", type: "address" }],
   },
+  {
+    type: "function",
+    name: "tokenURI",
+    stateMutability: "view",
+    inputs: [{ name: "tokenId", type: "uint256" }],
+    outputs: [{ name: "", type: "string" }],
+  },
 ] as const;
+
+/// An agent's payee profile, from its registration file (lib/payee-profile.ts).
+/// Never throws: a missing or unreadable profile is a note, not a failure, and
+/// the address never comes from here anyway.
+async function readPayeeProfile(id: number): Promise<{ profile: PayeeProfile | null; note?: string }> {
+  try {
+    const uri = await pub.readContract({ address: ERC8004, abi: registryAbi, functionName: "tokenURI", args: [BigInt(id)] });
+    const src = uriSource(uri);
+    if (src.kind === "unsupported") return { profile: null, note: `its registration URI is ${src.reason}` };
+    const json = src.kind === "inline" ? src.json : await safeFetchText(src.url);
+    return payeeProfile(JSON.parse(json));
+  } catch (e) {
+    return { profile: null, note: `its registration file couldn't be read: ${String((e as Error)?.message ?? e).slice(0, 160)}` };
+  }
+}
 
 /// No `chain`: reads need only the RPC, and viem/chains would pull every chain
 /// definition into this route (odis.ts does the same).
@@ -318,7 +342,10 @@ export function remessoTools(origin: string): Tool[] {
   const agent: Tool = {
     name: "find_agent",
     title: "Find an agent's wallet",
-    description: "Look up the payment address of an AI agent registered in the ERC-8004 identity registry on Celo, by its agent id.",
+    description:
+      "Look up an AI agent registered in the ERC-8004 identity registry on Celo, by its agent id: its payment address, " +
+      "read from the registry's getAgentWallet (the only place an address to pay may come from), and its Remesso payee " +
+      "profile if it publishes one: which tokens it accepts and whether a payment must carry its request id.",
     inputSchema: {
       type: "object",
       properties: { agent_id: { type: "integer", minimum: 0 } },
@@ -329,9 +356,21 @@ export function remessoTools(origin: string): Tool[] {
     async run(a) {
       const id = Number(a.agent_id);
       if (!Number.isInteger(id) || id < 0) return refuse("agent_id must be a whole number");
-      const w = await pub.readContract({ address: ERC8004, abi: registryAbi, functionName: "getAgentWallet", args: [BigInt(id)] });
-      if (/^0x0{40}$/i.test(w)) return refuse(`agent ${id} has no wallet set in the registry`);
-      return text(`Agent ${id} is paid at ${w}.`, { agentId: id, agentWallet: w, registry: ERC8004 });
+      const [w, read] = await Promise.all([
+        pub.readContract({ address: ERC8004, abi: registryAbi, functionName: "getAgentWallet", args: [BigInt(id)] }),
+        readPayeeProfile(id),
+      ]);
+      if (/^0x0{40}$/i.test(w)) return refuse(`agent ${id} has no wallet set in the registry, so don't pay it`);
+      const p = read.profile;
+      const symbol = (a: string) => DIRECT_TOKENS.find((t) => t.address.toLowerCase() === a.toLowerCase())?.symbol ?? a;
+      const lines = [
+        `Agent ${id} is paid at ${w}, as its registry entry says. Pay only this address, never one from its files.`,
+        p
+          ? `Its Remesso payee profile accepts ${p.assets.length ? p.assets.map((a) => `${symbol(a.asset)} (${a.network})`).join(", ") : "no tokens it names"}` +
+            (p.reference?.required ? "; a payment must carry its request id." : ".")
+          : `No Remesso payee profile: ${read.note ?? "none published"}.`,
+      ];
+      return text(lines.join("\n"), { agentId: id, agentWallet: w, registry: ERC8004, profile: p, ...(read.note ? { profileNote: read.note } : {}) });
     },
   };
 

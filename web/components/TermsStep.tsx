@@ -1,21 +1,28 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useMarketRate, useTriggerAddress } from "@/lib/hooks";
+import { formatUnits as exactUnits } from "viem";
+import { useFeeBps, useMarketRate, useTriggerAddress } from "@/lib/hooks";
 import {
   INTERVALS,
   SELECTABLE_INTERVALS,
   TEST_INTERVAL,
+  formatExact,
   formatUnits,
   parseUnits,
   rateToNairaPerUsd,
 } from "@/lib/format";
+import { grossFor } from "@/lib/fee";
 import { CNGN, CURRENT_EXECUTOR, isRemessoTrigger, type TokenInfo } from "@/lib/config";
 import { transfersBeforeExpiry } from "@/lib/allowance";
 import { Icon } from "./Icon";
 
 export type TermsDraft = {
   amount: string;          // decimal USDT as typed
+  /// The amount is what the recipient receives, not what is sent: set when a
+  /// request or pay link named it. An invoice names what is owed, so the
+  /// sender signs that plus V5's commission (`grossFor`, lib/fee.ts).
+  receive?: boolean;
   intervalSeconds: number;
   floorPercent: number;    // how far below market the sender will accept
   maxRuns: string;         // "" = unlimited
@@ -168,6 +175,9 @@ export function TermsStep({
 }) {
   const set = (patch: Partial<TermsDraft>) => onChange({ ...value, ...patch });
   const amount = amountInUnits(value, token.decimals);
+  const { data: feeBps } = useFeeBps();
+  // What the sender signs when the amount is what the recipient receives.
+  const gross = value.receive && amount && feeBps !== undefined ? grossFor(amount, feeBps) : null;
   // Whether the count is being typed rather than tapped. Without this, typing
   // "6" on the way to "60" would light the 6 chip and empty the field.
   const [customCount, setCustomCount] = useState(!QUICK_COUNTS.includes(value.maxRuns));
@@ -199,7 +209,7 @@ export function TermsStep({
           large, borderless, unit beside it, nothing competing. */}
       <div>
         <label className="label" htmlFor="amount">
-          Amount per transfer
+          {value.receive ? "They receive per transfer" : "Amount per transfer"}
         </label>
         <div className="flex items-baseline gap-2 border-b-2 border-line pb-2 transition-colors focus-within:border-clay">
           <input
@@ -225,6 +235,28 @@ export function TermsStep({
             </button>
           ))}
         </div>
+        {value.receive && (
+          <p className="hint">
+            {gross !== null ? (
+              <>
+                You send{" "}
+                <span className="font-medium text-ink">
+                  {formatExact(gross, token.decimals)} {token.symbol}
+                </span>{" "}
+                each time: what they asked for, plus Remesso&rsquo;s {((feeBps ?? 0) / 100).toFixed(2)}% fee.{" "}
+              </>
+            ) : (
+              "They get exactly this; Remesso's fee is added on top of what you send. "
+            )}
+            <button
+              type="button"
+              className="underline underline-offset-2"
+              onClick={() => set({ receive: false, amount: gross !== null ? exactUnits(gross, token.decimals) : value.amount })}
+            >
+              Enter what you send instead
+            </button>
+          </p>
+        )}
         {converts && market.rateE6 && amount ? (
           <p className="hint">
             About{" "}

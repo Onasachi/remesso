@@ -152,6 +152,30 @@ Deno.serve(async (req) => {
       verify:
         "read getSchedule(id) on the executor — the recipient, amount and cadence " +
         "are fixed there, and nobody can change them, including us",
+      /// Knowing you were paid. Accepted is not paid: only a payment with a
+      /// transaction is, and that is what to check before releasing anything.
+      knowWhenYouArePaid: [
+        {
+          how: "ask about a request",
+          what: `POST ${BASE}/functions/v1/request-payment {"action":"status","id":...}`,
+          detail: "pending, accepted, accepted_with_changes, declined or expired, and each payment's transaction",
+        },
+        {
+          how: "read your payment events",
+          what: `GET ${BASE}/functions/v1/payment-events?address=0xYou&role=to`,
+          detail: "every run and policy payment to you, read from the chain; pass `next` back as `after`",
+        },
+        {
+          how: "get a webhook",
+          what: `POST ${BASE}/functions/v1/webhooks`,
+          detail: "signed by your wallet (EIP-712); Standard Webhooks deliveries, retried for 24 hours, each saying whether it is final",
+        },
+      ],
+      /// What a payer's agent should know about you, in your ERC-8004
+      /// registration: a `remesso` services entry listing the tokens you take
+      /// and whether a payment must carry your request's reference. The address
+      /// to pay always comes from getAgentWallet, never from the file.
+      payeeProfile: "https://bitbucket.org/crackedstudios/remesso/src/main/docs/AGENTS.md",
     },
 
     services: [
@@ -252,6 +276,44 @@ Deno.serve(async (req) => {
           "400 if either address is not a wallet address",
           "429 once a payer has 10 requests waiting — an inbox anyone can fill is an inbox nobody reads",
         ],
+        /// The same endpoint answers for a request after it is made. GET it
+        /// for each action's input and the decline's typed data.
+        actions: {
+          list: "the live requests addressed to a wallet, each with the reference a policy payment carries in its memo",
+          status: "where a request stands, and its payments",
+          answer: "report the V5 schedule that answers a request; it binds only if it is the payer's, to you, and newer than the request",
+          decline: "the payer, or an agent with a live policy from them, turns a request down by EIP-712 signature",
+        },
+        amounts: "a requested amount is what you receive; the payer's form adds the commission on top",
+      },
+      {
+        name: "payment-events",
+        description:
+          "Every payment Remesso's contracts made, read from the chain: schedule runs, early sends and agents' " +
+          "policy payments, by address. Free. Each says whether it is final (at or below the RPC's finalized " +
+          "block), and a reorg marks it removed rather than dropping it, so a reader passing back `next` misses nothing.",
+        endpoint: `${BASE}/functions/v1/payment-events`,
+        method: "GET",
+        input: {
+          address: "required",
+          role: "to | from | agent | any (any)",
+          kind: "run, schedule_created, policy_payment, policy_created, policy_revoked (all)",
+          after: "the `next` of the previous page (0)",
+          limit: "1–500 (100)",
+        },
+        payment: { protocol: "none" },
+      },
+      {
+        name: "webhooks",
+        description:
+          "Payment notifications for an address you control: payment.received, payment.finalized and payment.removed, " +
+          "in the Standard Webhooks format (webhook-id, webhook-timestamp, webhook-signature). The id stays the same " +
+          "across retries; deduplicate on it. Subscribing, rotating, revoking and replaying are signed by the address " +
+          "(EIP-712; ERC-1271 for a smart account), and an endpoint must echo a challenge before anything is sent. " +
+          "GET it for the typed data.",
+        endpoint: `${BASE}/functions/v1/webhooks`,
+        method: "POST",
+        payment: { protocol: "none" },
       },
       {
         name: "trigger-run",

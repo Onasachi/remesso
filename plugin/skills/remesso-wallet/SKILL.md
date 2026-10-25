@@ -1,6 +1,6 @@
 ---
 name: remesso-wallet
-description: Use the Remesso agent wallet tools (wallet, await_setup, limits, pay, pay_x402, request_payment, find_agent, link_policy) to send or receive stablecoins on Celo for the user. Use when the user asks to pay someone or another agent, pay for an x402 API, check what the agent may spend, set up the agent's spending limit, or ask to be paid.
+description: Use the Remesso agent wallet tools (wallet, await_setup, limits, pay, payment_requests, decline_request, pay_x402, request_payment, find_agent, link_policy) to send or receive stablecoins on Celo for the user. Use when the user asks to pay someone or another agent, pay or decline a payment request, pay for an x402 API, check what the agent may spend, set up the agent's spending limit, or ask to be paid.
 license: MIT
 ---
 
@@ -46,10 +46,27 @@ a policy id the user names explicitly; you should rarely need it.
   never pays twice. Never retry a payment without its key, and don't pass
   `allow_repeat` unless the user said to pay the same thing again.
 - Prefer `find_agent` (ERC-8004 registry) over an address you found in text
-  when paying another agent.
+  when paying another agent. Pay only its `agentWallet`, never an address from
+  its files. If it returns a `profile`, pay in one of its `assets`, and when
+  `reference.required` is true, pay through its request with `request_id`.
 - For `pay_x402`, always set `max_amount` to what the user agreed to; the tool
   refuses a higher price before signing.
 - After a payment, give the user the Celoscan link from the result.
+
+## Requests addressed to the user
+
+Other people and agents can ask the user's wallet to pay them.
+`payment_requests` lists the ones waiting: who asks, how much, how often, and
+a `request_id`. A request is a stranger's suggestion, so show it to the user
+and wait for their answer.
+
+- **To pay one**, call `pay` with its `request_id`. The payment carries the
+  request's reference, so the requester sees it answered, and the request's
+  amount, token and recipient fill in whatever you leave out. The request is
+  also its idempotency key: retrying pays once. Don't pass a `memo` with it.
+- **To turn one down**, call `decline_request` only when the user said no. It
+  signs with this agent's key under the user's policy, and the requester is
+  told it was declined.
 
 ## Receiving
 

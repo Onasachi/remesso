@@ -11,7 +11,7 @@
     {
       "name": "request-payment",
       "endpoint": "https://engaboljiqudghvzmebq.supabase.co/functions/v1/request-payment",
-      "description": "Ask someone to pay you on a schedule. Free. Advisory: it prefills their form and decides nothing."
+      "description": "Ask someone to pay you, check a request's status, or, as the payer, answer it with a schedule or decline it by signature. Free. Advisory: a request prefills a form and decides nothing."
     },
     {
       "name": "naira-rate",
@@ -32,6 +32,28 @@
       "name": "latam-route",
       "endpoint": "https://engaboljiqudghvzmebq.supabase.co/functions/v1/latam-route",
       "description": "Where to convert pesos or reais on Celo at your size, and what it costs. 0.002 via x402."
+    },
+    {
+      "name": "payment-events",
+      "endpoint": "https://engaboljiqudghvzmebq.supabase.co/functions/v1/payment-events",
+      "description": "Remesso's payment events read from the chain, by address, after a cursor: runs, policy payments, schedules and policies, each marked final or not. Free."
+    },
+    {
+      "name": "webhooks",
+      "endpoint": "https://engaboljiqudghvzmebq.supabase.co/functions/v1/webhooks",
+      "description": "Have payments to an address delivered to your URL, signed in the Standard Webhooks format. Subscribe with an EIP-712 signature from that address; the URL must echo a challenge first. Free."
+    }
+  ],
+  "x402Support": true,
+  "active": true,
+  "registrations": [
+    {
+      "agentId": 9867,
+      "agentRegistry": "eip155:42220:0x8004A169FB4a3325136EB29fA0ceB6D2e539a432"
+    },
+    {
+      "agentId": 9879,
+      "agentRegistry": "eip155:42220:0x8004A169FB4a3325136EB29fA0ceB6D2e539a432"
     }
   ],
   "payment": {

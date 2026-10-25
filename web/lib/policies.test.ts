@@ -37,6 +37,14 @@ Deno.test("reads every policy, newest first, in batches of 250", async () => {
   assertEquals(mine.at(-1)!.id, 7n, "a policy far older than the newest 1,000 still shows");
 });
 
+Deno.test("`above` reads only the policies newer than it", async () => {
+  const { client, batches } = fakeChain(1_200);
+  const newer = await scanPolicies(client, ALLOWANCE, () => true, 1_150n);
+  assertEquals(batches.map((b) => b.length), [50]);
+  assertEquals(newer.map((m) => m.id).at(-1), 1_151n);
+  assertEquals(newer.length, 50);
+});
+
 Deno.test("no policies yet is an empty list, not an error", async () => {
   const { client, batches } = fakeChain(0);
   assertEquals(await scanPolicies(client, ALLOWANCE, () => true), []);

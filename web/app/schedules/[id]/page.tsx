@@ -43,7 +43,11 @@ const ZERO = "0x0000000000000000000000000000000000000000" as const;
 export default function ScheduleDetailPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
-  const justCreated = useSearchParams().get("created") === "1";
+  const search = useSearchParams();
+  const justCreated = search.get("created") === "1";
+  // How the payment request a link named was answered, as confirm-schedule
+  // judged it from the chain. Only these values are rendered.
+  const answered = search.get("answered");
   const inMiniPay = useIsMiniPay();
   const queryClient = useQueryClient();
   const { writeContractAsync } = useWriteContract();
@@ -179,6 +183,11 @@ export default function ScheduleDetailPage() {
           <span>
             <span className="font-medium">You&rsquo;re all set.</span> This runs on its own now
             — nothing else to do. Come back any time to check on it.
+            {answered === "accepted" && " It answers the payment request, on the terms they asked for."}
+            {answered === "accepted_with_changes" &&
+              " It answers the payment request with your changes; they see the terms you signed."}
+            {answered && answered !== "accepted" && answered !== "accepted_with_changes" &&
+              " It couldn't be linked to the payment request, so they won't see it there. The payment still runs."}
           </span>
         </div>
       )}
