@@ -962,7 +962,8 @@ accepts a decline signed by an agent with a live policy from the payer.
 
 `/developers` on the app is its quickstart. Its whole loop passed on mainnet
 on 2026-10-25 (`e2e-sdk.ts --send`, the third run; the first two found what
-"Reads lag" describes). Published to npm as `remesso-sdk` 0.1.0 the same day.
+"Reads lag" describes). Published to npm as `remesso-sdk` 0.1.0 the same day,
+and as 0.2.0, which adds builder codes, after Phase 6.
 
 **Nothing in it about the deployment is typed by hand.** People believe an SDK
 that describes something we no longer serve.

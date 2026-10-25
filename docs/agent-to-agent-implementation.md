@@ -6,8 +6,8 @@
 - Phase 4 passed on mainnet and is on npm (`remesso-sdk` 0.1.0). Its merge
   is pending.
 - Phase 5 isn't planned.
-- Phase 6 is deployed and passed on mainnet. `remesso-sdk` 0.2.0 and its
-  merge are pending.
+- Phase 6 is deployed and passed on mainnet, and `remesso-sdk` 0.2.0 is on
+  npm. Its merge is pending.
 
 This turns
 [`agent-to-agent.md`](agent-to-agent.md) into phases of work.
@@ -813,6 +813,11 @@ Built on the `builder-codes` branch, from `developer-kit` (2026-10-25).
    - only code already live in `agent`, `request-payment` and
      `confirm-schedule` went out with Phase 6.
 3. Publish `remesso-sdk` 0.2.0 by hand: `cd packages/remesso-sdk && npm publish`.
+   **Done 2026-10-25.** Installed from npm into an empty folder:
+   - with no codes it writes exactly 0.1.0's suffix;
+   - `attributionFor(["acme_app"])` matches Celo's `toDataSuffix` byte for
+     byte;
+   - a bad code is refused before signing.
 4. Merge to `main`, after `developer-kit`, for the developer page.
 5. On mainnet, with your OK: `scripts/e2e-sdk.ts --send`. Its schedule is
    now created with a test builder code (`remesso_e2e`), and it checks with
