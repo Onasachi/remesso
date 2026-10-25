@@ -3,11 +3,12 @@
 **Status (2026-10-25):**
 - Phase 0 is measuring.
 - Phases 1 to 3 are deployed and merged.
-- Phase 4 passed on mainnet and is on npm (`remesso-sdk` 0.1.0). Its merge
-  is pending.
+- Phase 4 passed on mainnet, is on npm (`remesso-sdk` 0.1.0) and is merged.
 - Phase 5 isn't planned.
-- Phase 6 is deployed and passed on mainnet, and `remesso-sdk` 0.2.0 is on
-  npm. Its merge is pending.
+- Phase 6 is deployed, passed on mainnet, is on npm (`remesso-sdk` 0.2.0)
+  and is merged. Phases 4 and 6 went in together as pull request #3.
+- The SDK's documentation site, `docs-site/`, is built for
+  `docs.remesso.xyz`.
 
 This turns
 [`agent-to-agent.md`](agent-to-agent.md) into phases of work.
@@ -697,7 +698,8 @@ After Phases 1 and 2.
    and the third run passed every check.
 4. Publish `remesso-sdk` 0.1.0 by hand: `cd packages/remesso-sdk && npm publish`.
    **Done 2026-10-25.**
-5. Merge to `main`, for `/developers`, the agent card and the docs.
+5. Merge to `main`, for `/developers`, the agent card and the docs. **Done
+   2026-10-25**, with Phase 6 (pull request #3).
 6. Publish `remesso-wallet` 0.5.0 if it isn't out yet: it carries the skill
    change too. **Done 2026-10-25.**
 7. Follow `/developers` alone from an empty folder, and time it.
@@ -818,7 +820,8 @@ Built on the `builder-codes` branch, from `developer-kit` (2026-10-25).
    - `attributionFor(["acme_app"])` matches Celo's `toDataSuffix` byte for
      byte;
    - a bad code is refused before signing.
-4. Merge to `main`, after `developer-kit`, for the developer page.
+4. Merge to `main`, after `developer-kit`, for the developer page. **Done
+   2026-10-25** (pull request #3, which carried both branches).
 5. On mainnet, with your OK: `scripts/e2e-sdk.ts --send`. Its schedule is
    now created with a test builder code (`remesso_e2e`), and it checks with
    `verifyTx` that the run carries it and that the indexer stored it. The

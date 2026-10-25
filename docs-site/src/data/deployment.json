@@ -1,0 +1,123 @@
+{
+  "version": 1,
+  "generatedBy": "scripts/build-deployments.ts, from /functions/v1/agent and chain reads. Do not edit by hand.",
+  "chain": {
+    "name": "Celo",
+    "chainId": 42220,
+    "caip2": "eip155:42220",
+    "rpc": "https://forno.celo.org"
+  },
+  "contracts": {
+    "RemessoExecutorV5": {
+      "address": "0x3C357af3300f383Ea49B6D6ED8e084199a92bEd8",
+      "deployBlock": 80268721,
+      "executor": "0xA351d65c15b8a342B6ECbC7f2B9eFE62B17cdb21",
+      "currentExecutorSentinel": "0x0000000000000000000000000000000000000001",
+      "feeBps": 25
+    },
+    "RemessoAgentAllowance": {
+      "address": "0xA6351fAeEb097698289586C4D6188530300DB209",
+      "deployBlock": 80467202
+    },
+    "ERC8004IdentityRegistry": {
+      "address": "0x8004A169FB4a3325136EB29fA0ceB6D2e539a432"
+    }
+  },
+  "tokens": [
+    {
+      "symbol": "USDT",
+      "address": "0x48065fbBE25f71C9282ddf5e1cD6D6A887483D5e",
+      "decimals": 6,
+      "currency": "USD",
+      "directAllowed": true,
+      "feeCurrency": "0x0E2A3e05bc9A16F5292A6170456A710cb89C6f72",
+      "minPerRun": "1000000",
+      "maxPerRun": "1000000000"
+    },
+    {
+      "symbol": "USDC",
+      "address": "0xcebA9300f2b948710d2653dD7B07f33A8B32118C",
+      "decimals": 6,
+      "currency": "USD",
+      "directAllowed": true,
+      "feeCurrency": "0x2F25deB3848C207fc8E0c34035B3Ba7fC157602B",
+      "minPerRun": "1000000",
+      "maxPerRun": "1000000000"
+    },
+    {
+      "symbol": "USDm",
+      "address": "0x765DE816845861e75A25fCA122bb6898B8B1282a",
+      "decimals": 18,
+      "currency": "USD",
+      "directAllowed": true,
+      "feeCurrency": "0x765DE816845861e75A25fCA122bb6898B8B1282a",
+      "minPerRun": "1000000000000000000",
+      "maxPerRun": "1000000000000000000000"
+    },
+    {
+      "symbol": "USA₮",
+      "address": "0xD2ab3C9A02DBBAB236BfEC45D1d755DF4267F771",
+      "decimals": 6,
+      "currency": "USD",
+      "directAllowed": true,
+      "feeCurrency": "0x0357EE22278c922e1D36cFe6b899269b161880C4",
+      "minPerRun": "1000000",
+      "maxPerRun": "1000000000"
+    },
+    {
+      "symbol": "wARS",
+      "address": "0x0DC4F92879B7670e5f4e4e6e3c801D229129D90D",
+      "decimals": 18,
+      "currency": "ARS",
+      "directAllowed": true,
+      "feeCurrency": null,
+      "minPerRun": "1500000000000000000000",
+      "maxPerRun": "1500000000000000000000000"
+    },
+    {
+      "symbol": "wBRL",
+      "address": "0xD76f5Faf6888e24D9F04Bf92a0c8B921FE4390e0",
+      "decimals": 18,
+      "currency": "BRL",
+      "directAllowed": true,
+      "feeCurrency": null,
+      "minPerRun": "5000000000000000000",
+      "maxPerRun": "5000000000000000000000"
+    },
+    {
+      "symbol": "wCOP",
+      "address": "0x8a1D45e102e886510e891d2Ec656a708991e2D76",
+      "decimals": 18,
+      "currency": "COP",
+      "directAllowed": true,
+      "feeCurrency": null,
+      "minPerRun": "3200000000000000000000",
+      "maxPerRun": "3200000000000000000000000"
+    },
+    {
+      "symbol": "cNGN",
+      "address": "0xF6829D7393dAe24509eb1E52eE8e572e2E271a4f",
+      "decimals": 6,
+      "currency": "NGN",
+      "directAllowed": true,
+      "feeCurrency": null,
+      "minPerRun": "1300000000",
+      "maxPerRun": "1300000000000"
+    }
+  ],
+  "functions": {
+    "base": "https://engaboljiqudghvzmebq.supabase.co/functions/v1",
+    "agent": "https://engaboljiqudghvzmebq.supabase.co/functions/v1/agent",
+    "request-payment": "https://engaboljiqudghvzmebq.supabase.co/functions/v1/request-payment",
+    "payment-events": "https://engaboljiqudghvzmebq.supabase.co/functions/v1/payment-events",
+    "webhooks": "https://engaboljiqudghvzmebq.supabase.co/functions/v1/webhooks",
+    "trigger-run": "https://engaboljiqudghvzmebq.supabase.co/functions/v1/trigger-run",
+    "rate-service": "https://engaboljiqudghvzmebq.supabase.co/functions/v1/rate-service",
+    "latam-rate": "https://engaboljiqudghvzmebq.supabase.co/functions/v1/latam-rate",
+    "latam-route": "https://engaboljiqudghvzmebq.supabase.co/functions/v1/latam-route"
+  },
+  "app": {
+    "origin": "https://remesso.xyz",
+    "mcp": "https://remesso.xyz/mcp"
+  }
+}

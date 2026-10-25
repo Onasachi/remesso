@@ -1,0 +1,214 @@
+/**
+ * Remesso's brand on Infima: the app's teal and marigold, Fraunces for
+ * display headings and DM Sans for text, both self-hosted (Fontsource), so
+ * the site fetches no font from a third party.
+ */
+@import "@fontsource-variable/dm-sans";
+@import "@fontsource-variable/fraunces";
+
+:root {
+  --rm-teal: #008787;
+  --rm-marigold: #f59926;
+  --rm-paper: #f6fafa;
+  --rm-card: #ffffff;
+  --rm-line: #dbe7e8;
+  --rm-ink: #15262c;
+  --rm-ink-2: #4d6268;
+  --rm-teal-soft: #e6f3f3;
+
+  --ifm-color-primary: #008787;
+  --ifm-color-primary-dark: #007a7a;
+  --ifm-color-primary-darker: #007373;
+  --ifm-color-primary-darkest: #005f5f;
+  --ifm-color-primary-light: #009494;
+  --ifm-color-primary-lighter: #009b9b;
+  --ifm-color-primary-lightest: #00afaf;
+
+  --ifm-background-color: var(--rm-paper);
+  --ifm-background-surface-color: var(--rm-card);
+  --ifm-font-color-base: var(--rm-ink);
+  --ifm-color-emphasis-300: var(--rm-line);
+  --ifm-toc-border-color: var(--rm-line);
+  --ifm-hr-border-color: var(--rm-line);
+  --ifm-table-border-color: var(--rm-line);
+
+  --ifm-font-family-base: "DM Sans Variable", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --ifm-heading-font-family: "DM Sans Variable", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --ifm-font-family-monospace: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+  --rm-display: "Fraunces Variable", Georgia, serif;
+
+  --ifm-font-size-base: 16px;
+  --ifm-line-height-base: 1.68;
+  --ifm-heading-font-weight: 650;
+  --ifm-code-font-size: 88%;
+  --ifm-global-radius: 10px;
+  --ifm-navbar-shadow: none;
+  --ifm-navbar-background-color: rgba(246, 250, 250, 0.86);
+  --ifm-footer-background-color: #edf4f4;
+  --ifm-link-decoration: none;
+
+  --docusaurus-highlighted-code-line-bg: rgba(0, 135, 135, 0.1);
+  --docusaurus-announcement-bar-height: auto;
+}
+
+[data-theme="dark"] {
+  --rm-paper: #0d181b;
+  --rm-card: #13232a;
+  --rm-line: #24383f;
+  --rm-ink: #e3eeef;
+  --rm-ink-2: #9db3b8;
+  --rm-teal-soft: #12302f;
+
+  --ifm-color-primary: #3dbdbd;
+  --ifm-color-primary-dark: #33abab;
+  --ifm-color-primary-darker: #30a1a1;
+  --ifm-color-primary-darkest: #278585;
+  --ifm-color-primary-light: #55c6c6;
+  --ifm-color-primary-lighter: #61caca;
+  --ifm-color-primary-lightest: #84d6d6;
+
+  --ifm-navbar-background-color: rgba(13, 24, 27, 0.86);
+  --ifm-footer-background-color: #0a1416;
+  --docusaurus-highlighted-code-line-bg: rgba(61, 189, 189, 0.16);
+}
+
+/* ---- type ------------------------------------------------------------- */
+
+.markdown h1,
+.hero__title,
+.rm-display {
+  font-family: var(--rm-display);
+  font-weight: 560;
+  letter-spacing: -0.015em;
+  font-variation-settings: "opsz" 72;
+}
+
+.markdown h1 {
+  font-size: 2.35rem;
+  line-height: 1.12;
+}
+
+.markdown h2 {
+  margin-top: 2.6rem;
+  padding-top: 1.2rem;
+  border-top: 1px solid var(--rm-line);
+  font-size: 1.5rem;
+  letter-spacing: -0.01em;
+}
+
+.markdown h3 {
+  font-size: 1.15rem;
+}
+
+.markdown > p:first-of-type {
+  color: var(--rm-ink-2);
+  font-size: 1.08rem;
+}
+
+.markdown a {
+  text-decoration: underline;
+  text-decoration-color: color-mix(in srgb, var(--ifm-color-primary) 35%, transparent);
+  text-underline-offset: 3px;
+}
+
+.markdown a:hover {
+  text-decoration-color: var(--ifm-color-primary);
+}
+
+/* ---- chrome ----------------------------------------------------------- */
+
+.navbar {
+  backdrop-filter: saturate(160%) blur(10px);
+  border-bottom: 1px solid var(--rm-line);
+}
+
+.navbar__title {
+  font-family: var(--rm-display);
+  font-weight: 600;
+  font-size: 1.2rem;
+}
+
+.theme-doc-sidebar-container {
+  border-right-color: var(--rm-line) !important;
+}
+
+.menu__link {
+  font-size: 0.93rem;
+}
+
+.menu__list-item-collapsible > .menu__link--sublist,
+.theme-doc-sidebar-item-category-level-1 > .menu__list-item-collapsible > .menu__link {
+  font-weight: 650;
+}
+
+/* Docusaurus paints the bar white inline; the theme's colours win here so it
+   follows light and dark mode. */
+.theme-announcement-bar {
+  background-color: var(--rm-teal-soft) !important;
+  color: var(--rm-ink) !important;
+  border-bottom: 1px solid var(--rm-line);
+  font-size: 0.9rem;
+}
+
+.theme-announcement-bar button {
+  color: var(--rm-ink-2) !important;
+}
+
+.footer {
+  border-top: 1px solid var(--rm-line);
+}
+
+/* ---- content blocks ---------------------------------------------------- */
+
+.markdown table {
+  display: table;
+  width: 100%;
+  font-size: 0.93rem;
+}
+
+.markdown table thead tr {
+  background: var(--rm-teal-soft);
+}
+
+.markdown table tr:nth-child(2n) {
+  background: transparent;
+}
+
+.markdown table code {
+  white-space: nowrap;
+}
+
+/* Wide tables scroll inside themselves on a phone, never the page. */
+.rm-table-wrap {
+  overflow-x: auto;
+  margin-bottom: var(--ifm-spacing-vertical);
+}
+
+.rm-table-wrap table {
+  margin-bottom: 0;
+}
+
+.theme-code-block {
+  border: 1px solid var(--rm-line);
+  box-shadow: none;
+}
+
+.theme-admonition {
+  border-width: 1px;
+  border-style: solid;
+  border-left-width: 4px;
+}
+
+.alert--warning {
+  --ifm-alert-border-color: var(--rm-marigold);
+}
+
+.tabs-container {
+  margin-bottom: var(--ifm-spacing-vertical);
+}
+
+/* A short address or hash, shown in full on hover. */
+.rm-mono {
+  font-family: var(--ifm-font-family-monospace);
+  font-size: 0.86em;
+}
