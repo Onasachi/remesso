@@ -12149,7 +12149,7 @@ var init_watchContractEvent = __esm({
 });
 
 // node_modules/viem/_esm/errors/account.js
-var AccountNotFoundError, AccountTypeNotSupportedError;
+var AccountNotFoundError;
 var init_account = __esm({
   "node_modules/viem/_esm/errors/account.js"() {
     init_base();
@@ -12162,15 +12162,6 @@ var init_account = __esm({
           docsPath: docsPath8,
           docsSlug: "account",
           name: "AccountNotFoundError"
-        });
-      }
-    };
-    AccountTypeNotSupportedError = class extends BaseError2 {
-      constructor({ docsPath: docsPath8, metaMessages, type }) {
-        super(`Account type "${type}" is not supported.`, {
-          docsPath: docsPath8,
-          metaMessages,
-          name: "AccountTypeNotSupportedError"
         });
       }
     };
@@ -12199,242 +12190,6 @@ async function sendRawTransaction(client2, { serializedTransaction }) {
 }
 var init_sendRawTransaction = __esm({
   "node_modules/viem/_esm/actions/wallet/sendRawTransaction.js"() {
-  }
-});
-
-// node_modules/viem/_esm/actions/wallet/sendTransaction.js
-async function sendTransaction(client2, parameters) {
-  const { account: account_ = client2.account, assertChainId = true, chain = client2.chain, accessList, authorizationList, blobs, data, dataSuffix = typeof client2.dataSuffix === "string" ? client2.dataSuffix : client2.dataSuffix?.value, gas, gasPrice, maxFeePerBlobGas, maxFeePerGas, maxPriorityFeePerGas, nonce, type, value, ...rest } = parameters;
-  if (typeof account_ === "undefined")
-    throw new AccountNotFoundError({
-      docsPath: "/docs/actions/wallet/sendTransaction"
-    });
-  const account2 = account_ ? parseAccount(account_) : null;
-  let nonceManagerParameters;
-  try {
-    assertRequest(parameters);
-    const to = await (async () => {
-      if (parameters.to)
-        return parameters.to;
-      if (parameters.to === null)
-        return void 0;
-      if (authorizationList && authorizationList.length > 0)
-        return await recoverAuthorizationAddress({
-          authorization: authorizationList[0]
-        }).catch(() => {
-          throw new BaseError2("`to` is required. Could not infer from `authorizationList`.");
-        });
-      return void 0;
-    })();
-    if (account2?.type === "json-rpc" || account2 === null) {
-      let chainId;
-      if (chain !== null) {
-        chainId = await getAction(client2, getChainId, "getChainId")({});
-        if (assertChainId)
-          assertCurrentChain({
-            currentChainId: chainId,
-            chain
-          });
-      }
-      const chainFormat = client2.chain?.formatters?.transactionRequest?.format;
-      const format2 = chainFormat || formatTransactionRequest;
-      const request = format2({
-        // Pick out extra data that might exist on the chain's transaction request type.
-        ...extract(rest, { format: chainFormat }),
-        accessList,
-        account: account2,
-        authorizationList,
-        blobs,
-        chainId,
-        data: dataSuffix ? concat([data ?? "0x", dataSuffix]) : data,
-        gas,
-        gasPrice,
-        maxFeePerBlobGas,
-        maxFeePerGas,
-        maxPriorityFeePerGas,
-        nonce,
-        to,
-        type,
-        value
-      }, "sendTransaction");
-      const isWalletNamespaceSupported = supportsWalletNamespace.get(client2.uid);
-      const method = isWalletNamespaceSupported ? "wallet_sendTransaction" : "eth_sendTransaction";
-      try {
-        return await client2.request({
-          method,
-          params: [request]
-        }, { retryCount: 0 });
-      } catch (e) {
-        if (isWalletNamespaceSupported === false)
-          throw e;
-        const error = e;
-        if (error.name === "InvalidInputRpcError" || error.name === "InvalidParamsRpcError" || error.name === "MethodNotFoundRpcError" || error.name === "MethodNotSupportedRpcError") {
-          return await client2.request({
-            method: "wallet_sendTransaction",
-            params: [request]
-          }, { retryCount: 0 }).then((hash3) => {
-            supportsWalletNamespace.set(client2.uid, true);
-            return hash3;
-          }).catch((e2) => {
-            const walletNamespaceError = e2;
-            if (walletNamespaceError.name === "MethodNotFoundRpcError" || walletNamespaceError.name === "MethodNotSupportedRpcError") {
-              supportsWalletNamespace.set(client2.uid, false);
-              throw error;
-            }
-            throw walletNamespaceError;
-          });
-        }
-        throw error;
-      }
-    }
-    if (account2?.type === "local") {
-      const nonceManager = (() => {
-        if (!account2.nonceManager || typeof nonce !== "undefined")
-          return account2.nonceManager;
-        const nonceManager2 = account2.nonceManager;
-        return {
-          consume(parameters2) {
-            nonceManagerParameters = {
-              address: parameters2.address,
-              chainId: parameters2.chainId
-            };
-            return nonceManager2.consume(parameters2);
-          },
-          get(parameters2) {
-            return nonceManager2.get(parameters2);
-          },
-          increment(parameters2) {
-            return nonceManager2.increment(parameters2);
-          },
-          reset(parameters2) {
-            return nonceManager2.reset(parameters2);
-          }
-        };
-      })();
-      const request = await getAction(client2, prepareTransactionRequest, "prepareTransactionRequest")({
-        account: account2,
-        accessList,
-        authorizationList,
-        blobs,
-        chain,
-        data: dataSuffix ? concat([data ?? "0x", dataSuffix]) : data,
-        gas,
-        gasPrice,
-        maxFeePerBlobGas,
-        maxFeePerGas,
-        maxPriorityFeePerGas,
-        nonce,
-        nonceManager,
-        parameters: [...defaultParameters, "sidecars"],
-        type,
-        value,
-        ...rest,
-        to
-      });
-      const serializer = chain?.serializers?.transaction;
-      const signedTransaction = await account2.signTransaction(request, {
-        serializer
-      });
-      const transactionEnvelope = (chain ?? client2.chain)?.serializers?.transactionEnvelope;
-      const serializedTransaction = transactionEnvelope ? await transactionEnvelope({
-        serializedTransaction: signedTransaction,
-        transaction: request
-      }) : signedTransaction;
-      return await getAction(client2, sendRawTransaction, "sendRawTransaction")({
-        serializedTransaction
-      });
-    }
-    if (account2?.type === "smart")
-      throw new AccountTypeNotSupportedError({
-        metaMessages: [
-          "Consider using the `sendUserOperation` Action instead."
-        ],
-        docsPath: "/docs/actions/bundler/sendUserOperation",
-        type: "smart"
-      });
-    throw new AccountTypeNotSupportedError({
-      docsPath: "/docs/actions/wallet/sendTransaction",
-      type: account2?.type
-    });
-  } catch (err) {
-    if (err instanceof AccountTypeNotSupportedError)
-      throw err;
-    if (nonceManagerParameters)
-      account2?.nonceManager?.reset(nonceManagerParameters);
-    throw getTransactionError(err, {
-      ...parameters,
-      account: account2,
-      chain: parameters.chain || void 0
-    });
-  }
-}
-var supportsWalletNamespace;
-var init_sendTransaction = __esm({
-  "node_modules/viem/_esm/actions/wallet/sendTransaction.js"() {
-    init_parseAccount();
-    init_account();
-    init_base();
-    init_recoverAuthorizationAddress();
-    init_assertCurrentChain();
-    init_concat();
-    init_getTransactionError();
-    init_extract();
-    init_transactionRequest();
-    init_getAction();
-    init_lru();
-    init_assertRequest();
-    init_getChainId();
-    init_prepareTransactionRequest();
-    init_sendRawTransaction();
-    supportsWalletNamespace = new LruMap(128);
-  }
-});
-
-// node_modules/viem/_esm/actions/wallet/writeContract.js
-async function writeContract(client2, parameters) {
-  return writeContract.internal(client2, sendTransaction, "sendTransaction", parameters);
-}
-var init_writeContract = __esm({
-  "node_modules/viem/_esm/actions/wallet/writeContract.js"() {
-    init_parseAccount();
-    init_account();
-    init_encodeFunctionData();
-    init_getContractError();
-    init_getAction();
-    init_sendTransaction();
-    (function(writeContract2) {
-      async function internal(client2, actionFn, name, parameters) {
-        const { abi: abi2, account: account_ = client2.account, address, args, functionName, ...request } = parameters;
-        if (typeof account_ === "undefined")
-          throw new AccountNotFoundError({
-            docsPath: "/docs/contract/writeContract"
-          });
-        const account2 = account_ ? parseAccount(account_) : null;
-        const data = encodeFunctionData({
-          abi: abi2,
-          args,
-          functionName
-        });
-        try {
-          return await getAction(client2, actionFn, name)({
-            data,
-            to: address,
-            account: account2,
-            ...request
-          });
-        } catch (error) {
-          throw getContractError(error, {
-            abi: abi2,
-            address,
-            args,
-            docsPath: "/docs/contract/writeContract",
-            functionName,
-            sender: account2?.address
-          });
-        }
-      }
-      writeContract2.internal = internal;
-    })(writeContract || (writeContract = {}));
   }
 });
 
@@ -16418,6 +16173,9 @@ var z = {
   },
   enum(values) {
     return field({ type: "string", enum: values }, (v) => values.includes(v) ? null : `must be one of ${values.join(", ")}`);
+  },
+  boolean() {
+    return field({ type: "boolean" }, (v) => typeof v === "boolean" ? null : "must be true or false");
   }
 };
 function toJsonSchema(shape) {
@@ -19275,6 +19033,55 @@ function createPublicClient(parameters) {
   return client2.extend(publicActions);
 }
 
+// node_modules/viem/_esm/actions/wallet/signTransaction.js
+init_parseAccount();
+init_account();
+init_assertCurrentChain();
+init_toHex();
+init_transactionRequest();
+init_getAction();
+init_assertRequest();
+init_getChainId();
+async function signTransaction(client2, parameters) {
+  const { account: account_ = client2.account, chain = client2.chain, ...transaction } = parameters;
+  if (!account_)
+    throw new AccountNotFoundError({
+      docsPath: "/docs/actions/wallet/signTransaction"
+    });
+  const account2 = parseAccount(account_);
+  assertRequest({
+    account: account2,
+    ...parameters
+  });
+  const chainId = await getAction(client2, getChainId, "getChainId")({});
+  if (chain !== null)
+    assertCurrentChain({
+      currentChainId: chainId,
+      chain
+    });
+  const formatters2 = chain?.formatters || client2.chain?.formatters;
+  const format2 = formatters2?.transactionRequest?.format || formatTransactionRequest;
+  if (account2.signTransaction)
+    return account2.signTransaction({
+      ...transaction,
+      account: account2,
+      chainId
+    }, { serializer: client2.chain?.serializers?.transaction });
+  return await client2.request({
+    method: "eth_signTransaction",
+    params: [
+      {
+        ...format2({
+          ...transaction,
+          account: account2
+        }, "signTransaction"),
+        chainId: numberToHex(chainId),
+        from: account2.address
+      }
+    ]
+  }, { retryCount: 0 });
+}
+
 // node_modules/viem/_esm/clients/transports/createTransport.js
 init_buildRequest();
 function createTransport({ key, methods, name, request, retryCount = 3, retryDelay = 150, timeout, type }, value) {
@@ -19393,15 +19200,24 @@ init_number();
 init_encodeFunctionData();
 init_getAddress();
 init_isAddress();
+init_concat();
 init_toHex();
+init_keccak256();
 init_formatUnits();
 init_parseUnits();
 
 // node_modules/viem/_esm/actions/index.js
+init_getBlockNumber();
+init_getChainId();
+init_getLogs();
+init_getTransaction();
+init_getTransactionCount();
+init_getTransactionReceipt();
 init_readContract();
 init_simulateContract();
 init_waitForTransactionReceipt();
-init_writeContract();
+init_prepareTransactionRequest();
+init_sendRawTransaction();
 
 // node_modules/viem/_esm/accounts/generatePrivateKey.js
 init_secp256k1();
@@ -19497,7 +19313,7 @@ async function signMessage({ message, privateKey }) {
 // node_modules/viem/_esm/accounts/utils/signTransaction.js
 init_keccak256();
 init_serializeTransaction();
-async function signTransaction(parameters) {
+async function signTransaction2(parameters) {
   const { privateKey, transaction, serializer = serializeTransaction } = parameters;
   const signableTransaction = (() => {
     if (transaction.type === "eip4844")
@@ -19543,7 +19359,7 @@ function privateKeyToAccount(privateKey, options = {}) {
       return signMessage({ message, privateKey });
     },
     async signTransaction(transaction, { serializer } = {}) {
-      return signTransaction({ privateKey, transaction, serializer });
+      return signTransaction2({ privateKey, transaction, serializer });
     },
     async signTypedData(typedData) {
       return signTypedData({ ...typedData, privateKey });
@@ -26151,6 +25967,7 @@ var AA = parseAbi([
   "error RecipientNotAllowed()",
   "error SafeERC20FailedOperation(address token)"
 ]);
+var [PAID] = parseAbi(["event Paid(uint256 indexed id, address indexed to, uint256 amount, bytes32 memo)"]);
 var REGISTRY = parseAbi(["function getAgentWallet(uint256) view returns (address)"]);
 function ensureHome() {
   mkdirSync(HOME, { recursive: true, mode: 448 });
@@ -26164,17 +25981,31 @@ function loadKey() {
   chmodSync(f, 384);
   return JSON.parse(readFileSync(f, "utf8")).privateKey;
 }
+var DEPLOYMENT = `${celo.id}:${ALLOWANCE.toLowerCase()}`;
+var MAINNET_ALLOWANCE = "0xa6351faeeb097698289586c4d6188530300db209";
 var cfgFile = () => join(HOME, "config.json");
-function loadConfig() {
+function loadState() {
   ensureHome();
+  let s = {};
   try {
-    return JSON.parse(readFileSync(cfgFile(), "utf8"));
+    s = JSON.parse(readFileSync(cfgFile(), "utf8"));
   } catch {
-    return { policies: [] };
   }
+  if (s.version === 2) return s;
+  const v2 = { version: 2, deployments: {} };
+  if (Array.isArray(s.policies)) {
+    v2.deployments[`${celo.id}:${MAINNET_ALLOWANCE}`] = { policies: s.policies, ...s.scannedTo != null ? { scannedTo: s.scannedTo } : {} };
+  }
+  writeFileSync(cfgFile(), JSON.stringify(v2, null, 2), { mode: 384 });
+  return v2;
+}
+function loadConfig() {
+  return loadState().deployments[DEPLOYMENT] ?? { policies: [] };
 }
 function saveConfig(c) {
-  writeFileSync(cfgFile(), JSON.stringify(c, null, 2), { mode: 384 });
+  const s = loadState();
+  s.deployments[DEPLOYMENT] = c;
+  writeFileSync(cfgFile(), JSON.stringify(s, null, 2), { mode: 384 });
 }
 var account = privateKeyToAccount(loadKey());
 var client = createClient({ chain: celo, transport: http(RPC), account });
@@ -26184,7 +26015,24 @@ var pub = {
   simulateContract: (a) => simulateContract(client, a),
   waitForTransactionReceipt: (a) => waitForTransactionReceipt(client, a)
 };
-var wallet = { writeContract: (a) => writeContract(client, a) };
+var chainCheck = null;
+function assertChain() {
+  chainCheck ??= getChainId(client).then((id) => {
+    if (id !== celo.id) throw new Error(`the RPC ${RPC} is chain ${id}, not Celo mainnet (${celo.id}), so this wallet won't sign`);
+  }).catch((e) => {
+    chainCheck = null;
+    throw e;
+  });
+  return chainCheck;
+}
+function memo32(memo) {
+  if (!memo) return `0x${"0".repeat(64)}`;
+  const bytes = new TextEncoder().encode(memo);
+  if (bytes.length > 32) {
+    throw new Error(`the memo is ${bytes.length} bytes and the limit is 32 (a plain letter is 1 byte, an accented letter 2, an emoji 4)`);
+  }
+  return `0x${Buffer.from(bytes).toString("hex").padEnd(64, "0")}`;
+}
 var ok = (obj) => ({ content: [{ type: "text", text: typeof obj === "string" ? obj : JSON.stringify(obj, null, 2) }] });
 var fail = (msg) => ({ isError: true, content: [{ type: "text", text: msg }] });
 var fmt = (units, t) => `${formatUnits(units, t.decimals)} ${t.label}`;
@@ -26364,26 +26212,190 @@ async function gasOptions(tokenSym) {
   if (bal >= 10000n) return { feeCurrency: t.feeCurrency };
   throw new Error(`the agent wallet ${account.address} has no gas: send it about 0.05 CELO, or 0.10 ${t.label}.`);
 }
-async function payThroughPolicy(d, to, units, memo) {
-  const memo32 = memo ? `0x${Buffer.from(memo.slice(0, 32)).toString("hex").padEnd(64, "0")}` : `0x${"0".repeat(64)}`;
+var payFile = () => join(HOME, "payments.json");
+var KEEP_MS = 30 * 864e5;
+var WAIT_MS = 45e3;
+var REPEAT_MS = 10 * 6e4;
+var REPEAT_BLOCKS = 600n;
+function loadPayments() {
+  try {
+    return JSON.parse(readFileSync(payFile(), "utf8")).payments ?? [];
+  } catch {
+    return [];
+  }
+}
+function recordPayment(rec) {
+  const cutoff = Date.now() - KEEP_MS;
+  const rest = loadPayments().filter((p) => p.hash !== rec.hash && !(rec.key && p.key === rec.key && p.deployment === rec.deployment) && Date.parse(p.at) > cutoff);
+  ensureHome();
+  writeFileSync(payFile(), JSON.stringify({ version: 1, payments: [...rest, rec].slice(-1e3) }, null, 2), { mode: 384 });
+}
+var queue = Promise.resolve();
+function serial(fn) {
+  const run = queue.then(fn, fn);
+  queue = run.catch(() => {
+  });
+  return run;
+}
+var explorer = (h) => `https://celoscan.io/tx/${h}`;
+var sentLine = (rec) => {
+  const t = TOKENS[rec.token];
+  return { sent: `${formatUnits(BigInt(rec.units), t.decimals)} ${t.label}`, to: rec.to, policyId: rec.policyId, tx: rec.hash, explorer: explorer(rec.hash) };
+};
+async function signPay(d, to, units, memoHex) {
   const gas = await gasOptions(d.token);
-  const { request } = await pub.simulateContract({
-    address: ALLOWANCE,
-    abi: AA,
-    functionName: "pay",
-    args: [BigInt(d.policyId), to, units, memo32],
+  const args = [BigInt(d.policyId), to, units, memoHex];
+  await pub.simulateContract({ address: ALLOWANCE, abi: AA, functionName: "pay", args, account, ...gas });
+  const request = await prepareTransactionRequest(client, {
     account,
-    dataSuffix: ATTRIBUTION,
+    to: ALLOWANCE,
+    data: concat([encodeFunctionData({ abi: AA, functionName: "pay", args }), ATTRIBUTION]),
     ...gas
   });
-  const hash3 = await wallet.writeContract({ ...request, dataSuffix: ATTRIBUTION, ...gas });
-  const receipt = await pub.waitForTransactionReceipt({ hash: hash3 });
-  if (receipt.status !== "success") throw new Error(`transaction reverted: ${hash3}`);
-  return hash3;
+  const raw = await signTransaction(client, { ...request, account });
+  return { hash: keccak256(raw), raw, nonce: request.nonce };
+}
+function newRecord(key, d, to, units, memoHex, signed) {
+  return {
+    key: key ?? null,
+    deployment: DEPLOYMENT,
+    policyId: d.policyId,
+    to,
+    units: units.toString(),
+    token: d.token,
+    memo: memoHex,
+    hash: signed.hash,
+    nonce: signed.nonce,
+    raw: signed.raw,
+    status: "sent",
+    at: (/* @__PURE__ */ new Date()).toISOString()
+  };
+}
+async function broadcastAndWait(rec) {
+  try {
+    await sendRawTransaction(client, { serializedTransaction: rec.raw });
+  } catch {
+  }
+  try {
+    const receipt = await pub.waitForTransactionReceipt({ hash: rec.hash, timeout: WAIT_MS });
+    const done = { ...rec, status: receipt.status === "success" ? "confirmed" : "reverted" };
+    recordPayment(done);
+    return done;
+  } catch {
+    return rec;
+  }
+}
+async function reconcile(rec) {
+  try {
+    const r = await getTransactionReceipt(client, { hash: rec.hash });
+    return { ...rec, status: r.status === "success" ? "confirmed" : "reverted" };
+  } catch {
+  }
+  try {
+    await getTransaction(client, { hash: rec.hash });
+    return { ...rec, status: "sent" };
+  } catch {
+  }
+  const used = await getTransactionCount(client, { address: account.address, blockTag: "latest" });
+  if (used <= rec.nonce) return { ...rec, status: "unsent" };
+  const head = await getBlockNumber(client);
+  const logs = await getLogs(client, {
+    address: ALLOWANCE,
+    event: PAID,
+    args: { id: BigInt(rec.policyId), to: rec.to },
+    fromBlock: head > 4999n ? head - 4999n : 0n,
+    toBlock: head
+  });
+  const hit = logs.find((l) => l.args.amount === BigInt(rec.units) && l.args.memo === rec.memo);
+  return hit ? { ...rec, status: "confirmed", hash: hit.transactionHash } : { ...rec, status: "dropped" };
+}
+async function recentRepeat(d, to, units, memoHex) {
+  const since = Date.now() - REPEAT_MS;
+  const local = loadPayments().find((p) => p.deployment === DEPLOYMENT && p.policyId === d.policyId && p.to === to && p.units === units.toString() && p.memo === memoHex && Date.parse(p.at) > since && (p.status === "sent" || p.status === "confirmed"));
+  if (local) return local;
+  const head = await getBlockNumber(client);
+  const logs = await getLogs(client, {
+    address: ALLOWANCE,
+    event: PAID,
+    args: { id: BigInt(d.policyId), to },
+    fromBlock: head > REPEAT_BLOCKS ? head - REPEAT_BLOCKS : 0n,
+    toBlock: head
+  });
+  const hit = logs.find((l) => l.args.amount === units && l.args.memo === memoHex);
+  return hit ? { hash: hit.transactionHash } : null;
+}
+async function payInternal(d, to, units, memo) {
+  await assertChain();
+  const memoHex = memo32(memo);
+  const rec = newRecord(null, d, to, units, memoHex, await signPay(d, to, units, memoHex));
+  recordPayment(rec);
+  const done = await broadcastAndWait(rec);
+  if (done.status !== "confirmed") throw new Error(`top-up ${done.status === "reverted" ? "reverted" : "not confirmed yet"}: ${explorer(rec.hash)}`);
+  return rec.hash;
+}
+async function payTool({ to, amount, token, memo, idempotency_key: key, allow_repeat }) {
+  const missing = needAllowance();
+  if (missing) return fail(missing);
+  if (!isAddress(to, { strict: false })) return fail(`not an address: ${to}`);
+  if (key === "") return fail("idempotency_key can't be empty: leave it out, or give one per payment. Nothing sent.");
+  const dest = getAddress(to);
+  const t = TOKENS[token];
+  let units, memoHex;
+  try {
+    units = parseUnits(amount, t.decimals);
+    memoHex = memo32(memo);
+    await assertChain();
+  } catch (e) {
+    return fail(`Nothing sent: ${String(e?.shortMessage || e?.message || e)}`);
+  }
+  let prior = key ? loadPayments().find((p) => p.key === key && p.deployment === DEPLOYMENT) : null;
+  if (prior) {
+    if (prior.to !== dest || prior.units !== units.toString() || prior.token !== token || prior.memo !== memoHex) {
+      return fail(`idempotency_key "${key}" was already used for a different payment (${sentLine(prior).sent} to ${prior.to}). Use a new key for a new payment. Nothing sent.`);
+    }
+    try {
+      prior = await reconcile(prior);
+    } catch (e) {
+      return fail(`Couldn't check this key's earlier payment (${explorer(prior.hash)}): ${String(e?.shortMessage || e?.message || e)}. Nothing new was sent; try again shortly.`);
+    }
+    recordPayment(prior);
+    if (prior.status === "unsent") {
+      prior = await broadcastAndWait(prior);
+      if (prior.status === "confirmed") return ok({ ...sentLine(prior), note: "sent now: this key's first attempt never reached the network" });
+    }
+    if (prior.status === "confirmed") return ok({ ...sentLine(prior), repeat: "this key had already paid; nothing new was sent" });
+    if (prior.status === "reverted") return fail(`This key's payment reverted on-chain, so nothing was paid: ${explorer(prior.hash)}. To try again, use a new key.`);
+    if (prior.status === "sent") return ok({ status: "pending", tx: prior.hash, explorer: explorer(prior.hash), next: "Not confirmed yet. Call pay again with the same idempotency_key in a minute; don't use a new key." });
+  }
+  try {
+    const d = await policyFor(token);
+    if (!key && !allow_repeat) {
+      const dup = await recentRepeat(d, dest, units, memoHex);
+      if (dup) {
+        return fail(`An identical payment (${amount} ${t.label} to ${dest}${memo ? `, memo "${memo}"` : ""}) went out in the last 10 minutes: ${explorer(dup.hash)}. Nothing sent. If you really mean to pay again, call pay with allow_repeat: true; to make retries safe, pass an idempotency_key.`);
+      }
+    }
+    if (units > d._raw.spendable) return fail(`${amount} ${t.label} is over what this policy allows right now (${d.largestPaymentNow}). Nothing sent.`);
+    const rec = newRecord(key, d, dest, units, memoHex, await signPay(d, dest, units, memoHex));
+    recordPayment(rec);
+    const done = await broadcastAndWait(rec);
+    if (done.status === "reverted") return fail(`The transaction reverted on-chain, so nothing was paid: ${explorer(done.hash)}`);
+    if (done.status !== "confirmed") {
+      return ok({
+        status: "pending",
+        tx: done.hash,
+        explorer: explorer(done.hash),
+        next: key ? "Not confirmed yet. Call pay again with the same idempotency_key to get the outcome; don't use a new key." : "Not confirmed yet. Check the explorer link before paying again, and pass an idempotency_key next time."
+      });
+    }
+    return ok(sentLine(done));
+  } catch (e) {
+    return fail(`Nothing sent: ${refusal(e)}`);
+  }
 }
 var server = new McpServer({
   name: "remesso-wallet",
-  version: "0.3.2",
+  version: "0.4.0",
   icons: [{ src: `${APP}/icon.png`, mimeType: "image/png", sizes: ["512x512"] }]
 });
 server.tool(
@@ -26404,6 +26416,7 @@ server.tool(
     const missing = needAllowance();
     if (missing) return ok({ ...out, note: missing });
     try {
+      await assertChain();
       const { _policies, ...r } = await readiness();
       return ok({ ...out, ...r, policies: _policies });
     } catch (e) {
@@ -26474,28 +26487,16 @@ server.tool(
 );
 server.tool(
   "pay",
-  "Send stablecoins from the human's wallet to an address, within the on-chain policy. The contract refuses anything over the per-payment or daily cap, after expiry, after revocation, or (if set) to an address not on the allowlist.",
+  "Send stablecoins from the human's wallet to an address, within the on-chain policy. The contract refuses anything over the per-payment or daily cap, after expiry, after revocation, or (if set) to an address not on the allowlist. Pass an idempotency_key, one per payment you intend (an invoice or request id is ideal). If a call times out or comes back pending, call pay again with the SAME key: it returns the first payment's outcome and never pays twice. Never retry a payment without its key.",
   {
     to: z.string().describe("recipient 0x address"),
     amount: z.string().describe('decimal, e.g. "2.50"'),
     token: z.enum(["USDT", "USDC", "USAT"]).default("USDT"),
-    memo: z.string().max(32).optional().describe("up to 32 chars, recorded on-chain in the Paid event")
+    memo: z.string().optional().describe("up to 32 bytes (a plain letter is 1 byte, an emoji 4), recorded on-chain in the Paid event"),
+    idempotency_key: z.string().max(128).optional().describe("one per intended payment; the same key never pays twice"),
+    allow_repeat: z.boolean().default(false).describe("pay even though an identical payment went out in the last 10 minutes; only when the user means it")
   },
-  async ({ to, amount, token, memo }) => {
-    const missing = needAllowance();
-    if (missing) return fail(missing);
-    if (!isAddress(to, { strict: false })) return fail(`not an address: ${to}`);
-    try {
-      const d = await policyFor(token);
-      const t = TOKENS[token];
-      const units = parseUnits(amount, t.decimals);
-      if (units > d._raw.spendable) return fail(`${amount} ${t.label} is over what this policy allows right now (${d.largestPaymentNow}). Nothing sent.`);
-      const hash3 = await payThroughPolicy(d, getAddress(to), units, memo);
-      return ok({ sent: `${amount} ${t.label}`, to: getAddress(to), policyId: d.policyId, tx: hash3, explorer: `https://celoscan.io/tx/${hash3}` });
-    } catch (e) {
-      return fail(`Nothing sent: ${refusal(e)}`);
-    }
-  }
+  (args) => serial(() => payTool(args))
 );
 server.tool(
   "pay_x402",
@@ -26507,7 +26508,8 @@ server.tool(
     max_amount: z.string().describe('the most you will pay, decimal, e.g. "0.05"'),
     token: z.enum(["USDT", "USDC", "USAT"]).default("USAT")
   },
-  async ({ url, method, body, max_amount, token }) => {
+  // Serial with pay: a top-up signs with the same key and nonce sequence.
+  ({ url, method, body, max_amount, token }) => serial(async () => {
     const t = TOKENS[token];
     const maxUnits = parseUnits(max_amount, t.decimals);
     const init = { method, headers: { "content-type": "application/json" }, body: method === "POST" ? body ?? "{}" : void 0 };
@@ -26530,7 +26532,7 @@ server.tool(
         let want = price - float + 20000n;
         if (want > d._raw.spendable) want = price - float;
         if (want > d._raw.spendable) return fail(`needs ${fmt(price - float, t)} from the policy; it allows ${d.largestPaymentNow} right now.`);
-        topUp = await payThroughPolicy(d, account.address, want, "x402 top-up");
+        topUp = await payInternal(d, account.address, want, "x402 top-up");
       }
       const select = (_v, list) => {
         const p = list.find((a) => String(a.asset).toLowerCase() === t.address.toLowerCase());
@@ -26551,7 +26553,7 @@ server.tool(
     } catch (e) {
       return fail(String(e?.shortMessage || e?.message || e));
     }
-  }
+  })
 );
 function hostName() {
   const n = server.client?.name ?? "";

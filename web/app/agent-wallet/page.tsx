@@ -20,6 +20,7 @@ import {
 } from "@/lib/config";
 import { formatExact, parseUnits } from "@/lib/format";
 import { useIsMiniPay } from "@/lib/hooks";
+import { scanPolicies } from "@/lib/policies";
 import { ActionBar, CopyValue } from "@/components/ui";
 import { ConnectBar } from "@/components/ConnectBar";
 import { Icon } from "@/components/Icon";
@@ -41,8 +42,6 @@ import { Icon } from "@/components/Icon";
 /// it is not shown — the same rules as a pay link.
 
 const TOKENS: TokenInfo[] = [USDT, USDC, USAT];
-/// How many of the newest policies the Stop list reads. See Existing.
-const RECENT_IDS = 200;
 const DURATIONS = [
   { label: "1 week", days: 7 },
   { label: "1 month", days: 30 },
@@ -327,21 +326,14 @@ function Existing({ owner, agent }: { owner: `0x${string}`; agent: `0x${string}`
     queryKey: ["agent-policies", owner, agent],
     enabled: Boolean(client && AGENT_ALLOWANCE_ADDRESS),
     queryFn: async () => {
-      // Read policies by id, newest first, rather than searching PolicyCreated
-      // logs: forno answers getLogs over at most 5,000 blocks (~83 minutes),
-      // so a search from the deploy block failed silently soon after launch and
-      // this list, with its Stop buttons, never appeared. Ids are dense and few;
-      // the newest RECENT_IDS cover every policy until usage grows past them.
+      // Every policy, not the newest 200: this list holds the Stop buttons, so
+      // a live policy must never drop off it (see lib/policies.ts).
       const aa = AGENT_ALLOWANCE_ADDRESS as `0x${string}`;
-      const next = await client!.readContract({ address: aa, abi: agentAllowanceAbi, functionName: "nextPolicyId" });
-      const ids: bigint[] = [];
-      for (let id = next - 1n; id >= 1n && ids.length < RECENT_IDS; id--) ids.push(id);
-      const policies = await Promise.all(
-        ids.map((id) => client!.readContract({ address: aa, abi: agentAllowanceAbi, functionName: "policy", args: [id] })),
+      const mine = await scanPolicies(
+        client!,
+        aa,
+        (p) => p.owner.toLowerCase() === owner.toLowerCase() && p.agent.toLowerCase() === agent.toLowerCase(),
       );
-      const mine = ids
-        .map((id, i) => ({ id, p: policies[i] }))
-        .filter(({ p }) => p.owner.toLowerCase() === owner.toLowerCase() && p.agent.toLowerCase() === agent.toLowerCase());
       return Promise.all(
         mine.map(async ({ id, p }) => ({
           id,
