@@ -809,7 +809,9 @@ Built on the `builder-codes` branch, from `developer-kit` (2026-10-25).
    none is missed.
 3. Publish `remesso-sdk` 0.2.0 by hand: `cd packages/remesso-sdk && npm publish`.
 4. Merge to `main`, after `developer-kit`, for the developer page.
-5. On mainnet, with your OK: a schedule created with a test code, and its
-   runs checked with `verifyTx`.
+5. On mainnet, with your OK: `scripts/e2e-sdk.ts --send`. Its schedule is
+   now created with a test builder code (`remesso_e2e`), and it checks with
+   `verifyTx` that the run carries it and that the indexer stored it. The
+   test wallet needs about 1.03 USDT and 0.23 CELO first.
 
 **Done when:** everything under "Done when" in step 6 of the design doc holds.

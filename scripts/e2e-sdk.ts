@@ -18,6 +18,7 @@
 /// The receiver's webhook URL is a cloudflared quick tunnel (no account), so
 /// cloudflared must be installed. SDK-created schedules are adopted by the
 /// backend's sync within five minutes, so the first payment can take that long.
+import { verifyTx } from "npm:@celo/attribution-tags@0.5.0";
 import {
   concat,
   createPublicClient,
@@ -50,6 +51,11 @@ import { erc20Abi } from "../packages/remesso-sdk/src/abi.ts";
 const RPC = "https://forno.celo.org";
 const send = Deno.args.includes("--send");
 const USDT = token("USDT");
+/// A builder code standing in for an integrator's (Phase 6). Not registered
+/// with Celo: it shows a code riding from the schedule's transaction onto its run.
+const BUILDER_CODE = "remesso_e2e";
+const OURS = ["remesso", "celo_5cd35ca55baf"];
+const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
 
 // --- keys: parsed from .env, never sourced or printed ------------------------
 const envText = await Deno.readTextFile(new URL("../.env", import.meta.url));
@@ -70,6 +76,8 @@ if (chainId !== 42220) {
   console.error(`refusing: ${RPC} answers chain ${chainId}, not Celo mainnet`);
   Deno.exit(1);
 }
+/// The codes Celo's own attribution SDK reads from a transaction.
+const codesOf = async (hash: Hex) => (await verifyTx({ client: chain as never, hash }))?.codes ?? null;
 const usdtOf = (who: `0x${string}`) => chain.readContract({ address: USDT.address, abi: erc20Abi, functionName: "balanceOf", args: [who] });
 /// Whether `read` comes to satisfy `ok` within `ms`. Right after a transaction
 /// lands, forno can answer from a node a block behind, so a balance read once
@@ -104,8 +112,10 @@ const [payerUsdt, payerCelo, receiverUsdt, agentCelo] = await Promise.all([
   usdtOf(receiverAccount.address),
   chain.getBalance({ address: agentAccount.address }),
 ]);
+/// What the agent is sent: only what it's short of, when earlier runs left it some.
+const agentTopUp = agentCelo >= agentGas ? 0n : agentGas - agentCelo;
 const usdtNeeded = scheduleGross + policyPayment;
-const celoNeeded = GAS.payer * gasPrice * 2n + agentGas;
+const celoNeeded = GAS.payer * gasPrice * 2n + agentTopUp;
 
 console.log(`payer     ${payerAccount.address}  ${formatAmount(payerUsdt, USDT)}, ${formatEther(payerCelo)} CELO`);
 console.log(`receiver  ${receiverAccount.address}  ${formatAmount(receiverUsdt, USDT)}  (derived: "receiver")`);
@@ -113,11 +123,13 @@ console.log(`agent     ${agentAccount.address}  ${formatEther(agentCelo)} CELO  
 console.log(`\nplan:
   1. the receiver serves a webhook behind a cloudflared quick tunnel and subscribes
   2. the receiver asks the payer for 1 USDT, weekly, once
-  3. the payer answers with a schedule: ${formatAmount(scheduleGross, USDT)} sent so 1 USDT arrives (${FEE_BPS}bps on top)
-  4. wait for payment.received for that schedule (the sync adopts it within 5 minutes), then the request reads paid
+  3. the payer answers with a schedule: ${formatAmount(scheduleGross, USDT)} sent so 1 USDT arrives (${FEE_BPS}bps on top),
+     its transaction tagged with the builder code ${BUILDER_CODE}
+  4. wait for payment.received for that schedule (the sync adopts it within 5 minutes), then the request reads paid,
+     and the run carries ${BUILDER_CODE} after ours
   5. gas in USDT: the receiver, holding the 1 USDT and no CELO, creates and revokes a 0.01 policy;
      the SDK pays that gas in USDT through Celo's fee abstraction, the path a fork can't test
-  6. the payer gives the agent a policy (0.05 a payment, 0.10 a day, 1 day, budget 0.10) and ${formatEther(agentGas)} CELO for gas
+  6. the payer gives the agent a policy (0.05 a payment, 0.10 a day, 1 day, budget 0.10) and ${agentTopUp ? `${formatEther(agentTopUp)} CELO for gas` : `no CELO: it holds ${formatEther(agentCelo)}, enough for its gas`}
   7. the agent pays the receiver 0.02 USDT with an idempotency key; the same key again pays nothing
   8. wait for payment.received for the policy payment
   9. revoke the policy and the webhook subscription
@@ -147,6 +159,7 @@ if (short.length) {
 let answerCalls = 0;
 const payer = createRemesso({
   account: payerAccount,
+  builderCodes: [BUILDER_CODE],
   fetch: (input, init) => {
     if (typeof init?.body === "string" && init.body.includes('"action":"answer"')) answerCalls++;
     return fetch(input, init);
@@ -275,6 +288,7 @@ try {
     check(s.amountIn === scheduleGross && s.recipientGets >= 1_000_000n, `schedule #${s.id}: sends ${formatAmount(s.amountIn, USDT)}, ${formatAmount(s.recipientGets, USDT)} arrives`);
     check(!!s.request && "status" in s.request && s.request.status === "accepted", `the request reads ${s.request && "status" in s.request ? s.request.status : JSON.stringify(s.request)}`);
     console.log(`  the answer took ${answerCalls} call(s)${answerCalls === 1 ? ": the backend bound it on the first" : ": the SDK retried while the backend couldn't see the schedule"}`);
+    check(same(await codesOf(s.hash), [...OURS, BUILDER_CODE]), `its createSchedule carries ${[...OURS, BUILDER_CODE].join(", ")} (verifyTx)`);
     return s;
   });
 
@@ -289,6 +303,12 @@ try {
       status = await receiver.requests.get(req.id);
     }
     check(status.payment?.state === "paid" && status.payment.txs.some((t) => t.txHash === m.data.txHash), `the request's payment reads ${status.payment?.state}, with that transaction`);
+    // Builder codes (Phase 6): the executor's run carries the code the
+    // schedule's own transaction did, read back from where the indexer stored it.
+    check(same(await codesOf(m.data.txHash), [...OURS, BUILDER_CODE]), `the run carries ${BUILDER_CODE} after ours (verifyTx)`);
+    const created = (await payer.events.list({ role: "from", kinds: ["schedule_created"], limit: 500 })).events
+      .find((e) => e.refId === schedule.id.toString());
+    check(same(created?.details?.builderCodes, [BUILDER_CODE]), `its schedule_created event lists builderCodes ${JSON.stringify(created?.details?.builderCodes)}`);
   });
 
   await stage("5. gas paid in USDT: the receiver, with no CELO, creates and revokes a policy", async () => {
@@ -360,10 +380,14 @@ try {
     policyId = pol.id;
     txs.push(link(pol.approveHash), link(pol.hash));
     console.log(`  policy #${pol.id}`);
-    const gasTx = await wallet.sendTransaction({ to: agentAccount.address, value: agentGas, data: ATTRIBUTION });
-    const gasReceipt = await chain.waitForTransactionReceipt({ hash: gasTx });
-    txs.push(link(gasTx));
-    check(gasReceipt.status === "success", `${formatEther(agentGas)} CELO to the agent for gas`);
+    if (agentTopUp > 0n) {
+      const gasTx = await wallet.sendTransaction({ to: agentAccount.address, value: agentTopUp, data: ATTRIBUTION });
+      const gasReceipt = await chain.waitForTransactionReceipt({ hash: gasTx });
+      txs.push(link(gasTx));
+      check(gasReceipt.status === "success", `${formatEther(agentTopUp)} CELO to the agent for gas`);
+    } else {
+      console.log(`  the agent already holds ${formatEther(agentCelo)} CELO for its gas, so none is sent`);
+    }
 
     // The policy named outright: step 5 may have left the receiver's own policy
     // for this agent live, and paying its owner from it is refused.
