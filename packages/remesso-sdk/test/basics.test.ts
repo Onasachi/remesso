@@ -4,8 +4,11 @@
 import { assertEquals, assertThrows } from "@std/assert";
 import type { Log } from "viem";
 import { suffixFor } from "../../../supabase/functions/_shared/attribution.ts";
+import { creationCodes } from "../../../supabase/functions/_shared/builder-codes.ts";
 import {
   ATTRIBUTION,
+  attributionFor,
+  createRemesso,
   FEE_BPS,
   findToken,
   formatAmount,
@@ -96,4 +99,21 @@ Deno.test("ids come from the transaction's own log: recorded mainnet receipts", 
 
 Deno.test("attribution: the same bytes the backend's encoder writes", () => {
   assertEquals(ATTRIBUTION, suffixFor(["remesso", "celo_5cd35ca55baf"]));
+  assertEquals(attributionFor(), ATTRIBUTION, "no builder codes: exactly what 0.1.0 wrote");
+});
+
+Deno.test("builder codes: after ours, by the backend's rules", () => {
+  // toDataSuffix(["remesso", "celo_5cd35ca55baf", "acme_app"]) from @celo/attribution-tags 0.5.0
+  assertEquals(
+    attributionFor(["acme_app"]),
+    "0x72656d6573736f2c63656c6f5f3563643335636135356261662c61636d655f617070220080218021802180218021802180218021",
+  );
+  // What the executor's runs will carry is what the backend reads back.
+  assertEquals(creationCodes(`0x6f2e1b3b${attributionFor(["acme_app", "partner_2"])!.slice(2)}`), ["acme_app", "partner_2"]);
+  assertEquals(attributionFor(["acme_app"], false), suffixFor("acme_app"), "attribution: false leaves ours out");
+  assertEquals(attributionFor([], false), undefined);
+  for (const bad of [["Acme"], ["acme app"], ["x".repeat(33)], [""], ["remesso"], ["celo_5cd35ca55baf"], ["a", "a"], ["a", "b", "c", "d"]]) {
+    assertThrows(() => attributionFor(bad), RemessoError, undefined, JSON.stringify(bad));
+  }
+  assertThrows(() => createRemesso({ builderCodes: ["Acme"] }), RemessoError, "builder code");
 });

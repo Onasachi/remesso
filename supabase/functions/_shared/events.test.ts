@@ -57,6 +57,7 @@ const facts = (): Facts => ({
   blockTime: new Map([[80_271_047n, 1_792_171_805]]),
   schedules: new Map([["1", { token: "0xusat", tokenOut: "0x0000000000000000000000000000000000000000", payoutType: 2, feeBps: 25 }]]),
   policies: new Map([["7", { owner: "0xowner", agent: "0xagent", token: "0xusdt" }]]),
+  codes: new Map([[tx, ["acme_app"]]]),
 });
 
 Deno.test("a run: the amount that arrived, its token, and whether it was sent early", () => {
@@ -101,6 +102,18 @@ Deno.test("a new schedule records what each run will deliver, after the fee", ()
   }, 3)], facts());
   assertEquals([row.kind, row.amount, row.amount_in], ["schedule_created", "5000000", "5012532"]);
   assertEquals([row.details.interval, row.details.maxRuns], ["2592000", 12]);
+  assertEquals(row.details.builderCodes, ["acme_app"], "the integrator codes its transaction carried");
+});
+
+Deno.test("a schedule whose transaction wasn't read waits for the next pass", () => {
+  const f = facts();
+  f.codes.clear();
+  const created = log("ScheduleCreated", {
+    id: 1n, sender: "0xs", destination: "0xd", amountIn: 1n, interval: 1n, minRateE6: 0n, maxRuns: 1, expiresAt: 1n, payoutType: 2,
+  }, 0);
+  assertThrows(() => rowsFor([created], f), Error, `missing the input of transaction ${tx}`);
+  f.codes.set(tx, []);
+  assertEquals(rowsFor([created], f)[0].details.builderCodes, [], "read, and carrying none: an empty list");
 });
 
 Deno.test("a policy payment: the owner pays, and the memo is kept as text", () => {

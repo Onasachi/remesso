@@ -16,6 +16,7 @@
 /// subgraph (CLAUDE.md, invariants).
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { parseAbi } from "npm:viem@2";
+import { creationCodes } from "../_shared/builder-codes.ts";
 import { getSchedule, publicClient } from "../_shared/celo.ts";
 import { ALLOWANCE, CHAIN_ID, V5 } from "../_shared/deployments.ts";
 import {
@@ -154,7 +155,7 @@ async function blockHash(n: bigint): Promise<string | null> {
 /// or policy is created, so reading it at the latest block is as good as at
 /// the event's.
 async function factsFor(src: Source, logs: Log[]): Promise<Facts> {
-  const facts: Facts = { blockTime: new Map(), schedules: new Map(), policies: new Map() };
+  const facts: Facts = { blockTime: new Map(), schedules: new Map(), policies: new Map(), codes: new Map() };
   await Promise.all([...new Set(logs.map((l) => l.blockNumber))].map(async (n) => {
     facts.blockTime.set(n, Number((await publicClient.getBlock({ blockNumber: n })).timestamp));
   }));
@@ -168,6 +169,12 @@ async function factsFor(src: Source, logs: Log[]): Promise<Facts> {
         payoutType: s.payoutType,
         feeBps: s.feeBps,
       });
+    }));
+    // The builder codes an integrator put on the transaction that created a
+    // schedule, which every run of it then carries (`builder-codes.ts`).
+    const created = [...new Set(logs.filter((l) => l.eventName === "ScheduleCreated").map((l) => l.transactionHash))];
+    await Promise.all(created.map(async (hash) => {
+      facts.codes.set(hash, creationCodes((await publicClient.getTransaction({ hash })).input));
     }));
   } else {
     await Promise.all(ids.map(async (id) => {

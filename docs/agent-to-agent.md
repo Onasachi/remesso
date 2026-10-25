@@ -548,10 +548,11 @@ us.
 - **The integrator tags its own `createSchedule` transaction** with its code.
   It would do that anyway for its own rewards, and it registers the code with
   Celo, as we did `remesso`.
-- **`sync-schedules` reads the code.** It already adopts every schedule created
-  outside the app. For each one, it looks up the `ScheduleCreated` log (the id
-  is indexed), reads the suffix of that transaction, and stores the codes with
-  the schedule.
+- **`index-events` reads the code.** It already records every
+  `ScheduleCreated` log, wherever the schedule was made. For each one, it
+  reads the suffix of that transaction and stores the codes with the event.
+  (This said `sync-schedules` until the build, 2026-10-25. The indexer has the
+  log in hand, so it needs no lookup.)
 - **We carry the code on every run.** `execute-due-runs` and `trigger-run`
   append the codes after ours.
   - Schema 0 carries a list, and each code in it is credited

@@ -322,6 +322,15 @@ it lands, the schedule is real but only `runNow` and `trigger-run` can move
 it, so `TRIGGER=remesso` is worth setting anyway: it lets you pull the first
 payment immediately instead of waiting.
 
+**Your builder code rides on every run.** Set `BUILDER_CODE=your_code` (up to
+three, comma-separated), or pass `builderCodes` to `createRemesso`, and your
+ERC-8021 code goes on the `createSchedule` transaction after ours. Remesso's
+executor reads it from there and carries it on every run of that schedule,
+so Celo credits the volume to you as well as to us. Any Schema 0 tag works,
+as `toDataSuffix` or `withAttribution` from `@celo/attribution-tags` write
+it. The schedule's `schedule_created` event in `payment-events` lists what
+was read under `details.builderCodes`.
+
 ## Collecting a payment early
 
 If the payer granted you the right — an address and a count, set when they

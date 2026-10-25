@@ -1,6 +1,6 @@
 {
   "name": "remesso-sdk",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Recurring and agent payments on Celo: schedules a payer signs once, agent payments capped on-chain by their human, payment requests, payment events and signed webhooks. TypeScript, on viem.",
   "type": "module",
   "exports": {

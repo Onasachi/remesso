@@ -101,6 +101,12 @@ deno run --allow-all --config packages/remesso-sdk/deno.json --unstable-sloppy-i
 deno run --allow-all --config packages/remesso-sdk/deno.json --unstable-sloppy-imports scripts/e2e-sdk.ts
 # Publishing remesso-sdk to npm is done by hand: cd packages/remesso-sdk && npm publish
 
+# builder codes (Phase 6): an integrator's ERC-8021 code rides on every run
+deno test --allow-env supabase/functions/_shared/attribution.test.ts   # read and write, pinned to Celo's SDK
+deno test --allow-env supabase/functions/_shared/builder-codes.test.ts # which codes a run carries; never fails a run
+# the real index-events and execute-due-runs on the fork (as for fork-e2e-runs.ts):
+deno run --allow-all --config packages/remesso-sdk/deno.json --unstable-sloppy-imports scripts/fork-builder-codes.ts
+
 # Claude plugin and the npm package — plugin/ and packages/remesso-wallet/ are
 # assembled from skills/ and mcp/; edit those, then rebuild (after
 # `cd mcp && npm run build` if the server changed). --check fails on drift.
@@ -456,6 +462,30 @@ The backend encodes the suffix itself rather than importing
 `@celo/attribution-tags` (Deno blocked the fresh version, and this sits in the
 path of every remittance). `attribution.test.ts` pins the bytes to the SDK's
 own output — one wrong byte and the indexer sees nothing, silently.
+
+**Builder codes (Phase 6): an integrator's code rides on every run of the
+schedules it creates.** The integrator tags its own `createSchedule`
+transaction (`builderCodes` in remesso-sdk 0.2.0, `BUILDER_CODE` in
+`examples/create-schedule.ts`, or Celo's `withAttribution`).
+- `index-events` reads that transaction's input when it records the
+  `ScheduleCreated`. It keeps up to three codes in Celo's charset, drops ours,
+  and stores them as the event's `details.builderCodes` (`[]` for none).
+- `execute-due-runs` and `trigger-run` ask `codesForRun`
+  (`_shared/builder-codes.ts`), and `signRun` puts the codes after ours.
+  - A schedule the indexer hasn't recorded yet is found on the chain, so an
+    early send in its first minute still carries them.
+  - Every failure answers `[]`: attribution never stops a payment.
+  - If ours and theirs don't fit in one suffix, ours go alone.
+- **The event code stays ours after it leaves `ATTRIBUTION_CODE`.**
+  `OWN_CODES` in `_shared/erc8021.ts` lists every code we ever wrote, because
+  remesso-sdk 0.1.0 writes `celo_5cd35ca55baf` on every transaction for good.
+  Without that list, dropping the event code from the env would make our runs
+  carry it again as an integrator's code.
+- `_shared/erc8021.ts` is pure, and the SDK carries an exact copy
+  (`build-sdk.ts`), so the SDK refuses before signing any code the runs
+  wouldn't carry.
+- Only Schema 0 is read. Codes inside an ERC-4337 bundle aren't read yet:
+  the outer transaction is the bundler's.
 
 ## V4/V5 and paid triggering
 

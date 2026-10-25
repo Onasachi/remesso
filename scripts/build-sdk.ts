@@ -8,9 +8,9 @@
 ///   `build-deployments.ts` writes from what is live;
 /// - `generated/abi.ts`, from the compiled ABIs in `indexer/abis/`;
 /// - `vendor/`, exact copies of the code the backend and the app run: the
-///   webhook and decline signatures, the fee, the payee profile reader and the
-///   Node safe fetch. A payer signs what the backend verifies because it is the
-///   same file.
+///   webhook and decline signatures, the fee, the payee profile reader, the
+///   Node safe fetch and the ERC-8021 rules for builder codes. A payer signs
+///   what the backend verifies because it is the same file.
 ///
 ///   deno run --allow-read --allow-write scripts/build-sdk.ts
 ///
@@ -23,6 +23,7 @@ const VENDOR: [from: string, to: string][] = [
   ["supabase/functions/_shared/standard-webhooks.ts", "vendor/standard-webhooks.ts"],
   ["supabase/functions/_shared/webhook-actions.ts", "vendor/webhook-actions.ts"],
   ["supabase/functions/_shared/request-decline.ts", "vendor/request-decline.ts"],
+  ["supabase/functions/_shared/erc8021.ts", "vendor/erc8021.ts"],
   ["web/lib/fee.ts", "vendor/fee.ts"],
   ["web/lib/payee-profile.ts", "vendor/payee-profile.ts"],
   ["web/lib/safe-fetch.ts", "vendor/safe-fetch.ts"],

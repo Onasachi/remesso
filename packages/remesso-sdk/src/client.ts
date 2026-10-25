@@ -2,7 +2,7 @@
 import { type Account, type Address, createPublicClient, createWalletClient, http, type PublicClient, type WalletClient } from "viem";
 import { celo } from "viem/chains";
 import { type Agents, makeAgents } from "./agents.js";
-import { ATTRIBUTION } from "./attribution.js";
+import { attributionFor } from "./attribution.js";
 import { makeCtx } from "./context.js";
 import { deployment } from "./deployment.js";
 import { type Events, makeEvents } from "./events.js";
@@ -31,6 +31,14 @@ export type RemessoOptions = {
   fetchText?: (url: string) => Promise<string>;
   /** Tag transactions for ERC-8021 attribution. Default true. */
   attribution?: boolean;
+  /**
+   * Your own ERC-8021 builder codes, up to three, carried after Remesso's on
+   * every transaction this client sends. Remesso's executor also carries them
+   * on every run of the schedules you create, so Celo counts that volume for
+   * you. Throws on a code outside Celo's charset, one of Remesso's own, a
+   * repeat, or more than three.
+   */
+  builderCodes?: string[];
   /** For tests: another Remesso backend, and the app origin links point at. */
   functionsUrl?: string;
   appOrigin?: string;
@@ -82,7 +90,7 @@ export function createRemesso(opts: RemessoOptions = {}): Remesso {
     },
     appOrigin,
     fetch: opts.fetch ?? globalThis.fetch.bind(globalThis),
-    dataSuffix: opts.attribution === false ? undefined : ATTRIBUTION,
+    dataSuffix: attributionFor(opts.builderCodes, opts.attribution !== false),
     store: opts.store ?? memoryStore(),
     fetchText: opts.fetchText,
   });

@@ -22,7 +22,7 @@ export {
 } from "./deployment.js";
 export { feeOf, grossFor, netOf } from "./vendor/fee.js";
 export { allowanceAbi, erc20Abi, executorAbi, registryAbi } from "./abi.js";
-export { ATTRIBUTION } from "./attribution.js";
+export { ATTRIBUTION, attributionFor } from "./attribution.js";
 
 export { CADENCES, type Cadence, type CreatedSchedule, type CreateScheduleInput, type Schedule } from "./schedules.js";
 export { memo32, type PayInput, type PaymentResult } from "./payments.js";

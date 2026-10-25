@@ -35,6 +35,10 @@
 ///   MAX_TOTAL=2       refuse if AMOUNT × RUNS exceeds this (default 2),
 ///                     in TOKEN's own units — 1 wARS is one peso, so a
 ///                     peso schedule needs this raised deliberately
+///   BUILDER_CODE=you  your ERC-8021 code(s), comma-separated (default: none).
+///                     Up to three ride on every run of the schedule, so
+///                     Celo counts its volume for you too
+import { toDataSuffix } from "npm:@celo/attribution-tags@0.5.0";
 import { createPublicClient, createWalletClient, http, parseAbi, parseEventLogs, parseUnits } from "npm:viem@2";
 import { privateKeyToAccount } from "npm:viem@2/accounts";
 import { celo } from "npm:viem@2/chains";
@@ -151,10 +155,11 @@ const publicClient = createPublicClient({ chain: celo, transport: http(RPC) });
 // own code plus the one Loops issued for Agents on Open Rails. It credits the
 // app that caused the transaction and changes nothing about what it does —
 // the same suffix the Remesso web app puts on every write a sender signs.
-// Byte-identical to `toDataSuffix(["remesso", "celo_5cd35ca55baf"])` from
-// `@celo/attribution-tags`, pinned in `_shared/attribution.test.ts`.
-const ATTRIBUTION =
-  "0x72656d6573736f2c63656c6f5f356364333563613535626166190080218021802180218021802180218021";
+// Your BUILDER_CODE goes after ours, and Remesso's executor carries it on
+// every run of this schedule: it reads the codes from the transaction that
+// created it. Celo's toDataSuffix refuses a code its registry wouldn't take.
+const builderCodes = (Deno.env.get("BUILDER_CODE") ?? "").split(",").map((c) => c.trim()).filter(Boolean);
+const ATTRIBUTION = toDataSuffix(["remesso", "celo_5cd35ca55baf", ...builderCodes]);
 const wallet = createWalletClient({ account, chain: celo, transport: http(RPC), dataSuffix: ATTRIBUTION });
 const read = (functionName: string, args: unknown[], address = token.address) =>
   publicClient.readContract({ address, abi, functionName, args } as never);

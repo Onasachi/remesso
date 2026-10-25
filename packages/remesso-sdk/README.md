@@ -210,6 +210,40 @@ await agent.requests.pay(requestId); // its reference goes in the memo, so the r
   (`privateKeyToAccount`). The agent's key pays its own gas: send it a little
   CELO.
 
+## Builder codes
+
+Celo credits on-chain volume to the app that caused it, by the ERC-8021 code
+on each transaction
+([attribution tags](https://github.com/celo-org/attribution-tags)). Pass your
+own, and every transaction this client sends carries it after Remesso's.
+Remesso's executor then carries it on every run of each schedule the client
+creates, so the volume a schedule moves counts for you too, for as long as it
+runs.
+
+```ts
+import { createRemesso } from "remesso-sdk";
+import { privateKeyToAccount } from "viem/accounts";
+
+const payer = createRemesso({
+  account: privateKeyToAccount(process.env.PAYER_KEY as `0x${string}`),
+  builderCodes: ["your_code"],
+});
+const s = await payer.schedules.create({ to: "0xRecipient", amount: "5", token: "USDT", every: "month", runs: 12 });
+
+// A minute later, what Remesso read from the transaction that created it:
+const { events } = await payer.events.list({ role: "from", kinds: ["schedule_created"] });
+console.log(events.find((e) => e.refId === s.id.toString())?.details?.builderCodes); // ["your_code"]
+```
+
+- Up to three codes, each 1 to 32 of `a-z`, `0-9` and `_`. The SDK refuses
+  anything else before signing, by the rules the executor applies.
+- Without the SDK, tag your own `createSchedule` transaction with
+  `toDataSuffix` or `withAttribution` from `@celo/attribution-tags`. Only
+  Schema 0, the one they write, is read. A schedule created through an
+  ERC-4337 bundle isn't read yet: the codes come from the outer transaction.
+- The suffix sits after the calldata, where the EVM ignores it. A code
+  changes who is credited, never what a payment does.
+
 ## What it costs
 
 - **0.25% of each scheduled payment**, taken from it and rounded up: a 1 USDT
@@ -241,6 +275,7 @@ await agent.requests.pay(requestId); // its reference goes in the memo, so the r
 | `store` | Where agent payments are recorded so a retry pays once. Default: memory. |
 | `fetchText` | Reads an https or ipfs registration file for `agents.find`: pass `safeFetchText`. |
 | `attribution` | Tag transactions for ERC-8021 attribution. Default true. |
+| `builderCodes` | Your own ERC-8021 codes, up to three: on every transaction this client sends, and on every run of the schedules it creates (see Builder codes). |
 
 The client:
 
@@ -296,6 +331,7 @@ The client:
 | `CHAIN_ID`, `EXECUTOR`, `ALLOWANCE`, `REGISTRY`, `CURRENT_EXECUTOR`, `FEE_BPS` | The chain, the contracts, Remesso's trigger sentinel and the commission. |
 | `executorAbi`, `allowanceAbi`, `erc20Abi`, `registryAbi` | ABIs. |
 | `ATTRIBUTION` | The ERC-8021 suffix the SDK adds to transactions. |
+| `attributionFor(builderCodes)` | That suffix with your codes after ours, checked by the executor's rules: for a transaction you send yourself. |
 | `CADENCES` | `week`, `fortnight`, `month` and `quarter`, in seconds. |
 | `RemessoError` | Every refusal; see the codes below. |
 

@@ -33,6 +33,7 @@
 /// batcher contract set via setExecutor — see README.
 import { createClient } from "npm:@supabase/supabase-js@2";
 import type { Hex } from "npm:viem@2";
+import { codesForRun } from "../_shared/builder-codes.ts";
 import { CELO, requireEnv, runAmountProblem } from "../_shared/config.ts";
 import {
   broadcast,
@@ -106,6 +107,8 @@ type Prepared = {
   runId: string;
   onchainId: bigint;
   quote: { amountOut: bigint; minOut: bigint; rateE6: bigint };
+  /// The integrator's codes, carried after ours (`_shared/builder-codes.ts`).
+  builderCodes: string[];
 };
 
 Deno.serve(async () => {
@@ -273,6 +276,10 @@ async function prepare(
     const problem = runAmountProblem(onchain.token, onchain.amountIn);
     if (problem) return await fail(problem);
 
+    // Whose codes the run carries besides ours. Read here, in parallel and
+    // outside the lease; it answers [] rather than failing a run.
+    const builderCodes = await codesForRun(db, CELO.executor, onchainId);
+
     // 3. A Direct run converts nothing: same asset in and out. There is no
     //    price to quote, no pool to check and no floor to clear, so the whole
     //    market-facing half of a run simply does not apply.
@@ -284,6 +291,7 @@ async function prepare(
           runId: run.id,
           onchainId,
           quote: { amountOut: amountIn, minOut: 0n, rateE6: 0n },
+          builderCodes,
         },
       };
     }
@@ -305,7 +313,7 @@ async function prepare(
       min_out: health.quote.minOut.toString(),
     }).eq("id", run.id);
 
-    return { prepared: { s, runId: run.id, onchainId, quote: health.quote } };
+    return { prepared: { s, runId: run.id, onchainId, quote: health.quote, builderCodes } };
   } catch (e) {
     return await fail(describe(e));
   }
@@ -314,7 +322,7 @@ async function prepare(
 /// Moves money. Sequential by construction — see the note at the top of the
 /// file about nonces.
 async function settle(p: Prepared, deadline: number) {
-  const { s, runId, onchainId, quote } = p;
+  const { s, runId, onchainId, quote, builderCodes } = p;
 
   const fail = async (
     reason: string,
@@ -392,7 +400,7 @@ async function settle(p: Prepared, deadline: number) {
     }
 
     // 5. Execute. The contract re-checks every limit.
-    const signed = await signRun("executeRun", onchainId, quote.minOut, lease.nonceFloor);
+    const signed = await signRun("executeRun", onchainId, quote.minOut, lease.nonceFloor, builderCodes);
 
     // Saved before the broadcast. If this invocation dies from here on, the
     // recovery pass settles the row from this hash instead of guessing. A run

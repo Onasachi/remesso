@@ -108,6 +108,19 @@ const r = await agent.pay({ to: "0xShop", amount: "2.50", token: "USDT", idempot
 
 await agent.requests.pay(requestId); // its reference goes in the memo, so the requester sees it`;
 
+const BUILDER_CODES = `import { createRemesso } from "remesso-sdk";
+import { privateKeyToAccount } from "viem/accounts";
+
+const payer = createRemesso({
+  account: privateKeyToAccount(process.env.PAYER_KEY as \`0x\${string}\`),
+  builderCodes: ["your_code"],
+});
+const s = await payer.schedules.create({ to: "0xRecipient", amount: "5", token: "USDT", every: "month", runs: 12 });
+
+// A minute later, what Remesso read from the transaction that created it:
+const { events } = await payer.events.list({ role: "from", kinds: ["schedule_created"] });
+console.log(events.find((e) => e.refId === s.id.toString())?.details?.builderCodes); // ["your_code"]`;
+
 function Step({ n, children }: { n: number; children: React.ReactNode }) {
   return (
     <li className="flex gap-3">
@@ -285,6 +298,37 @@ export default function DevelopersPage() {
           </li>
           <li className="flex gap-2">
             <Icon name="check_circle" /> The agent&apos;s key pays its own gas: send it a little CELO.
+          </li>
+        </ul>
+      </section>
+
+      <section id="builder-codes" className="card mt-3 scroll-mt-6">
+        <div className="flex items-center gap-2.5">
+          <span className="disc h-9 w-9"><Icon name="verified_user" /></span>
+          <h2 className="text-[17px] font-semibold text-ink">Builder codes</h2>
+        </div>
+        <p className="mt-3 text-[15px] leading-relaxed text-ink-2">
+          Celo credits on-chain volume to the app that caused it, by the ERC-8021 code on each transaction (
+          <Out href="https://github.com/celo-org/attribution-tags">attribution tags</Out>). Pass your own, and every
+          transaction this client sends carries it after Remesso&apos;s. Remesso&apos;s executor then carries it on
+          every run of each schedule the client creates, so the volume a schedule moves counts for you too, for as long
+          as it runs.
+        </p>
+        <Snippet code={BUILDER_CODES} />
+        <ul className="mt-3 space-y-1.5 text-[14px] leading-relaxed text-ink-2">
+          <li className="flex gap-2">
+            <Icon name="check_circle" /> Up to three codes, each 1 to 32 of a-z, 0-9 and _. The SDK refuses anything
+            else before signing, by the rules the executor applies.
+          </li>
+          <li className="flex gap-2">
+            <Icon name="check_circle" /> <span>Without the SDK, tag your own createSchedule transaction with{" "}
+            <span className="text-ink">toDataSuffix</span> or <span className="text-ink">withAttribution</span> from
+            @celo/attribution-tags. Only Schema 0, the one they write, is read. A schedule created through an ERC-4337
+            bundle isn&apos;t read yet: the codes come from the outer transaction.</span>
+          </li>
+          <li className="flex gap-2">
+            <Icon name="check_circle" /> The suffix sits after the calldata, where the EVM ignores it. A code changes
+            who is credited, never what a payment does.
           </li>
         </ul>
       </section>

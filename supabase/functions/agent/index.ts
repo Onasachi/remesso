@@ -12,7 +12,8 @@
 /// secret, quotes no sender, and names no schedule.
 import { formatUnits } from "npm:viem@2";
 import { CELO, DIRECT_TOKENS, LIMITS, runLimits, SELF_API } from "../_shared/config.ts";
-import { ATTRIBUTION_CODE } from "../_shared/attribution.ts";
+import { ATTRIBUTION_CODE, OUR_CODES } from "../_shared/attribution.ts";
+import { MAX_INTEGRATOR_CODES } from "../_shared/erc8021.ts";
 import { ASSETS, X402 } from "../_shared/x402.ts";
 import { allowedDirectTokens, CURRENT_EXECUTOR, executorAccount, executorV4 } from "../_shared/celo.ts";
 import { CNGN_RAILS_ENABLED } from "../_shared/rails.ts";
@@ -206,6 +207,17 @@ Deno.serve(async (req) => {
       sdk: "npm install remesso-sdk viem",
       docs: `${WEB}/developers`,
       source: "https://bitbucket.org/crackedstudios/remesso/src/main/packages/remesso-sdk/",
+      /// ERC-8021 builder codes. Tag the transaction that creates a schedule
+      /// with your own code, and every run of that schedule carries it after
+      /// ours, so Celo counts the schedule's volume for you too.
+      builderCodes: {
+        how: "Schema 0 on your createSchedule transaction, as toDataSuffix or withAttribution from " +
+          "@celo/attribution-tags write it, or createRemesso({ builderCodes }) in remesso-sdk",
+        perRun: MAX_INTEGRATOR_CODES,
+        ours: OUR_CODES,
+        check: "your schedule's schedule_created event in payment-events lists details.builderCodes",
+        docs: `${WEB}/developers#builder-codes`,
+      },
     },
 
     services: [
