@@ -25,6 +25,14 @@ const OUT = "deployments/celo-mainnet.json";
 /// checked together with OUT, so the two can't differ.
 const EDGE_COPY = "supabase/functions/_shared/celo-mainnet.json";
 const check = Deno.args.includes("--check");
+/// Build from an `/agent` that isn't deployed yet, served locally with
+/// SUPABASE_URL set to production so its URLs match. Never for `--check`: the
+/// committed file is only ever checked against what is live.
+const AGENT_URL = Deno.env.get("REMESSO_AGENT_URL");
+if (AGENT_URL && check) {
+  console.error("build-deployments: --check reads the live /agent; unset REMESSO_AGENT_URL");
+  Deno.exit(1);
+}
 
 /// Not in `/agent`, which describes the executor's side only. Read back from
 /// the contract below, so a wrong address fails the build instead of landing
@@ -52,12 +60,22 @@ const CURRENCY: Record<string, string> = {
 };
 
 /// The public functions a client calls, by the last part of their URL.
-const PUBLIC_FUNCTIONS = ["agent", "request-payment", "trigger-run", "rate-service", "latam-rate", "latam-route"];
+const PUBLIC_FUNCTIONS = [
+  "agent",
+  "request-payment",
+  "payment-events",
+  "webhooks",
+  "trigger-run",
+  "rate-service",
+  "latam-rate",
+  "latam-route",
+];
 
 const client = createPublicClient({ chain: celo, transport: http(RPC) });
 const v5Abi = parseAbi([
   "function executor() view returns (address)",
   "function directTokenAllowed(address) view returns (bool)",
+  "function feeBps() view returns (uint16)",
 ]);
 const erc20Abi = parseAbi(["function decimals() view returns (uint8)"]);
 const allowanceAbi = parseAbi(["function nextPolicyId() view returns (uint256)"]);
@@ -74,7 +92,7 @@ const fail = (why: string): never => {
 };
 
 // --- what the deployment says about itself ----------------------------------
-const agent = await (await fetch(`${FUNCTIONS}/agent`)).json();
+const agent = await (await fetch(AGENT_URL ?? `${FUNCTIONS}/agent`)).json();
 if (agent.chain?.chainId !== 42220) fail(`/agent says chain ${agent.chain?.chainId}, not 42220`);
 const v5 = getAddress(agent.chain.executor);
 const sentinel = getAddress(agent.chain.trigger);
@@ -95,6 +113,8 @@ if (executor.toLowerCase() !== String(agent.chain.triggeredBy).toLowerCase()) {
 }
 // A liveness read: the address answers as the allowance contract does.
 await client.readContract({ address: getAddress(AGENT_ALLOWANCE.address), abi: allowanceAbi, functionName: "nextPolicyId" });
+/// The commission a schedule created now pins, in basis points.
+const feeBps = await client.readContract({ address: v5, abi: v5Abi, functionName: "feeBps" });
 
 const tokenReads = await client.multicall({
   allowFailure: false,
@@ -120,18 +140,29 @@ feeCurrencies.forEach((entry, i) => {
   feeCurrencyOf.set(String(underlying).toLowerCase(), entry);
 });
 
+/// The per-run bounds the executor applies, as /agent publishes them, for the
+/// tokens it lists.
+const perRun: Record<string, { minUnits: string; maxUnits: string }> = agent.limits?.perRun?.assets ?? {};
+
 const tokens = DIRECT_TOKENS.map((t, i) => {
   const decimals = Number(tokenReads[2 * i]);
   if (decimals !== t.decimals) fail(`${t.symbol} has ${decimals} decimals on-chain, the backend table says ${t.decimals}`);
   const currency = CURRENCY[t.symbol] ?? fail(`no currency for ${t.symbol}: add it to CURRENCY`);
+  const directAllowed = tokenReads[2 * i + 1] as boolean;
+  const limits = perRun[t.symbol];
+  if (directAllowed && !limits) fail(`/agent publishes no per-run limits for ${t.symbol}`);
   return {
     symbol: t.symbol,
     address: getAddress(t.address),
     decimals,
     currency,
     /// Whether V5 takes it for a new Direct schedule right now.
-    directAllowed: tokenReads[2 * i + 1] as boolean,
+    directAllowed,
     feeCurrency: feeCurrencyOf.get(t.address.toLowerCase()) ?? null,
+    /// The smallest and largest run the executor sends, gross, in base units.
+    /// Null for a token V5 doesn't take.
+    minPerRun: limits?.minUnits ?? null,
+    maxPerRun: limits?.maxUnits ?? null,
   };
 });
 
@@ -165,6 +196,9 @@ const manifest = {
       executor: getAddress(executor),
       /// Stored as a schedule's trigger, it means "whoever is the executor now".
       currentExecutorSentinel: sentinel,
+      /// The commission a new schedule pins, read from the contract. Each
+      /// schedule keeps the rate it was created with.
+      feeBps,
     },
     RemessoAgentAllowance: { address: getAddress(AGENT_ALLOWANCE.address), deployBlock: AGENT_ALLOWANCE.deployBlock },
     ERC8004IdentityRegistry: { address: registry },

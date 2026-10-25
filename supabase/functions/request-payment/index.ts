@@ -244,6 +244,11 @@ Deno.serve(async (req) => {
   if (every && intervalSeconds) q.set("every", every);
   if (runs) q.set("runs", String(runs));
   if (note) q.set("note", note);
+  // The request itself, as the app's inbox links it: the form reports the
+  // schedule it creates against it, and `confirm-schedule` decides from the
+  // chain whether it really answers it. Without it, a payer who pays from a
+  // shared link leaves the request unanswered.
+  q.set("req", data.request_id);
 
   return json({
     ok: true,

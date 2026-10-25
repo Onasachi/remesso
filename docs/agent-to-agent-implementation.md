@@ -1,6 +1,15 @@
 # Agent-to-agent: implementation plan
 
-**Status: Phase 0 measuring; Phases 1 to 3 built and tested, backends deployed, web app not merged yet (2026-10-25).** This turns
+**Status (2026-10-25):**
+- Phase 0 is measuring.
+- Phases 1 to 3 are deployed and merged.
+- Phase 4 passed on mainnet and is on npm (`remesso-sdk` 0.1.0). Its merge
+  is pending.
+- Phase 5 isn't planned.
+- Phase 6 is deployed and passed on mainnet, and `remesso-sdk` 0.2.0 is on
+  npm. Its merge is pending.
+
+This turns
 [`agent-to-agent.md`](agent-to-agent.md) into phases of work.
 
 - That doc says what to build and why. This one says in what order, in which
@@ -40,7 +49,7 @@
 | 2 | One manifest, payments that can't be paid twice, every policy findable | 1 | 4–5 days |
 | 3 | The receiving side: events, requests, webhooks, payee profiles | 0, 1, 2 | 10–12 days |
 | 4 | The developer kit | 3 | 6–7 days |
-| 5 | Standing orders | design any time; build after 2 and 3 | 10–12 days, plus the independent audit |
+| 5 | Standing orders (not planned, 2026-10-25) | design any time; build after 2 and 3 | 10–12 days, plus the independent audit |
 | 6 | Builder codes | 3 | 2–3 days |
 
 Sizes are rough working days, including review and mainnet checks. Revise them
@@ -248,9 +257,11 @@ functions.
        (on a dummy address, deleted after);
      - a request made through `request-payment` was readable by the deployed
        app's `payment_requests_for`, then deleted.
-3. Merge to `main`, so Vercel deploys the web app.
+3. Merge to `main`, so Vercel deploys the web app. **Done 2026-10-25**, with
+   Phases 2 and 3 (pull request #2).
 4. Publish `remesso-wallet` by hand: `cd packages/remesso-wallet && npm publish`.
    Publish only the newest build, 0.5.0, which carries Phases 2 and 3 as well.
+   **Done 2026-10-25:** 0.5.0 is on npm.
 5. Run `scripts/check-past-runs.ts --write`, with your OK, to fix the 18
    amounts.
 
@@ -352,9 +363,9 @@ After Phase 1, because the branch carries both.
 
 1. Merge to `main`, for the web app and the hosted connector (Vercel). This
    also ships Phase 1's web changes, so Phase 1's migrations must be pushed
-   first.
+   first. **Done 2026-10-25** (pull request #2).
 2. Publish `remesso-wallet` by hand. If Phase 3 ships with it, publish 0.5.0
-   only: 0.3.2 and 0.4.0 were never published.
+   only: 0.3.2 and 0.4.0 were never published. **Done 2026-10-25:** 0.5.0.
 3. Deploy subgraph `1.1.0` and tag it `prod` (`indexer/README.md`). This can
    wait until something reads policies from it.
 
@@ -540,8 +551,10 @@ After Phases 1 and 2.
      test request was deleted after;
    - still open: whether the hosted platform has `Deno.startTls`. Nothing
      reports which transport ran.
-3. Merge to `main`, for the web app and the hosted connector.
+3. Merge to `main`, for the web app and the hosted connector. **Done
+   2026-10-25** (pull request #2).
 4. Publish `remesso-wallet` 0.5.0 by hand. It carries Phases 1 and 2 too.
+   **Done 2026-10-25.**
 5. Regenerate the skill manifests from the live `/agent`. **Nothing to do on
    2026-10-25:** `--check` found both current.
 6. Update the ERC-8004 metadata (`scripts/erc8004-v5.ts --send`): two mainnet
@@ -551,38 +564,153 @@ After Phases 1 and 2.
 
 ## Phase 4: the developer kit
 
-- [ ] **The package name** comes from Phase 0.
-- [ ] **`packages/remesso-sdk/`** (TypeScript, viem, ESM) covers:
-  - schedules;
-  - policy payments with idempotency keys;
-  - agent lookup and payee profiles;
-  - requests, the event pull and webhook verification;
-  - links.
+**Built and tested 2026-10-25, on `feat/developer-kit`. Not shipped yet:** see
+"Ship Phase 4".
 
-  Networks come from the manifest, with `--check` for drift.
-- [ ] **Tests.** Unit tests with recorded receipts and events.
-  `scripts/e2e-sdk.ts` runs the whole loop on mainnet with the test wallet and
-  small amounts.
-- [ ] **`web/app/developers/page.tsx`**, next to `/claude`:
-  - a quickstart;
-  - what it costs: gas, the fee, and the $1 minimum for a schedule;
-  - the warning that the contracts are unaudited.
+- [x] **The package name:** `remesso-sdk`, from Phase 0.
+- [x] **`packages/remesso-sdk/`** (TypeScript, viem, ESM, Node 20+) covers:
+  - schedules: create (with `amount` or `receive`, optionally answering a
+    request), read, status, list, cancel, pause and trigger grants;
+  - agent payments through a policy, at most once per idempotency key, and
+    policies: find, read, create, revoke, allowlist;
+  - requests: create, status, the inbox, answer, a signed decline, paying one
+    by its reference, and waiting until it is paid;
+  - payment events, pulled or watched;
+  - webhooks: signed subscribe, rotate, revoke and replay, a fetch-style
+    handler, and verification;
+  - agent lookup with the payee profile, and pay links.
 
-  Also update `docs/AGENTS.md`, and link the page from the README.
-- [ ] **Two example agents:**
-  - `examples/freelancer-agent.ts` asks a client for wARS every month, waits
-    for the webhook and issues a receipt.
-  - `examples/family-allowance-agent.ts` pays cNGN every week and links
-    Textile for cashing out.
+  `remesso-sdk/node` adds a payment store on disk, the safe fetch for remote
+  registration files, and an adapter for `http.createServer`.
+- [x] **Nothing about the deployment is typed by hand.** `scripts/build-sdk.ts`
+  writes the deployment from the manifest, the ABIs from `indexer/abis/`, and
+  exact copies of the webhook, decline, fee, payee-profile and safe-fetch code.
+  `--check` fails on drift.
+- [x] **The executor's limits are published, and refused before signing.**
+  - `/agent` gains `limits.perRun`, from a new `runLimits` that
+    `config.test.ts` pins to `runAmountProblem`.
+  - The manifest carries each token's bounds, V5's `feeBps`, and the
+    `payment-events` and `webhooks` URLs.
+  - The SDK refuses a schedule outside the bounds, since one would be valid
+    on-chain and never run.
+  - `examples/create-schedule.ts` and the skill now say a transfer is at least
+    a dollar's worth.
+- [x] **`request-payment`'s link carries `req=`.** The inbox already added it.
+  Without it, a payer who paid from a shared link left the request
+  unanswered.
+- [x] **Tests:**
+  - 17 unit tests, with recorded mainnet receipts and a recorded
+    payment-events page. Every signed request is checked with the backend's
+    own files.
+  - `scripts/fork-sdk.ts`, 23 checks on a mainnet fork:
+    - limits refused before signing;
+    - exact approvals added on top of existing ones;
+    - the gross-up;
+    - a payment retried with its key paying once, including one whose
+      broadcast was lost;
+    - revocation, and the wrong chain.
+  - The packed tarball, installed in an empty project: it type-checks under
+    `NodeNext` and `bundler`, and its live reads work.
+  - `scripts/e2e-sdk.ts`, the whole loop on mainnet with the test wallet, is a
+    dry run unless `--send`.
+- [x] **The first mainnet run (2026-10-25) paid correctly.**
+  - **What worked:**
+    - a webhook subscribed through a quick tunnel;
+    - a request whose link carried `req=`;
+    - a schedule that sent 1.002507 USDT so 1 USDT arrived;
+    - its signed `payment.received` 444 seconds after the run started;
+    - a policy created with gas paid in USDT, 0.0055 USDT for two
+      transactions, which a fork can't run;
+    - an agent payment retried with its key and paid once (one `Paid` event
+      on-chain), and its webhook.
+  - **Five checks failed, every one on a stale read straight after a write**
+    (see CLAUDE.md, "Reads lag"):
+    - the request's answer got "hasn't been seen on-chain yet", and so read
+      unpaid. Answered again a few minutes later, it read accepted and paid;
+    - the receiver's revoke read its new policy as empty, so it found no
+      token to pay gas with;
+    - two of the script's checks read balances from a node a block behind.
+  - **Fixed:**
+    - the SDK retries an answer while the backend says it's unseen, and
+      waits for something it just created;
+    - `scheduleEvidence` asks the chain a few times. This also fixes the
+      app's `req=` flow, which binds at the same moment;
+    - the script counts events and nonces.
+  - Covered by two new unit tests and the fork test.
+- [x] **The second mainnet run (2026-10-25), with those fixes deployed.**
+  - **Passed:**
+    - the webhook 347 seconds after the start;
+    - gas in USDT for three transactions, the revoke included (0.007 USDT,
+      no CELO);
+    - one agent payment, one `Paid` event and one agent transaction in all,
+      after the retry with the same key;
+    - both webhooks.
+  - **Failed:** the answer, once, with a 500. The lookup found the log on one
+    node, then asked another for the block, and that node threw "block is out
+    of range" rather than answering empty.
+  - **Fixed:**
+    - each attempt now catches that;
+    - an answer repeating what already answers a request returns the first
+      answer;
+    - the SDK also retries a 5xx.
+
+    New tests replay both. Answered again, the run's request read accepted
+    and paid.
+- [x] **The third mainnet run (2026-10-25), with the corrected fix deployed:
+  every check passed.**
+  - The request was answered on the first call, seconds after its schedule
+    (#4) landed: the backend's own retries rode out the lag.
+  - The schedule's `payment.received` arrived 413 seconds after the start,
+    and the request read paid with that transaction.
+  - Gas in USDT for three transactions (0.007028 USDT, no CELO).
+  - One agent payment after a retry with the same key, and its webhook.
+  - The policy and the subscription were revoked at the end.
+- [x] **`web/app/developers/page.tsx`**, next to `/claude`:
+  - a six-step quickstart, from `npm install` to a payment and its webhook;
+  - getting paid by request, and agent payments;
+  - what it costs, and the warning that the contracts are unaudited.
+
+  The page's snippets are the README's, byte for byte, and type-check against
+  the SDK. `docs/AGENTS.md` gains "Using the SDK", the README and the agent
+  card link the page, and the skill mentions the SDK.
+- [x] **Two example agents**, each the whole loop:
+  - `examples/freelancer-agent.ts` asks a client for wARS every month, serves
+    the webhook and writes a receipt per payment, marked final when it is.
+  - `examples/family-allowance-agent.ts`: the child asks for cNGN every week
+    and is told of each payment with Textile's cash-out link. The parent's
+    agent lists the request and answers it, after a yes on the terminal.
 
 ### Ship Phase 4
 
-1. Publish the SDK by hand.
-2. Merge to `main` for the developer page.
+1. `supabase functions deploy agent request-payment`, with your OK. **Done
+   2026-10-25:** `/agent` publishes the limits and the developer links, and
+   the request link carries `req=`.
+2. `build-deployments.ts --check` against what is live. **Done 2026-10-25:**
+   both copies match the deployment, and the skill manifests and the SDK's
+   generated files are current.
+3. Run `scripts/e2e-sdk.ts --send`. **First run 2026-10-25:** it paid
+   correctly, and five checks failed on stale reads (above), now fixed.
+   **Second run, after deploying the retry:** all passed but the answer,
+   which got a 500 from a node that threw (above). **Done 2026-10-25:**
+   `request-payment` and `confirm-schedule` redeployed with the corrected
+   retry (a repeated answer on the live endpoint returns the first answer),
+   and the third run passed every check.
+4. Publish `remesso-sdk` 0.1.0 by hand: `cd packages/remesso-sdk && npm publish`.
+   **Done 2026-10-25.**
+5. Merge to `main`, for `/developers`, the agent card and the docs.
+6. Publish `remesso-wallet` 0.5.0 if it isn't out yet: it carries the skill
+   change too. **Done 2026-10-25.**
+7. Follow `/developers` alone from an empty folder, and time it.
 
 **Done when:** everything under "Done when" in step 4 of the design doc holds.
 
 ## Phase 5: standing orders
+
+**Not planned (2026-10-25).** We decided not to build a second allowance
+contract. The live `RemessoAgentAllowance` stays as it is, and agents with a
+timer of their own can still pay on a schedule (step 5 of the design doc,
+"Until it ships"). Phase 6 doesn't depend on it. The plan below is kept in
+case that changes.
 
 - [ ] **Design review.** Confirm or change the proposed answers in step 5 of
   the design doc, and write the result into the contract's NatSpec.
@@ -617,25 +745,97 @@ After Phases 1 and 2.
 
 ## Phase 6: builder codes
 
-- [ ] **Parse and build codes.** `_shared/attribution.ts` gains two functions.
-  Tests pin both to the attribution SDK's bytes.
+Built on the `builder-codes` branch, from `developer-kit` (2026-10-25).
+
+- [x] **Parse and build codes.** In `_shared/erc8021.ts`, which has no
+  environment, so the SDK carries an exact copy. `attribution.ts` re-exports
+  both functions. Tests pin both to the attribution SDK's bytes.
   - `parseSuffix(input)` reads Schema 0 from the end: marker, schema, length,
     codes.
-  - `suffixFor(codes)` builds a suffix from a list of codes.
-- [ ] **Read the integrator's codes.** When `index-events` records a
+  - `suffixFor(codes)` builds a suffix from a list of codes. It moved here
+    unchanged.
+  - Two deliberate differences from ox, both tested:
+    - Schema 2 isn't read;
+    - a length that runs past the start of the input reads as no suffix,
+      where ox reads whatever bytes are there.
+- [x] **Read the integrator's codes.** When `index-events` records a
   `ScheduleCreated`, it reads the input of the transaction that created the
   schedule.
   - It keeps only valid codes: format checked, at most three, ours dropped.
-  - It stores them by schedule (executor address and on-chain id).
-- [ ] **Carry them on every run.** `execute-due-runs` and `trigger-run` append
-  them after our own codes.
-- [ ] **Explain it.** The developer page says how an integrator gets the
-  credit.
+  - "Ours" is `OWN_CODES`: every code we ever wrote. remesso-sdk 0.1.0 writes
+    the event code for good, so it stays ours after it leaves the env.
+  - It stores them on the schedule's `schedule_created` event, as
+    `details.builderCodes` (`[]` for none). That needs no migration.
+  - A transaction it can't read refuses the batch, like any missing fact.
+- [x] **Carry them on every run.** `execute-due-runs` and `trigger-run` ask
+  `_shared/builder-codes.ts`. `signRun` puts the codes after our own
+  (`runSuffix`).
+  - A schedule the indexer hasn't recorded is found on the chain. So is one
+    recorded before codes were read.
+  - Whatever fails, the run carries ours only.
+- [x] **Explain it.**
+  - The developer page has a "Builder codes" section (`#builder-codes`),
+    the same as the SDK README's.
+  - `docs/AGENTS.md` and `examples/create-schedule.ts` (`BUILDER_CODE`)
+    cover it without the SDK.
+  - `/agent` describes it under `developers.builderCodes`.
+- [x] **The SDK.** `createRemesso({ builderCodes })` puts the codes on every
+  transaction it sends. It refuses, before signing, any code the runs wouldn't
+  carry. `attributionFor(codes)` gives the suffix for a transaction you send
+  yourself. That makes `remesso-sdk` 0.2.0.
+- [x] **Tested.**
+  - `attribution.test.ts` (8) and `builder-codes.test.ts` (5);
+  - `events.test.ts` (12) and the SDK's tests (20);
+  - `scripts/fork-builder-codes.ts`: 11 checks, every transaction read with
+    the attribution SDK's own `verifyTx`. It runs the real `index-events` and
+    `execute-due-runs` on a fork:
+    - a schedule created with `builderCodes` carries them on its first run,
+      before the indexer has recorded it;
+    - the indexer stores them;
+    - the second run carries what was stored;
+    - a schedule created without codes carries exactly ours.
+  - `fork-e2e-runs.ts` and `receiving-e2e.ts` still pass. The receiving test
+    backfills from mainnet, and it recorded `[]` for V5's four real
+    schedules: all of them were made with our own codes.
+  - `trigger-run` shares `signRun` and `codesForRun` with the cron. A fork
+    can't settle its x402 payment, so it isn't run end to end.
 
 ### Ship Phase 6
 
-1. `supabase db push`.
-2. `supabase functions deploy index-events execute-due-runs trigger-run`.
-3. Merge to `main` for the developer page.
+1. No migration: the codes live in `payment_events.details`, and the existing
+   `payment_events_ref` index covers the lookup.
+2. `supabase functions deploy index-events execute-due-runs trigger-run agent`,
+   with your OK. Events recorded before the new `index-events` have no
+   `builderCodes`, so their runs read the creating transaction instead, and
+   none is missed. **Done 2026-10-25:**
+   - `/agent` publishes `developers.builderCodes`;
+   - both `index-events` cursors moved within seconds of the deploy;
+   - only code already live in `agent`, `request-payment` and
+     `confirm-schedule` went out with Phase 6.
+3. Publish `remesso-sdk` 0.2.0 by hand: `cd packages/remesso-sdk && npm publish`.
+   **Done 2026-10-25.** Installed from npm into an empty folder:
+   - with no codes it writes exactly 0.1.0's suffix;
+   - `attributionFor(["acme_app"])` matches Celo's `toDataSuffix` byte for
+     byte;
+   - a bad code is refused before signing.
+4. Merge to `main`, after `developer-kit`, for the developer page.
+5. On mainnet, with your OK: `scripts/e2e-sdk.ts --send`. Its schedule is
+   now created with a test builder code (`remesso_e2e`), and it checks with
+   `verifyTx` that the run carries it and that the indexer stored it. The
+   test wallet needs about 1.03 USDT and 0.23 CELO first. **Done 2026-10-25:
+   every check passed.**
+   - Schedule #5's `createSchedule` came from the test wallet
+     (`0x65e554e0…1b681`). The executor's run came from `0xA351…cdb21`
+     (`0x3481e8f0…9379`). Both carry `remesso`, `celo_5cd35ca55baf` and
+     `remesso_e2e`, read with `verifyTx`.
+   - The schedule's `schedule_created` event lists `builderCodes:
+     ["remesso_e2e"]`.
+   - The rest of the loop passed as before. The answer bound on the first
+     call, the webhook arrived 618 seconds after the start, gas was paid in
+     USDT for three transactions, and the agent paid once.
+
+**Done when** holds: a run of a schedule created with an integrator's code
+carries that code on mainnet, checked with `verifyTx`. The fork test covers
+the second run, from the stored codes.
 
 **Done when:** everything under "Done when" in step 6 of the design doc holds.

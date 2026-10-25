@@ -88,6 +88,25 @@ deno run --allow-all scripts/receiving-e2e.ts       # real index-events/payment-
 deno run --allow-all scripts/webhooks-local-e2e.ts  # subscribe, deliver, retry, rotate, replay
 deno run --allow-all scripts/fork-agent-to-agent.ts # inbox, pay with request_id, bind by memo, paid
 
+# the developer kit (Phase 4): packages/remesso-sdk. Its generated parts (the
+# deployment, the ABIs, copies of shared code) must match their sources:
+deno run --allow-read --allow-write scripts/build-sdk.ts --check
+deno test --config packages/remesso-sdk/deno.json --unstable-sloppy-imports --allow-read --allow-write \
+  --allow-env --allow-net=127.0.0.1 packages/remesso-sdk/test/
+(cd packages/remesso-sdk && npx tsc -p tsconfig.json --noEmit)
+deno test --allow-env supabase/functions/_shared/config.test.ts   # the limits /agent publishes are the executor's
+# its money paths on a mainnet fork (both anvils, as for fork-wallet-pay.ts):
+deno run --allow-all --config packages/remesso-sdk/deno.json --unstable-sloppy-imports scripts/fork-sdk.ts
+# the whole loop on mainnet with the test wallet: a dry run unless --send (ask first)
+deno run --allow-all --config packages/remesso-sdk/deno.json --unstable-sloppy-imports scripts/e2e-sdk.ts
+# Publishing remesso-sdk to npm is done by hand: cd packages/remesso-sdk && npm publish
+
+# builder codes (Phase 6): an integrator's ERC-8021 code rides on every run
+deno test --allow-env supabase/functions/_shared/attribution.test.ts   # read and write, pinned to Celo's SDK
+deno test --allow-env supabase/functions/_shared/builder-codes.test.ts # which codes a run carries; never fails a run
+# the real index-events and execute-due-runs on the fork (as for fork-e2e-runs.ts):
+deno run --allow-all --config packages/remesso-sdk/deno.json --unstable-sloppy-imports scripts/fork-builder-codes.ts
+
 # Claude plugin and the npm package — plugin/ and packages/remesso-wallet/ are
 # assembled from skills/ and mcp/; edit those, then rebuild (after
 # `cd mcp && npm run build` if the server changed). --check fails on drift.
@@ -444,6 +463,33 @@ The backend encodes the suffix itself rather than importing
 path of every remittance). `attribution.test.ts` pins the bytes to the SDK's
 own output — one wrong byte and the indexer sees nothing, silently.
 
+**Builder codes (Phase 6): an integrator's code rides on every run of the
+schedules it creates.** The integrator tags its own `createSchedule`
+transaction (`builderCodes` in remesso-sdk 0.2.0, `BUILDER_CODE` in
+`examples/create-schedule.ts`, or Celo's `withAttribution`).
+- `index-events` reads that transaction's input when it records the
+  `ScheduleCreated`. It keeps up to three codes in Celo's charset, drops ours,
+  and stores them as the event's `details.builderCodes` (`[]` for none).
+- `execute-due-runs` and `trigger-run` ask `codesForRun`
+  (`_shared/builder-codes.ts`), and `signRun` puts the codes after ours.
+  - A schedule the indexer hasn't recorded yet is found on the chain, so an
+    early send in its first minute still carries them.
+  - Every failure answers `[]`: attribution never stops a payment.
+  - If ours and theirs don't fit in one suffix, ours go alone.
+- **The event code stays ours after it leaves `ATTRIBUTION_CODE`.**
+  `OWN_CODES` in `_shared/erc8021.ts` lists every code we ever wrote, because
+  remesso-sdk 0.1.0 writes `celo_5cd35ca55baf` on every transaction for good.
+  Without that list, dropping the event code from the env would make our runs
+  carry it again as an integrator's code.
+- `_shared/erc8021.ts` is pure, and the SDK carries an exact copy
+  (`build-sdk.ts`), so the SDK refuses before signing any code the runs
+  wouldn't carry.
+- Only Schema 0 is read. Codes inside an ERC-4337 bundle aren't read yet:
+  the outer transaction is the bundler's.
+- Deployed 2026-10-25. First on mainnet the same day: schedule #5 was
+  created with the test code `remesso_e2e` (`0x65e554e0…1b681`), and the
+  executor's run carried it (`0x3481e8f0…9379`, read with `verifyTx`).
+
 ## V4/V5 and paid triggering
 
 `RemessoExecutorV5` at `0x3C357af3300f383Ea49B6D6ED8e084199a92bEd8` (verified,
@@ -557,6 +603,27 @@ spend money on that answer.
 **Reads lag.** The 403/402 decision reads the chain; just after a state change
 forno can still answer from a block behind. Seen on 2026-09-22 right after a
 cancel. It self-corrects within seconds.
+
+**Anything read right after a write must expect it.** The SDK's first mainnet
+run (2026-10-25) paid correctly and hit stale reads three ways:
+- a request answered seconds after its schedule landed got "hasn't been seen
+  on-chain yet";
+- a policy read a second after it was created came back empty;
+- balances read straight after receipts still showed the money before it
+  moved.
+
+A lagging node can also throw instead of answering empty. Asked for a block it
+hasn't reached, forno says "block is out of range": the second run's answer
+got a 500 that way.
+
+So:
+- `scheduleEvidence` asks the chain four times, about seven seconds, before a
+  schedule counts as unseen. Each attempt survives a node that throws, and an
+  empty read is never evidence. An answer repeating what already answers a
+  request returns the first answer, so retrying one is safe;
+- the SDK retries an answer while the backend says it's unseen, and waits up
+  to six seconds for something it just created to read as non-empty;
+- tests count events and nonces, or read at a receipt's block.
 
 ## Agent identity
 
@@ -858,6 +925,11 @@ payments are covered too. Neither passes through our functions.
 **Requests have states, and accepted is not paid.**
 - `pending`, `accepted`, `accepted_with_changes`, `declined`, `expired`.
 - A payment is `paid` only with a transaction from `payment_events`.
+- A schedule answers a request only once the backend can see it: in
+  `payment_events`, or on the chain, asked a few times (see "Reads lag").
+  Until 2026-10-25 an answer sent seconds after the schedule landed, as the
+  app's `confirm-schedule` and the SDK both do, could fail with a 409 and
+  leave the request unanswered.
 - Evidence binds only if it's from the wallet asked, pays the address that
   asked, and was made after the request (`_shared/request-binding.ts`).
 - A V5 schedule answers through `request-payment`'s `answer` action or
@@ -880,6 +952,70 @@ payments are covered too. Neither passes through our functions.
 **The hosted connector can't decline a request.** Its Privy policy allows only
 `pay()`, so it can't sign typed data. The plugin wallet can: request-payment
 accepts a decline signed by an agent with a live policy from the payer.
+
+## The developer kit — `remesso-sdk` (Phase 4, 2026-10-25)
+
+`packages/remesso-sdk`, TypeScript on viem, Celo mainnet only. It covers:
+- schedules, and agent payments that pay once per idempotency key;
+- requests, payment events and webhooks;
+- agent lookup and links.
+
+`/developers` on the app is its quickstart. Its whole loop passed on mainnet
+on 2026-10-25 (`e2e-sdk.ts --send`, the third run; the first two found what
+"Reads lag" describes). Published to npm as `remesso-sdk` 0.1.0 the same day,
+and as 0.2.0, which adds builder codes, after Phase 6.
+
+**Nothing in it about the deployment is typed by hand.** People believe an SDK
+that describes something we no longer serve.
+- `src/generated/` is written by `scripts/build-sdk.ts`: the deployment comes
+  from the manifest, the ABIs from `indexer/abis/`.
+- `src/vendor/` holds exact copies of the code the backend and the app run:
+  the webhook, decline and Standard Webhooks files from `_shared`, and `fee`,
+  `payee-profile` and `safe-fetch` from `web/lib`. A payer signs what the
+  backend verifies because it's the same file.
+- Edit the original and re-run the script. `build-sdk.ts --check` fails while
+  a copy differs.
+
+**The chain of truth is live → manifest → SDK.**
+- `build-deployments.ts` reads `/agent` and the chain into
+  `deployments/celo-mainnet.json`. `build-sdk.ts` reads that.
+- `/agent` publishes `limits.perRun` (from `runLimits`, which
+  `config.test.ts` pins to `runAmountProblem`).
+- The manifest carries each token's `minPerRun` and `maxPerRun`, V5's
+  `feeBps`, and the `payment-events` and `webhooks` URLs.
+- To build ahead of deploying `agent`, serve it locally and set
+  `REMESSO_AGENT_URL`. `--check` refuses that, so the committed file is only
+  ever checked against what is live.
+
+**What it refuses before signing:**
+- a schedule outside the executor's per-run limits, which would be valid
+  on-chain and never run;
+- an RPC that isn't chain 42220;
+- an agent payment over its policy;
+- an identical payment within ten minutes without a key.
+
+**What it does differently from the examples it replaced:**
+- It reads `feeBps` live when grossing up a requested amount.
+- It approves on top of the existing allowance, as the app does.
+- It gives an approval and the next transaction consecutive nonces fetched
+  once, because a forno node can lag right after a transaction lands.
+
+**Agent payments are the plugin wallet's logic:** sign, record, broadcast,
+reconcile.
+- The store is memory by default.
+- `fileStore` in `remesso-sdk/node` holds across restarts.
+- `scripts/fork-sdk.ts` covers a broadcast lost on the way: it goes out later
+  with its own bytes, paid once.
+
+**The webhook handler** (`webhookHandler`, fetch-style):
+- It answers a challenge only for the addresses it was given.
+- It answers 503 until it has a secret.
+- It answers 500 when `onPayment` throws, so Remesso retries with the same
+  `webhook-id`.
+
+**`request-payment`'s link carries `req=` since this phase.** The inbox already
+added it. Without it, a payer who paid from a shared link left the request
+unanswered.
 
 ## Invariants — do not break
 

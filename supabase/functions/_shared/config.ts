@@ -164,6 +164,18 @@ export function runAmountProblem(token: string | null | undefined, amountIn: big
   return null;
 }
 
+/// The smallest and largest `amountIn` the backend runs for `asset`, in base
+/// units: the bounds `runAmountProblem` applies, for publishing. `/agent`
+/// states them so a payer sees them before signing a schedule that would never
+/// run; `config.test.ts` holds them to `runAmountProblem` itself.
+export function runLimits(asset: { decimals: number; unitsPerUsd: number }): { min: bigint; max: bigint } {
+  const unit = 10n ** BigInt(asset.decimals);
+  return {
+    min: BigInt(LIMITS.minRunAmountUsd) * BigInt(asset.unitsPerUsd) * unit,
+    max: BigInt(LIMITS.maxRunAmountUsdt) * BigInt(asset.unitsPerUsd) * unit,
+  };
+}
+
 export function requireEnv(): void {
   const missing = [
     ["REMESSO_EXECUTOR_ADDRESS", CELO.executor],

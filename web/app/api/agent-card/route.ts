@@ -45,6 +45,11 @@ export async function GET() {
       /// from the live 402 (`scripts/build-skill-manifest.ts`).
       skills: "https://bitbucket.org/crackedstudios/remesso/raw/main/skills/manifest.json",
 
+      /// For people writing code against it: the page that goes from install
+      /// to a payment and its webhook, and the TypeScript SDK it uses.
+      developers: "https://remesso.xyz/developers",
+      sdk: "https://www.npmjs.com/package/remesso-sdk",
+
       endpoints: [
         { name: "capabilities", url: `${FUNCTIONS}/agent`, method: "GET" },
         { name: "request-payment", url: `${FUNCTIONS}/request-payment`, method: "POST" },

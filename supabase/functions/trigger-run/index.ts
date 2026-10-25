@@ -32,6 +32,7 @@
 /// (`_shared/lease.ts`) from before settlement until its receipt. Taken before
 /// settlement, so a busy key turns a caller away before anyone is charged.
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { codesForRun } from "../_shared/builder-codes.ts";
 import {
   broadcast,
   confirmRun,
@@ -204,6 +205,10 @@ Deno.serve(async (req) => {
     return json({ error: "the run would not go through", detail: (e as Error).message.slice(0, 200) }, 409);
   }
 
+  // Whose codes the run carries besides ours, read before taking the key. A
+  // schedule created a minute ago is found on the chain; nothing here fails a run.
+  const builderCodes = await codesForRun(db, executorV4, id);
+
   // --- the executor key ----------------------------------------------------
   let lease: ExecutorLease | null = null;
   try {
@@ -236,7 +241,7 @@ Deno.serve(async (req) => {
     // --- the work --------------------------------------------------------
     let signed: SignedRun;
     try {
-      signed = await signRun("runNow", id, amountOutMinimum, lease.nonceFloor);
+      signed = await signRun("runNow", id, amountOutMinimum, lease.nonceFloor, builderCodes);
     } catch (e) {
       // Simulated cleanly seconds ago, paid for, and would revert now — the
       // schedule changed in between (a cancel, a cron run inside the minute).

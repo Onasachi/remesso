@@ -114,6 +114,10 @@ export type Facts = {
   blockTime: Map<bigint, number>;
   schedules: Map<string, ScheduleFacts>;
   policies: Map<string, PolicyFacts>;
+  /// Per transaction that created a schedule: the integrator's builder codes
+  /// its input carried (`erc8021.ts`, `integratorCodes`), [] for none. Every
+  /// run of the schedule carries them after ours.
+  codes: Map<string, string[]>;
 };
 
 /// Rows for a batch of logs. Throws when a fact is missing: a row recorded
@@ -190,6 +194,9 @@ export function rowsFor(logs: Log[], facts: Facts): EventRow[] {
             payoutType: Number(a.payoutType),
             feeBps: s.feeBps,
             fundingToken: s.token,
+            // Public, as they are on-chain. An integrator checks here that
+            // its code was read.
+            builderCodes: need(facts.codes.get(l.transactionHash), `the input of transaction ${l.transactionHash}`),
           },
         });
         break;

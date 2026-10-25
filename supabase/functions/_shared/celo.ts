@@ -15,7 +15,7 @@ import {
 } from "npm:viem@2";
 import { privateKeyToAccount } from "npm:viem@2/accounts";
 import { celo } from "npm:viem@2/chains";
-import { attributionSuffix } from "./attribution.ts";
+import { runSuffix } from "./attribution.ts";
 import { CELO, DIRECT_TOKENS, type DirectToken, LIMITS } from "./config.ts";
 import { runExecutedAbi, runOutcome } from "./receipt.ts";
 import type { Seen } from "./recovery.ts";
@@ -148,11 +148,15 @@ export type SignedRun = { hash: Hex; serialized: Hex; nonce: number };
 /// Throws the contract's revert if the run would fail, before a nonce is used.
 /// The nonce is fetched here, so hold the executor lease (`lease.ts`) from
 /// this call until the transaction is mined, and pass its floor.
+///
+/// `builderCodes` are the schedule's integrator codes (`builder-codes.ts`),
+/// carried after ours.
 export async function signRun(
   fn: "executeRun" | "runNow",
   id: bigint,
   amountOutMinimum: bigint,
   nonceFloor: number | null = null,
+  builderCodes: readonly string[] = [],
 ): Promise<SignedRun> {
   const wc = walletClient();
   const to = (fn === "executeRun" ? CELO.executor : executorV4) as `0x${string}`;
@@ -168,13 +172,14 @@ export async function signRun(
 
   const pending = await publicClient.getTransactionCount({ address: wc.account.address, blockTag: "pending" });
   const nonce = Math.max(pending, nonceFloor ?? 0);
+  const suffix = runSuffix(builderCodes);
   const request = await wc.prepareTransactionRequest({
     to,
     nonce,
     // Appended after the calldata, invisible to the contract. Every run is a
     // Celo transaction this app caused, and untagged ones cannot be claimed
     // later — see _shared/attribution.ts.
-    data: attributionSuffix ? concat([call, attributionSuffix]) : call,
+    data: suffix ? concat([call, suffix]) : call,
   });
   const serialized = await wc.signTransaction(request);
   return { hash: keccak256(serialized), serialized, nonce };

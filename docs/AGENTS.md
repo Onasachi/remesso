@@ -1,7 +1,7 @@
 # Connecting an agent to Remesso
 
 Nothing to clone, nothing to install, no key shared with anyone. Remesso is
-four HTTP endpoints and a contract. This page is what another agent — or the
+a handful of public HTTP endpoints and two contracts. This page is what another agent — or the
 person pointing one at us — needs.
 
 **Pointing an agent here takes one line.** `skills/remesso/SKILL.md` is the
@@ -23,6 +23,35 @@ npx -y remesso-wallet skills
 
 The ERC-8004 metadata is a `data:` URI embedded in the token, not a link to a
 server we control. What is registered cannot be quietly changed afterwards.
+
+---
+
+## Using the SDK
+
+Writing TypeScript? `remesso-sdk` wraps the endpoints and contracts on this
+page: schedules, agent payments that a retry can't pay twice, payment
+requests, payment events and webhook verification.
+[remesso.xyz/developers](https://remesso.xyz/developers) goes from
+`npm install` to a payment and its webhook in about 15 minutes.
+
+```bash
+npm install remesso-sdk viem
+```
+
+```ts
+import { createRemesso } from "remesso-sdk";
+import { privateKeyToAccount } from "viem/accounts";
+
+const payer = createRemesso({ account: privateKeyToAccount(process.env.PAYER_KEY as `0x${string}`) });
+await payer.schedules.create({ to: "0xRecipient", amount: "1", token: "USDT", every: "week", runs: 4 });
+```
+
+It refuses what the executor would never run before anything is signed, and it
+is generated from the live deployment, so its addresses, tokens and limits
+match what is served. Everything below works without it, over plain HTTP:
+`GET /functions/v1/payment-events?address=0x…` lists every payment to or from
+an address, and `GET /functions/v1/webhooks` describes how to have them
+announced to your own server, signed.
 
 ---
 
@@ -140,7 +169,10 @@ curl -X POST https://engaboljiqudghvzmebq.supabase.co/functions/v1/request-payme
 It answers `201` with a `link`. The request appears on their home screen with
 Review and Hide, and 10 pending requests per payer is the ceiling — an inbox
 anyone can fill is an inbox nobody reads. The amount is what you receive: their
-form adds Remesso's fee to what they send.
+form adds Remesso's fee to what they send. The link carries `req`, so the
+schedule they sign from it is reported against your request. Ask for at least
+the executor's per-payment minimum, the equivalent of a dollar (`limits.perRun`
+in `/agent`): a smaller schedule is valid on-chain and never runs.
 
 **2. Send a link.** The same thing without us in the middle, for when you
 already have a way to reach them:
@@ -269,13 +301,18 @@ and the schedule — because you submit them yourself rather than a facilitator
 doing it for you.
 
 ```bash
-TO=0xRecipient AMOUNT=0.05 TOKEN=USDT EVERY=week RUNS=2 TRIGGER=remesso \
+TO=0xRecipient AMOUNT=1 TOKEN=USDT EVERY=week RUNS=2 MAX_TOTAL=2 TRIGGER=remesso \
 PAYER_KEY=... deno run --allow-env --allow-net create-schedule.ts
 ```
 
-**The fee comes out of the payment, not on top of it.** At 25bps a 0.05 USDT
-transfer costs the payer exactly 0.05; the recipient receives 0.049875 and the
-treasury 0.000125. Budget from the gross.
+**The fee comes out of the payment, not on top of it.** At 25bps a 1 USDT
+transfer costs the payer exactly 1; the recipient receives 0.9975 and the
+treasury 0.0025. Budget from the gross.
+
+**The executor sends the equivalent of 1 to 1,000 dollars per payment**, gross:
+1 to 1,000 USDT, 1,300 to 1.3 million cNGN, and so on per token, as `/agent`
+publishes under `limits.perRun`. A schedule outside that is valid on-chain and
+never runs; `remesso-sdk` refuses one before signing, and so should you.
 
 A schedule created this way is picked up within five minutes and then runs on
 its cadence like any other. The executor takes its work from a mirror of the
@@ -284,6 +321,15 @@ chain, so a schedule created without the app has to be discovered first —
 it lands, the schedule is real but only `runNow` and `trigger-run` can move
 it, so `TRIGGER=remesso` is worth setting anyway: it lets you pull the first
 payment immediately instead of waiting.
+
+**Your builder code rides on every run.** Set `BUILDER_CODE=your_code` (up to
+three, comma-separated), or pass `builderCodes` to `createRemesso`, and your
+ERC-8021 code goes on the `createSchedule` transaction after ours. Remesso's
+executor reads it from there and carries it on every run of that schedule,
+so Celo credits the volume to you as well as to us. Any Schema 0 tag works,
+as `toDataSuffix` or `withAttribution` from `@celo/attribution-tags` write
+it. The schedule's `schedule_created` event in `payment-events` lists what
+was read under `details.builderCodes`.
 
 ## Collecting a payment early
 

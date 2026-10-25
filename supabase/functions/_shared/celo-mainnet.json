@@ -12,7 +12,8 @@
       "address": "0x3C357af3300f383Ea49B6D6ED8e084199a92bEd8",
       "deployBlock": 80268721,
       "executor": "0xA351d65c15b8a342B6ECbC7f2B9eFE62B17cdb21",
-      "currentExecutorSentinel": "0x0000000000000000000000000000000000000001"
+      "currentExecutorSentinel": "0x0000000000000000000000000000000000000001",
+      "feeBps": 25
     },
     "RemessoAgentAllowance": {
       "address": "0xA6351fAeEb097698289586C4D6188530300DB209",
@@ -29,7 +30,9 @@
       "decimals": 6,
       "currency": "USD",
       "directAllowed": true,
-      "feeCurrency": "0x0E2A3e05bc9A16F5292A6170456A710cb89C6f72"
+      "feeCurrency": "0x0E2A3e05bc9A16F5292A6170456A710cb89C6f72",
+      "minPerRun": "1000000",
+      "maxPerRun": "1000000000"
     },
     {
       "symbol": "USDC",
@@ -37,7 +40,9 @@
       "decimals": 6,
       "currency": "USD",
       "directAllowed": true,
-      "feeCurrency": "0x2F25deB3848C207fc8E0c34035B3Ba7fC157602B"
+      "feeCurrency": "0x2F25deB3848C207fc8E0c34035B3Ba7fC157602B",
+      "minPerRun": "1000000",
+      "maxPerRun": "1000000000"
     },
     {
       "symbol": "USDm",
@@ -45,7 +50,9 @@
       "decimals": 18,
       "currency": "USD",
       "directAllowed": true,
-      "feeCurrency": "0x765DE816845861e75A25fCA122bb6898B8B1282a"
+      "feeCurrency": "0x765DE816845861e75A25fCA122bb6898B8B1282a",
+      "minPerRun": "1000000000000000000",
+      "maxPerRun": "1000000000000000000000"
     },
     {
       "symbol": "USA₮",
@@ -53,7 +60,9 @@
       "decimals": 6,
       "currency": "USD",
       "directAllowed": true,
-      "feeCurrency": "0x0357EE22278c922e1D36cFe6b899269b161880C4"
+      "feeCurrency": "0x0357EE22278c922e1D36cFe6b899269b161880C4",
+      "minPerRun": "1000000",
+      "maxPerRun": "1000000000"
     },
     {
       "symbol": "wARS",
@@ -61,7 +70,9 @@
       "decimals": 18,
       "currency": "ARS",
       "directAllowed": true,
-      "feeCurrency": null
+      "feeCurrency": null,
+      "minPerRun": "1500000000000000000000",
+      "maxPerRun": "1500000000000000000000000"
     },
     {
       "symbol": "wBRL",
@@ -69,7 +80,9 @@
       "decimals": 18,
       "currency": "BRL",
       "directAllowed": true,
-      "feeCurrency": null
+      "feeCurrency": null,
+      "minPerRun": "5000000000000000000",
+      "maxPerRun": "5000000000000000000000"
     },
     {
       "symbol": "wCOP",
@@ -77,7 +90,9 @@
       "decimals": 18,
       "currency": "COP",
       "directAllowed": true,
-      "feeCurrency": null
+      "feeCurrency": null,
+      "minPerRun": "3200000000000000000000",
+      "maxPerRun": "3200000000000000000000000"
     },
     {
       "symbol": "cNGN",
@@ -85,13 +100,17 @@
       "decimals": 6,
       "currency": "NGN",
       "directAllowed": true,
-      "feeCurrency": null
+      "feeCurrency": null,
+      "minPerRun": "1300000000",
+      "maxPerRun": "1300000000000"
     }
   ],
   "functions": {
     "base": "https://engaboljiqudghvzmebq.supabase.co/functions/v1",
     "agent": "https://engaboljiqudghvzmebq.supabase.co/functions/v1/agent",
     "request-payment": "https://engaboljiqudghvzmebq.supabase.co/functions/v1/request-payment",
+    "payment-events": "https://engaboljiqudghvzmebq.supabase.co/functions/v1/payment-events",
+    "webhooks": "https://engaboljiqudghvzmebq.supabase.co/functions/v1/webhooks",
     "trigger-run": "https://engaboljiqudghvzmebq.supabase.co/functions/v1/trigger-run",
     "rate-service": "https://engaboljiqudghvzmebq.supabase.co/functions/v1/rate-service",
     "latam-rate": "https://engaboljiqudghvzmebq.supabase.co/functions/v1/latam-rate",

@@ -1,0 +1,9 @@
+{
+  "imports": {
+    "viem": "npm:viem@2.57.7",
+    "viem/": "npm:/viem@2.57.7/",
+    "@std/assert": "jsr:@std/assert@1"
+  },
+  "nodeModulesDir": "none",
+  "lock": false
+}

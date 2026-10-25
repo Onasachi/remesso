@@ -10,8 +10,10 @@
 /// Public and unauthenticated (`verify_jwt = false`): a capability document
 /// nobody can fetch without credentials is not discovery. It contains no
 /// secret, quotes no sender, and names no schedule.
-import { CELO, DIRECT_TOKENS, SELF_API } from "../_shared/config.ts";
-import { ATTRIBUTION_CODE } from "../_shared/attribution.ts";
+import { formatUnits } from "npm:viem@2";
+import { CELO, DIRECT_TOKENS, LIMITS, runLimits, SELF_API } from "../_shared/config.ts";
+import { ATTRIBUTION_CODE, OUR_CODES } from "../_shared/attribution.ts";
+import { MAX_INTEGRATOR_CODES } from "../_shared/erc8021.ts";
 import { ASSETS, X402 } from "../_shared/x402.ts";
 import { allowedDirectTokens, CURRENT_EXECUTOR, executorAccount, executorV4 } from "../_shared/celo.ts";
 import { CNGN_RAILS_ENABLED } from "../_shared/rails.ts";
@@ -117,6 +119,26 @@ Deno.serve(async (req) => {
       attributionCode: ATTRIBUTION_CODE,
     },
 
+    /// What the executor runs per payment, the gross amount before the
+    /// commission. A schedule outside these is valid on-chain and never runs:
+    /// the cron, a paid trigger and the sync all refuse it, so a payer should
+    /// see the bounds before signing. Base units travel as strings.
+    limits: {
+      perRun: {
+        minUsd: LIMITS.minRunAmountUsd,
+        maxUsd: LIMITS.maxRunAmountUsdt,
+        assets: Object.fromEntries(assets.map((t) => {
+          const { min, max } = runLimits(t);
+          return [t.symbol, {
+            min: formatUnits(min, t.decimals),
+            max: formatUnits(max, t.decimals),
+            minUnits: min.toString(),
+            maxUnits: max.toString(),
+          }];
+        })),
+      },
+    },
+
     /// How to be paid, stated plainly because it is the half agents keep
     /// getting wrong. Receiving takes an address and nothing else — no gas,
     /// no balance, no account, no software, not even a call to us. The payer
@@ -176,6 +198,26 @@ Deno.serve(async (req) => {
       /// and whether a payment must carry your request's reference. The address
       /// to pay always comes from getAgentWallet, never from the file.
       payeeProfile: "https://bitbucket.org/crackedstudios/remesso/src/main/docs/AGENTS.md",
+    },
+
+    /// For code rather than tools: the TypeScript SDK carries this
+    /// deployment (addresses, tokens, the fee and the limits above), so a
+    /// developer starts from what is live.
+    developers: {
+      sdk: "npm install remesso-sdk viem",
+      docs: `${WEB}/developers`,
+      source: "https://bitbucket.org/crackedstudios/remesso/src/main/packages/remesso-sdk/",
+      /// ERC-8021 builder codes. Tag the transaction that creates a schedule
+      /// with your own code, and every run of that schedule carries it after
+      /// ours, so Celo counts the schedule's volume for you too.
+      builderCodes: {
+        how: "Schema 0 on your createSchedule transaction, as toDataSuffix or withAttribution from " +
+          "@celo/attribution-tags write it, or createRemesso({ builderCodes }) in remesso-sdk",
+        perRun: MAX_INTEGRATOR_CODES,
+        ours: OUR_CODES,
+        check: "your schedule's schedule_created event in payment-events lists details.builderCodes",
+        docs: `${WEB}/developers#builder-codes`,
+      },
     },
 
     services: [
