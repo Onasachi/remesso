@@ -29,6 +29,10 @@ export type RequestRow = {
   max_runs: number | null;
   status: string;
   created_at: string;
+  /// What already answers it, once it has been answered.
+  bound_contract?: string | null;
+  bound_schedule_id?: string | null;
+  signed_terms?: Record<string, unknown> | null;
 };
 
 export type Evidence = {
@@ -104,7 +108,13 @@ const createdEvent = parseAbi([
 /// usually answered the moment it is created, so the last 5,000 blocks (forno's
 /// getLogs limit, about 83 minutes) hold its event; an older one waits for the
 /// indexer.
-export async function scheduleEvidence(db: SupabaseClient, contract: string, scheduleId: string): Promise<Evidence | null> {
+export async function scheduleEvidence(
+  db: SupabaseClient,
+  contract: string,
+  scheduleId: string,
+  chain: EvidenceChain = liveChain,
+  waitMs = LIVE_WAIT_MS,
+): Promise<Evidence | null> {
   const c = contract.toLowerCase();
   const { data } = await db
     .from("payment_events")
@@ -137,36 +147,41 @@ export async function scheduleEvidence(db: SupabaseClient, contract: string, sch
   // asked a few times before the schedule counts as unseen, and an empty read
   // never becomes evidence: it would refuse the request as not from the payer.
   for (let attempt = 0; attempt < LIVE_TRIES; attempt++) {
-    if (attempt) await new Promise((r) => setTimeout(r, LIVE_WAIT_MS));
-    const head = await publicClient.getBlockNumber();
-    const logs = await publicClient.getLogs({
-      address: V5.address,
-      event: createdEvent,
-      args: { id: BigInt(scheduleId) },
-      fromBlock: head > 4_999n ? head - 4_999n : 0n,
-      toBlock: head,
-    });
-    const log = logs[0];
-    if (!log) continue;
-    const [s, block] = await Promise.all([
-      getSchedule(BigInt(scheduleId), { contract: V5.address }),
-      publicClient.getBlock({ blockNumber: log.blockNumber }),
-    ]);
-    if (/^0x0{40}$/i.test(s.sender)) continue;
-    const received = s.payoutType === 2 ? s.token : s.tokenOut;
-    const net = s.amountIn - (s.amountIn * BigInt(s.feeBps) + 9_999n) / 10_000n;
-    return {
-      kind: "schedule",
-      contract: c,
-      scheduleId,
-      from: s.sender.toLowerCase(),
-      to: s.destination.toLowerCase(),
-      token: received.toLowerCase(),
-      amount: net.toString(),
-      interval: s.interval.toString(),
-      maxRuns: s.maxRuns,
-      at: new Date(Number(block.timestamp) * 1000).toISOString(),
-    };
+    if (attempt) await new Promise((r) => setTimeout(r, waitMs));
+    try {
+      const head = await chain.getBlockNumber();
+      const logs = await chain.getLogs({
+        address: V5.address,
+        event: createdEvent,
+        args: { id: BigInt(scheduleId) },
+        fromBlock: head > 4_999n ? head - 4_999n : 0n,
+        toBlock: head,
+      });
+      const log = logs[0];
+      if (!log) continue;
+      const [s, block] = await Promise.all([chain.getSchedule(BigInt(scheduleId)), chain.getBlock({ blockNumber: log.blockNumber })]);
+      if (/^0x0{40}$/i.test(s.sender)) continue;
+      const received = s.payoutType === 2 ? s.token : s.tokenOut;
+      const net = s.amountIn - (s.amountIn * BigInt(s.feeBps) + 9_999n) / 10_000n;
+      return {
+        kind: "schedule",
+        contract: c,
+        scheduleId,
+        from: s.sender.toLowerCase(),
+        to: s.destination.toLowerCase(),
+        token: received.toLowerCase(),
+        amount: net.toString(),
+        interval: s.interval.toString(),
+        maxRuns: s.maxRuns,
+        at: new Date(Number(block.timestamp) * 1000).toISOString(),
+      };
+    } catch (e) {
+      // A node that hasn't reached the block answers with an error ("block is
+      // out of range", block not found) rather than an empty result. The
+      // second mainnet run hit that as a 500, so it is another try, not a
+      // failure.
+      console.warn(`scheduleEvidence: attempt ${attempt + 1} for schedule ${scheduleId} failed:`, (e as Error).message?.slice(0, 160));
+    }
   }
   return null;
 }
@@ -176,7 +191,28 @@ export async function scheduleEvidence(db: SupabaseClient, contract: string, sch
 const LIVE_TRIES = 4;
 const LIVE_WAIT_MS = 2_500;
 
-const REQUEST_COLUMNS = "id, payer_address, to_address, amount, token_symbol, interval_seconds, max_runs, status, created_at";
+/// What `scheduleEvidence` reads from the chain: the live client, or a lagging
+/// one in its test.
+export type EvidenceChain = {
+  getBlockNumber(): Promise<bigint>;
+  getLogs(args: { address: string; event: unknown; args: { id: bigint }; fromBlock: bigint; toBlock: bigint }): Promise<{ blockNumber: bigint }[]>;
+  getBlock(args: { blockNumber: bigint }): Promise<{ timestamp: bigint }>;
+  getSchedule(id: bigint): Promise<{
+    sender: string; destination: string; token: string; tokenOut: string; payoutType: number;
+    amountIn: bigint; feeBps: number; interval: bigint; maxRuns: number;
+  }>;
+};
+
+const liveChain: EvidenceChain = {
+  getBlockNumber: () => publicClient.getBlockNumber(),
+  getLogs: (a) => publicClient.getLogs(a as never) as never,
+  getBlock: (a) => publicClient.getBlock(a),
+  getSchedule: (id) => getSchedule(id, { contract: V5.address }) as never,
+};
+
+const REQUEST_COLUMNS =
+  "id, payer_address, to_address, amount, token_symbol, interval_seconds, max_runs, status, created_at, " +
+  "bound_contract, bound_schedule_id::text, signed_terms";
 
 export type AnswerResult =
   | { ok: true; status: "accepted" | "accepted_with_changes"; terms: Record<string, unknown> }
@@ -194,9 +230,20 @@ export async function answerWithSchedule(
   if (error) throw new Error(error.message);
   if (!r) return { ok: false, code: 404, reason: "no such request" };
 
+  // Already answered by this same schedule: the first answer again, not a
+  // refusal. A caller retrying after a lost response, or the app confirming
+  // twice, would otherwise be told the request "isn't open".
+  const row = r as unknown as RequestRow;
+  if (
+    (row.status === "accepted" || row.status === "accepted_with_changes") &&
+    row.bound_contract === contract.toLowerCase() && row.bound_schedule_id === scheduleId
+  ) {
+    return { ok: true, status: row.status as "accepted" | "accepted_with_changes", terms: row.signed_terms ?? {} };
+  }
+
   const e = await scheduleEvidence(db, contract, scheduleId);
   if (!e) return { ok: false, code: 409, reason: "that schedule hasn't been seen on-chain yet; try again in a minute" };
-  const j = judge(r as RequestRow, e);
+  const j = judge(row, e);
   if (!j.ok) return { ok: false, code: 409, reason: `that schedule can't answer this request: ${j.reason}` };
   return await bind(db, requestId, j, { contract: e.contract, scheduleId, txHash: null });
 }

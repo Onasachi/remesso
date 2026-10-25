@@ -579,9 +579,15 @@ run (2026-10-25) paid correctly and hit stale reads three ways:
 - balances read straight after receipts still showed the money before it
   moved.
 
+A lagging node can also throw instead of answering empty. Asked for a block it
+hasn't reached, forno says "block is out of range": the second run's answer
+got a 500 that way.
+
 So:
 - `scheduleEvidence` asks the chain four times, about seven seconds, before a
-  schedule counts as unseen, and never takes an empty read as evidence;
+  schedule counts as unseen. Each attempt survives a node that throws, and an
+  empty read is never evidence. An answer repeating what already answers a
+  request returns the first answer, so retrying one is safe;
 - the SDK retries an answer while the backend says it's unseen, and waits up
   to six seconds for something it just created to read as non-empty;
 - tests count events and nonces, or read at a receipt's block.

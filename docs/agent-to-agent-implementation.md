@@ -623,8 +623,26 @@ After Phases 1 and 2.
     - `scheduleEvidence` asks the chain a few times. This also fixes the
       app's `req=` flow, which binds at the same moment;
     - the script counts events and nonces.
-  - Covered by two new unit tests and the fork test. A clean re-run needs
-    about 0.8 USDT more in the test wallet.
+  - Covered by two new unit tests and the fork test.
+- [x] **The second mainnet run (2026-10-25), with those fixes deployed.**
+  - **Passed:**
+    - the webhook 347 seconds after the start;
+    - gas in USDT for three transactions, the revoke included (0.007 USDT,
+      no CELO);
+    - one agent payment, one `Paid` event and one agent transaction in all,
+      after the retry with the same key;
+    - both webhooks.
+  - **Failed:** the answer, once, with a 500. The lookup found the log on one
+    node, then asked another for the block, and that node threw "block is out
+    of range" rather than answering empty.
+  - **Fixed:**
+    - each attempt now catches that;
+    - an answer repeating what already answers a request returns the first
+      answer;
+    - the SDK also retries a 5xx.
+
+    New tests replay both. Answered again, the run's request read accepted
+    and paid.
 - [x] **`web/app/developers/page.tsx`**, next to `/claude`:
   - a six-step quickstart, from `npm install` to a payment and its webhook;
   - getting paid by request, and agent payments;
@@ -650,10 +668,11 @@ After Phases 1 and 2.
    generated files are current.
 3. Run `scripts/e2e-sdk.ts --send`. **First run 2026-10-25:** it paid
    correctly, and five checks failed on stale reads (above), now fixed.
-   Then:
-   - `supabase functions deploy request-payment confirm-schedule`, with your
-     OK, for the binding retry;
-   - fund the test wallet and run it again.
+   **Second run, after deploying the retry:** all passed but the answer,
+   which got a 500 from a node that threw (above). Then:
+   - `supabase functions deploy request-payment confirm-schedule` again, with
+     your OK, for the corrected retry;
+   - fund the test wallet and run it once more, for a clean pass.
 4. Publish `remesso-sdk` 0.1.0 by hand: `cd packages/remesso-sdk && npm publish`.
 5. Merge to `main`, for `/developers`, the agent card and the docs.
 6. Publish `remesso-wallet` 0.5.0 if it isn't out yet: it carries the skill

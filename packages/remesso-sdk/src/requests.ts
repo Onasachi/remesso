@@ -108,7 +108,9 @@ export function makeRequests(ctx: Ctx, deps: { pay(input: PayInput): Promise<Pay
     /// Seconds after a schedule lands the backend may not see it yet: its
     /// indexer runs every minute, and a node behind forno's load balancer can
     /// answer from an earlier block. It says so and asks to be tried again,
-    /// which this does for up to `waitMs` (default 90s).
+    /// which this does for up to `waitMs` (default 90s), as it does after a
+    /// server error: answering twice with the same schedule is safe, the
+    /// backend gives the first answer again.
     async answer(id: string, scheduleId: bigint | number | string, contract?: string, opts: { waitMs?: number } = {}) {
       const until = Date.now() + (opts.waitMs ?? 90_000);
       for (let wait = 3_000; ; wait = Math.min(wait * 2, 15_000)) {
@@ -122,7 +124,8 @@ export function makeRequests(ctx: Ctx, deps: { pay(input: PayInput): Promise<Pay
           return { status: out.status, signed: out.signed };
         } catch (e) {
           const unseen = e instanceof RemessoError && e.code === "conflict" && /hasn't been seen on-chain yet/.test(e.message);
-          if (!unseen || Date.now() + wait > until) throw e;
+          const serverError = e instanceof RemessoError && e.code === "http" && Number(e.details?.status) >= 500;
+          if (!(unseen || serverError) || Date.now() + wait > until) throw e;
           await new Promise((res) => setTimeout(res, wait));
         }
       }

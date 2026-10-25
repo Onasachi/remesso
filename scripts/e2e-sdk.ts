@@ -142,7 +142,16 @@ if (short.length) {
 }
 
 // --- the run --------------------------------------------------------------------
-const payer = createRemesso({ account: payerAccount });
+/// How many times the payer's client sent `answer`: once means the backend
+/// bound the request on its own, without the SDK retrying a 409.
+let answerCalls = 0;
+const payer = createRemesso({
+  account: payerAccount,
+  fetch: (input, init) => {
+    if (typeof init?.body === "string" && init.body.includes('"action":"answer"')) answerCalls++;
+    return fetch(input, init);
+  },
+});
 const receiver = createRemesso({ account: receiverAccount });
 const agent = createRemesso({ account: agentAccount, store: memoryStore() });
 const wallet = createWalletClient({ account: payerAccount, chain: celo, transport: http(RPC) });
@@ -265,6 +274,7 @@ try {
     txs.push(link(s.hash));
     check(s.amountIn === scheduleGross && s.recipientGets >= 1_000_000n, `schedule #${s.id}: sends ${formatAmount(s.amountIn, USDT)}, ${formatAmount(s.recipientGets, USDT)} arrives`);
     check(!!s.request && "status" in s.request && s.request.status === "accepted", `the request reads ${s.request && "status" in s.request ? s.request.status : JSON.stringify(s.request)}`);
+    console.log(`  the answer took ${answerCalls} call(s)${answerCalls === 1 ? ": the backend bound it on the first" : ": the SDK retried while the backend couldn't see the schedule"}`);
     return s;
   });
 
@@ -322,12 +332,20 @@ try {
     }
     // Read at the last transaction's block or later: a node a block behind
     // would show less gas spent than was.
-    const lastBlock = hashes.length ? (await chain.getTransactionReceipt({ hash: hashes[hashes.length - 1] })).blockNumber : 0n;
-    await settles(() => chain.getBlockNumber(), (n) => n >= lastBlock);
-    const [celoAfter, usdtAfter] = await Promise.all([
-      chain.getBalance({ address: receiverAccount.address }),
-      chain.readContract({ address: USDT.address, abi: erc20Abi, functionName: "balanceOf", args: [receiverAccount.address], blockNumber: lastBlock > 0n ? lastBlock : undefined }),
-    ]);
+    // A node that hasn't reached that block answers "block is out of range",
+    // so the pinned read is retried until one has.
+    const lastBlock = hashes.length ? (await chain.waitForTransactionReceipt({ hash: hashes[hashes.length - 1] })).blockNumber : 0n;
+    const pinned = async () => {
+      for (let i = 0; ; i++) {
+        try {
+          return await chain.readContract({ address: USDT.address, abi: erc20Abi, functionName: "balanceOf", args: [receiverAccount.address], blockNumber: lastBlock > 0n ? lastBlock : undefined });
+        } catch (e) {
+          if (i >= 15) throw e;
+          await new Promise((r) => setTimeout(r, 2_000));
+        }
+      }
+    };
+    const [celoAfter, usdtAfter] = await Promise.all([chain.getBalance({ address: receiverAccount.address }), pinned()]);
     check(celoAfter === 0n, `the receiver still holds no CELO (${formatEther(celoAfter)})`);
     // Approving, creating and revoking move no tokens, so the whole drop is gas.
     const spent = usdtBefore - usdtAfter;

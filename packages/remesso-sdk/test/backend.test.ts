@@ -89,6 +89,13 @@ Deno.test("answer: retried while the backend hasn't seen the new schedule, as on
   const r = createRemesso({ account, functionsUrl: FN, fetch });
   const out = await r.requests.answer(id, 2n, undefined, { waitMs: 10_000 });
   assertEquals([out.status, asked], ["accepted", 2]);
+  // The second mainnet run's 500, then the answer: retried too.
+  let tries = 0;
+  const flaky = (async () =>
+    ++tries === 1
+      ? new Response(JSON.stringify({ error: "could not record the answer" }), { status: 500 })
+      : new Response(JSON.stringify({ ok: true, id, status: "accepted", signed: { changed: [] } }), { status: 200 })) as typeof globalThis.fetch;
+  assertEquals((await createRemesso({ account, functionsUrl: FN, fetch: flaky }).requests.answer(id, 2n, undefined, { waitMs: 10_000 })).status, "accepted");
   // Anything else the backend refuses is not retried.
   const refuse = (async () => new Response(JSON.stringify({ error: "that schedule can't answer this request: not from the payer" }), { status: 409 })) as typeof globalThis.fetch;
   const e = await assertRejects(() => createRemesso({ account, functionsUrl: FN, fetch: refuse }).requests.answer(id, 2n), RemessoError);
