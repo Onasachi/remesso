@@ -6,7 +6,8 @@
 - Phase 4 passed on mainnet and is on npm (`remesso-sdk` 0.1.0). Its merge
   is pending.
 - Phase 5 isn't planned.
-- Phase 6 is built and tested on a fork. Its deploy is pending.
+- Phase 6 is deployed and passed on mainnet. `remesso-sdk` 0.2.0 and its
+  merge are pending.
 
 This turns
 [`agent-to-agent.md`](agent-to-agent.md) into phases of work.
@@ -816,6 +817,20 @@ Built on the `builder-codes` branch, from `developer-kit` (2026-10-25).
 5. On mainnet, with your OK: `scripts/e2e-sdk.ts --send`. Its schedule is
    now created with a test builder code (`remesso_e2e`), and it checks with
    `verifyTx` that the run carries it and that the indexer stored it. The
-   test wallet needs about 1.03 USDT and 0.23 CELO first.
+   test wallet needs about 1.03 USDT and 0.23 CELO first. **Done 2026-10-25:
+   every check passed.**
+   - Schedule #5's `createSchedule` came from the test wallet
+     (`0x65e554e0…1b681`). The executor's run came from `0xA351…cdb21`
+     (`0x3481e8f0…9379`). Both carry `remesso`, `celo_5cd35ca55baf` and
+     `remesso_e2e`, read with `verifyTx`.
+   - The schedule's `schedule_created` event lists `builderCodes:
+     ["remesso_e2e"]`.
+   - The rest of the loop passed as before. The answer bound on the first
+     call, the webhook arrived 618 seconds after the start, gas was paid in
+     USDT for three transactions, and the agent paid once.
+
+**Done when** holds: a run of a schedule created with an integrator's code
+carries that code on mainnet, checked with `verifyTx`. The fork test covers
+the second run, from the stored codes.
 
 **Done when:** everything under "Done when" in step 6 of the design doc holds.

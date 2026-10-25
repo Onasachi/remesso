@@ -486,6 +486,9 @@ transaction (`builderCodes` in remesso-sdk 0.2.0, `BUILDER_CODE` in
   wouldn't carry.
 - Only Schema 0 is read. Codes inside an ERC-4337 bundle aren't read yet:
   the outer transaction is the bundler's.
+- Deployed 2026-10-25. First on mainnet the same day: schedule #5 was
+  created with the test code `remesso_e2e` (`0x65e554e0…1b681`), and the
+  executor's run carried it (`0x3481e8f0…9379`, read with `verifyTx`).
 
 ## V4/V5 and paid triggering
 
