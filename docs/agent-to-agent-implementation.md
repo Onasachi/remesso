@@ -1,6 +1,6 @@
 # Agent-to-agent: implementation plan
 
-**Status: Phase 0 measuring; Phase 1 built and tested, not deployed (2026-10-24).** This turns
+**Status: Phase 0 measuring; Phases 1 and 2 built and tested, not deployed (2026-10-25).** This turns
 [`agent-to-agent.md`](agent-to-agent.md) into phases of work.
 
 - That doc says what to build and why. This one says in what order, in which
@@ -220,8 +220,9 @@ These are the problems in step 1 of the design doc. No contract change.
 
 - [x] The setup screen calls the field "Add to the shared total". It shows the
   current shared total and says every agent limit on that token draws from it.
-- [x] `skills/remesso/SKILL.md` no longer says a policy has a total. Plugin
-  0.3.3 and wallet 0.3.2 carry the change.
+- [x] `skills/remesso/SKILL.md` no longer says a policy has a total. Plugin and
+  wallet 0.4.0 carry the change, with Phase 2's (0.3.3 and 0.3.2 were never
+  published).
 - [ ] `web/app/terms/page.tsx:120` still says a policy has "a total". It's
   legal text, so it waits for your decision.
 
@@ -235,8 +236,8 @@ functions.
    `ai-assist` is included because it classifies failures into the new
    categories.
 3. Merge to `main`, so Vercel deploys the web app.
-4. Publish `remesso-wallet` 0.3.2 by hand:
-   `cd packages/remesso-wallet && npm publish`.
+4. Publish `remesso-wallet` by hand: `cd packages/remesso-wallet && npm publish`.
+   If Phase 2 ships with it, publish 0.4.0 only.
 5. Run `scripts/check-past-runs.ts --write`, with your OK, to fix the 18
    amounts.
 
@@ -245,79 +246,104 @@ and no stuck rows are left.
 
 ## Phase 2: one manifest, payments that can't be paid twice, every policy findable
 
+**Built and tested 2026-10-25. Not deployed yet:** see "Ship Phase 2". It ships
+after Phase 1.
+
 ### 2.1 One deployment manifest
 
-- [ ] **The manifest.** `deployments/celo-mainnet.json` holds a version, the
-  chain id, the contracts (V5, the allowance contract, the ERC-8004 registry),
-  the tokens (address, symbol, decimals, currency) and the function URLs.
-- [ ] **Generated, not typed.** `scripts/build-deployments.ts` writes it from
-  the live `/agent` document and on-chain reads (`directTokenAllowed`,
-  `decimals()`), with `--check` for drift.
-- [ ] **A drift test.**
-  - It compares the constants in `web/lib/config.ts`,
-    `supabase/functions/_shared/config.ts`, `mcp/src/server.mjs` and
-    `web/lib/mcp/` with the manifest.
-  - New code, such as the SDK and the event indexer, reads the manifest
-    directly.
-  - Old code moves over as it's touched.
+- [x] **The manifest**, `deployments/celo-mainnet.json`, holds:
+  - the chain;
+  - the contracts: V5 with its executor and the `CURRENT_EXECUTOR` sentinel,
+    the allowance contract, and the ERC-8004 registry;
+  - the eight tokens: address, decimals, currency, whether V5 takes them, and
+    their gas adapter;
+  - the public functions and the app.
+- [x] **Generated, not typed.** `scripts/build-deployments.ts` reads `/agent`
+  and the chain:
+  - the code at each contract, and V5's executor;
+  - `decimals()` and `directTokenAllowed` for each token;
+  - the gas adapters, from Celo's FeeCurrencyDirectory.
+
+  `--check` exits 1 on drift.
+- [x] **A drift test**, `scripts/deployments.test.ts`, which runs offline:
+  - it holds the backend's and the web app's config (imported) and both MCP
+    servers (parsed) to the manifest;
+  - a failure names the file and the constant that drifted;
+  - 5 of 5 pass, and no copy disagrees with the chain today;
+  - not compared yet: `_shared/x402.ts`, `scripts/erc8004-v5.ts` and
+    `docs/erc8004/registration.json`. Values that come only from the
+    environment have no copy to compare.
 
 ### 2.2 The right chain, and separate caches
 
-- [ ] **Check the chain.** At startup, the local MCP wallet checks that
-  `eth_chainId` is 42220, and refuses to sign otherwise. Its RPC can be
-  overridden with `REMESSO_RPC_URL`, so today nothing guarantees it.
-- [ ] **Key the cache by contract.**
-  - Key `~/.remesso-agent/config.json` by chain and allowance contract, and
-    migrate the current file on first run.
-  - That includes `scannedTo`, how far the wallet has scanned for policies
-    (`mcp/src/server.mjs:171`).
-  - Without this, Phase 5's contract would be scanned from the old contract's
-    position, because its ids restart at 1.
+- [x] **The local wallet checks the chain** before it signs. `eth_chainId`
+  must be 42220, or `pay`, `pay_x402` and `wallet` refuse.
+- [x] **Its state is keyed by chain and contract.** `config.json` holds one
+  section per deployment, `scannedTo` included, and an old file migrates on
+  first run.
 
 ### 2.3 Payments that can't be paid twice
 
-- [ ] **An idempotency key.** The local MCP wallet's `pay` takes an
-  `idempotency_key`.
-  - `~/.remesso-agent/payments.json` (0600) maps each key to its hash and
-    outcome.
-  - The hash is saved before waiting for the receipt.
-  - The same key returns the first result.
-- [ ] **No key, no quick repeat.** Without a key, the wallet refuses a payment
-  identical to one in the last 10 minutes (same policy, recipient, amount and
-  memo), unless the agent passes `allow_repeat`. That catches the usual
-  timeout-and-retry.
-- [ ] **Reconcile before anything else.** For an uncertain outcome, check the
-  saved hash first. Then look for a `Paid` event for this policy and recipient
-  (both are indexed) with the same amount and memo in the last 5,000 blocks.
-- [ ] **The same rules in the hosted connector's `agent_pay`.** It has no
-  database today, by design: sign-in state lives in Privy metadata
-  (`web/lib/oauth/sessions.ts`). Decide where its keys live: Privy metadata for
-  the last few, or a table behind a server-only key.
-- [ ] **Memos are measured in bytes.** Both servers cut the memo at 32
-  characters and then encode it as UTF-8 (`mcp/src/server.mjs:306`,
-  `web/lib/mcp/hosted.ts:399`). An accented letter or an emoji makes it longer
-  than `bytes32`, and `pay` fails with an encoding error. Check the length in
-  bytes and refuse with a clear message. Don't cut it: a cut reference no
-  longer matches its request.
-- [ ] **Tell agents.** Both tool descriptions say never to retry a payment
-  without its key.
+- [x] **The local wallet:**
+  - `pay` takes `idempotency_key` and `allow_repeat`.
+  - Each payment is simulated, signed, then written to
+    `~/.remesso-agent/payments.json` (0600) with its hash, nonce and signed
+    bytes. Only then is it broadcast.
+  - The same key returns what became of the first payment: confirmed,
+    reverted, or still pending.
+  - A record that never left the machine is sent with its own bytes. One whose
+    nonce another payment took is paid fresh, once.
+  - Without a key, an identical payment in the last 10 minutes is refused
+    unless `allow_repeat` is passed. The check reads the local record and the
+    chain's `Paid` events.
+  - Payments run one at a time, so two in parallel can't take one nonce.
+  - No receipt within 45 seconds answers "pending" instead of failing.
+- [x] **The hosted connector's `agent_pay`.** Decided: no table and no Privy
+  metadata.
+  - The key goes to Privy as its idempotency key, scoped to the person's
+    wallet. Privy answers a repeat of the same request, for 24 hours, with the
+    first result.
+  - A retry the simulation refuses first checks for the first attempt's
+    `Paid` event.
+  - The 10-minute rule without a key reads `Paid` events.
+  - It isn't tested end to end, because that needs Privy and real
+    transactions.
+- [x] **Memos are measured in bytes** in both servers. Over 32 is refused,
+  not cut.
+- [x] **Agents are told.** Both tool descriptions and the wallet skill say to
+  key every payment and never retry without the key.
+- [x] **Tested on a fork** with the real server over stdio
+  (`scripts/fork-wallet-pay.ts`). All 15 checks passed:
+  - the state file migrates;
+  - a keyed payment pays once, and its retry reports the first;
+  - a reused key for a different payment is refused;
+  - a repeat without a key is refused, and `allow_repeat` pays it;
+  - a 34-byte memo is refused;
+  - a timed-out payment, one that died before broadcast, and one whose nonce
+    was taken each pay exactly once;
+  - a wallet on another chain refuses to sign.
 
 ### 2.4 Every policy findable
 
-- [ ] **Scan every policy.**
-  - Replace two windows with a full scan in multicall batches: the newest 200
-    on the setup screen (`web/app/agent-wallet/page.tsx:40`) and the newest
-    1,000 in the hosted connector (`web/lib/mcp/hosted.ts:193`).
-  - Phase 3's event table replaces the connector's scan later.
-  - The local wallet already scans everything from where it last stopped.
-- [ ] **Index policies.** Add the allowance contract to the Goldsky subgraph
-  (`indexer/`), so the screens can list a person's policies by owner.
+- [x] **Every policy is scanned**, newest first, one multicall per 250 ids
+  (`web/lib/policies.ts`, tested by `policies.test.ts`). The setup screen and
+  the hosted connector both use it. On mainnet it reads all six policies in
+  one call.
+- [x] **The subgraph is ready to index policies.** `indexer/goldsky.json` adds
+  the allowance contract from block 80,467,202, as subgraph `1.1.0`. Nothing
+  reads it yet, because the full scan is exact at today's size.
 
 ### Ship Phase 2
 
-1. Merge to `main` for the web app and the hosted connector (Vercel).
-2. Rebuild the plugin, and republish `remesso-wallet` by hand.
-3. Redeploy the subgraph with the allowance contract.
+After Phase 1, because the branch carries both.
+
+1. Merge to `main`, for the web app and the hosted connector (Vercel). This
+   also ships Phase 1's web changes, so Phase 1's migrations must be pushed
+   first.
+2. Publish `remesso-wallet` 0.4.0 by hand. It carries Phase 1's skill change
+   too, so 0.3.2 can be skipped.
+3. Deploy subgraph `1.1.0` and tag it `prod` (`indexer/README.md`). This can
+   wait until something reads policies from it.
 
 **Done when:** everything under "Done when" in step 2 of the design doc holds.
 

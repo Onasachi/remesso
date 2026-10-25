@@ -59,8 +59,21 @@ deno test --allow-env --unstable-sloppy-imports web/lib/allowance.test.ts
 # phone numbers — E.164 normalisation and masking for MiniPay recipients
 (cd web && deno test --unstable-sloppy-imports lib/phone.test.ts)   # from web/: needs its node_modules
 
+# policy scan — every agent policy, newest first, so none drops off a Stop list
+(cd web && deno test --unstable-sloppy-imports lib/policies.test.ts)   # from web/: needs its node_modules
+
 # skill manifests — regenerate from the live 402, or --check for drift
 deno run --allow-net --allow-write --allow-read scripts/build-skill-manifest.ts
+
+# deployment manifest — regenerate from /agent and the chain, or --check for drift;
+# then hold every hand-typed copy of the deployment to it (offline)
+deno run --allow-net --allow-read --allow-write --allow-env scripts/build-deployments.ts
+deno test --allow-env --allow-read --unstable-sloppy-imports scripts/deployments.test.ts
+
+# the plugin wallet on a mainnet fork: a payment retried with its key pays once, a
+# wallet on the wrong chain refuses to sign. Needs `anvil --fork-url https://forno.celo.org
+# --port 8546` and `anvil --chain-id 1337 --port 8547`.
+deno run --allow-all scripts/fork-wallet-pay.ts
 
 # Claude plugin and the npm package — plugin/ and packages/remesso-wallet/ are
 # assembled from skills/ and mcp/; edit those, then rebuild (after
@@ -755,6 +768,27 @@ addresses. A legal answer is still owed before it opens to everyone.
   without it the person is asked to send CELO. Remesso's P-256 key
   (`PRIVY_AUTHORIZATION_KEY`; `~/.remesso/keys/privy-authorization.json`) is
   the signer quorum's key (`PRIVY_SIGNER_QUORUM_ID`).
+
+**A payment retried with its key pays once (2026-10-25).** An agent whose
+tool call times out tries again, and `pay()` checks nothing about repeats, so
+that was a second payment inside every cap. Both agent wallets now take an
+`idempotency_key`; without one, an identical payment in the last ten minutes is
+refused unless `allow_repeat` is passed.
+
+- **The plugin wallet** (`mcp/src/server.mjs`) signs first and writes the hash,
+  nonce and signed bytes to `~/.remesso-agent/payments.json` (0600) before
+  broadcasting.
+  - A retry reconciles from that record: confirmed, reverted or pending.
+  - A record that never left the machine goes out with its own bytes. One whose
+    nonce was taken is paid fresh.
+- **The hosted connector** passes the key to Privy as its idempotency key,
+  scoped to the person's wallet. Privy repeats the first answer for 24 hours,
+  so nothing of ours stores keys.
+- **Memos are counted in bytes.** A 17-letter memo of accented letters is 34
+  bytes and is refused, not cut.
+- **The plugin wallet refuses to sign unless its RPC answers chain 42220.** Its
+  state is keyed by chain and contract, so the next allowance contract starts
+  its own scan.
 
 ## The pre-flight agent — advice before a payment, never the payment
 
