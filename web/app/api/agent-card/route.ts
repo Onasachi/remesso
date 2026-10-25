@@ -48,6 +48,8 @@ export async function GET() {
       endpoints: [
         { name: "capabilities", url: `${FUNCTIONS}/agent`, method: "GET" },
         { name: "request-payment", url: `${FUNCTIONS}/request-payment`, method: "POST" },
+        { name: "payment-events", url: `${FUNCTIONS}/payment-events`, method: "GET" },
+        { name: "webhooks", url: `${FUNCTIONS}/webhooks`, method: "POST" },
         { name: "naira-rate", url: `${FUNCTIONS}/rate-service`, method: "POST" },
         { name: "latam-rate", url: `${FUNCTIONS}/latam-rate`, method: "POST" },
         { name: "latam-route", url: `${FUNCTIONS}/latam-route`, method: "POST" },

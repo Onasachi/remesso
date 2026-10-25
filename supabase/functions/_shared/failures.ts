@@ -24,6 +24,8 @@ export const CATEGORIES: Record<string, string> = {
   destination_mismatch: "The payout address does not match the destination the sender authorised.",
   bank_unverified: "The recipient's bank account details were never verified.",
   cngn_failed: "The payout partner rejected or failed the naira payout, or its API returned an error.",
+  reverted: "The transfer was sent to the blockchain and rejected there, after a check moments earlier said it would go through.",
+  interrupted: "The payment system stopped before the transfer was sent, or the transaction it sent never landed.",
   network_error: "The blockchain transaction or network call failed, reverted, or timed out.",
   other: "None of the above describes this reason.",
 };
@@ -33,6 +35,13 @@ export const CATEGORIES: Record<string, string> = {
 /// cannot be unavailable — so Jev is asked only about the tail: contract
 /// reverts, RPC errors and payout-partner messages we have never seen.
 export const RULES: Array<[RegExp, string]> = [
+  // From the receipt check (`receipt.ts`) and the stale-run recovery
+  // (`recovery.ts`). First, because these carry a transaction hash, and a
+  // reason should never be matched by accident on the letters of a hash.
+  [/reverted on-chain/i, "reverted"],
+  [/mined without a RunExecuted/i, "other"],
+  [/was never mined|abandoned before sending|could not record the transaction first/i, "interrupted"],
+
   [/completed its final run|schedule completed/i, "completed"],
   [/not due/i, "not_due"],
   [/funding wallet is short|insufficient balance/i, "wallet_short"],

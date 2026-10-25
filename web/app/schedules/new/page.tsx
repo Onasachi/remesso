@@ -50,6 +50,7 @@ import { Mark } from "@/components/Mark";
 import { useIsMiniPay } from "@/lib/hooks";
 import { runsToCover } from "@/lib/allowance";
 import { isEmptyPayLink, parsePayLink, type PayLink } from "@/lib/payLink";
+import { feeOf, grossFor } from "@/lib/fee";
 import { UnusualCheck } from "@/components/UnusualCheck";
 import { isAddress } from "viem";
 
@@ -85,9 +86,13 @@ export default function NewSchedulePage() {
   // move USDT, whatever the recipient ends up holding.
   const fundingToken: TokenInfo = recipient.payoutType === "direct" ? recipient.token : USDT;
   const converts = recipient.payoutType !== "direct";
-  const amountIn = amountInUnits(terms, fundingToken.decimals);
-  const { data: allowance } = useAllowance(fundingToken.address);
   const { data: feeBps } = useFeeBps();
+  const typed = amountInUnits(terms, fundingToken.decimals);
+  // What is signed. When the amount is what the recipient receives (a request
+  // or pay link named it), that is the gross that nets it after V5's fee, and
+  // nothing can be signed until the fee is known.
+  const amountIn = terms.receive ? (typed && feeBps !== undefined ? grossFor(typed, feeBps) : null) : typed;
+  const { data: allowance } = useAllowance(fundingToken.address);
   const { data: balance } = useUsdtBalance(fundingToken.address);
   const market = useMarketRate(amountIn ?? 0n);
 
@@ -125,7 +130,9 @@ export default function NewSchedulePage() {
             ? "Verify the bank account to continue"
             : null
       : step === 1
-        ? !amountIn
+        ? terms.receive && typed && feeBps === undefined
+          ? "Reading Remesso's fee"
+          : !amountIn
           ? "Enter an amount to continue"
           : amountIn < minRunUnits(fundingToken)
             ? `Each transfer must be at least ${formatUnits(minRunUnits(fundingToken), fundingToken.decimals)} ${fundingToken.symbol}`
@@ -156,6 +163,9 @@ export default function NewSchedulePage() {
     setTerms((t) => ({
       ...t,
       amount: t.amount || link.amount || "",
+      // A link's amount is what the recipient asked to receive, not what is
+      // sent: the sender signs it plus the fee (lib/fee.ts).
+      receive: t.amount ? t.receive : Boolean(link.amount),
       intervalSeconds: link.intervalSeconds ?? t.intervalSeconds,
       maxRuns: link.maxRuns ?? t.maxRuns,
     }));
@@ -358,14 +368,20 @@ export default function NewSchedulePage() {
       // The server binds the row to the schedule, reading the same event from
       // the chain and checking it names this sender. The schedule exists
       // on-chain either way; if this fails, sync-schedules adopts it later.
+      // A request the link named rides along: the server checks from the chain
+      // whether this schedule really answers it (same payer, same recipient,
+      // created after the request), and says how.
       setBusy("Confirming");
-      const { error: uErr } = await sb.functions.invoke("confirm-schedule", {
-        body: { schedule: scheduleRow.id, txHash: hash },
+      const { data: confirmed, error: uErr } = await sb.functions.invoke("confirm-schedule", {
+        body: { schedule: scheduleRow.id, txHash: hash, ...(fromLink?.request ? { request: fromLink.request } : {}) },
       });
       if (uErr) throw new Error(await functionError(uErr));
+      const answered = fromLink?.request
+        ? String((confirmed as { request?: { status?: string } } | null)?.request?.status ?? "unbound")
+        : null;
 
       await queryClient.invalidateQueries({ queryKey: ["schedules"] });
-      router.push(`/schedules/${scheduleRow.id}?created=1`);
+      router.push(`/schedules/${scheduleRow.id}?created=1${answered ? `&answered=${encodeURIComponent(answered)}` : ""}`);
     } catch (e) {
       setError(friendly((e as Error).message));
     } finally {
@@ -398,11 +414,14 @@ export default function NewSchedulePage() {
                 a value that looks like their own work. */}
             {fromLink && (
               <div className="notice-info mb-4">
-                <p className="font-medium">A payment link filled this in.</p>
+                <p className="font-medium">
+                  {fromLink.request ? "A payment request filled this in." : "A payment link filled this in."}
+                </p>
                 <p className="mt-1 text-sm">
                   {fromLink.note
                     ? `"${fromLink.note}" — check the address below is who you mean to pay.`
                     : "Check the address below is who you mean to pay. Nothing is sent until you sign."}
+                  {fromLink.amount ? " The amount is what they receive; Remesso's fee is added to what you send." : ""}
                 </p>
               </div>
             )}
@@ -751,16 +770,18 @@ function Review({
             {floorE6 ? `₦${rateToNairaPerUsd(floorE6).toFixed(0)} per USDT` : "—"}
           </IconRow>
         )}
+        {/* Rounded up, as V5 takes it: the floor division this used showed
+            them getting a unit more than arrives. */}
         {feeBps !== undefined && feeBps > 0 && amountIn !== null && (
           <IconRow
             icon="percent"
             label="Remesso fee"
             sub={`${(feeBps / 100).toFixed(2)}% · they get ${formatExact(
-              amountIn - (amountIn * BigInt(feeBps)) / 10_000n,
+              amountIn - feeOf(amountIn, feeBps),
               token.decimals,
             )}`}
           >
-            {formatExact((amountIn * BigInt(feeBps)) / 10_000n, token.decimals)} {token.symbol}
+            {formatExact(feeOf(amountIn, feeBps), token.decimals)} {token.symbol}
           </IconRow>
         )}
         {terms.trigger.trim() && (

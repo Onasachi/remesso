@@ -1,6 +1,6 @@
 {
   "name": "remesso-agent-wallet",
-  "version": "0.3.1",
+  "version": "0.5.0",
   "private": true,
   "description": "MCP server for the Remesso Claude plugin: an agent wallet whose spending is capped on-chain by RemessoAgentAllowance.",
   "type": "module",

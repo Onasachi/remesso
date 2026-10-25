@@ -2,13 +2,24 @@
   "version": "1",
   "name": "remesso-celo",
   "abis": {
-    "RemessoExecutorV5": { "path": "./abis/RemessoExecutorV5.json" }
+    "RemessoExecutorV5": {
+      "path": "./abis/RemessoExecutorV5.json"
+    },
+    "RemessoAgentAllowance": {
+      "path": "./abis/RemessoAgentAllowance.json"
+    }
   },
   "instances": [
     {
       "abi": "RemessoExecutorV5",
       "address": "0x3C357af3300f383Ea49B6D6ED8e084199a92bEd8",
       "startBlock": 80268721,
+      "chain": "celo"
+    },
+    {
+      "abi": "RemessoAgentAllowance",
+      "address": "0xA6351fAeEb097698289586C4D6188530300DB209",
+      "startBlock": 80467202,
       "chain": "celo"
     }
   ],

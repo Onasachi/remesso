@@ -45,6 +45,27 @@ const EMITTED: Array<[string, string, string]> = [
     "cngn_failed",
     "cngn-webhook transaction.failed",
   ],
+  [
+    "run reverted on-chain in 0x4ef1b4595e20b4184be736ef7399ad958cd9c42ed248ecaeb0567c7703922e72",
+    "reverted",
+    "receipt.ts runOutcome()",
+  ],
+  [
+    "run 0x4ef1b4595e20b4184be736ef7399ad958cd9c42ed248ecaeb0567c7703922e72 mined without a RunExecuted for schedule 2",
+    "other",
+    "receipt.ts runOutcome()",
+  ],
+  [
+    "run transaction 0x4ef1b4595e20b4184be736ef7399ad958cd9c42ed248ecaeb0567c7703922e72 was never mined",
+    "interrupted",
+    "recovery.ts decide()",
+  ],
+  ["abandoned before sending", "interrupted", "recovery.ts decide()"],
+  [
+    "not sent: could not record the transaction first (connection reset)",
+    "interrupted",
+    "execute-due-runs settle()",
+  ],
 ];
 
 for (const [reason, expected, source] of EMITTED) {

@@ -7771,44 +7771,44 @@ var init_formatter = __esm({
 });
 
 // node_modules/viem/_esm/utils/formatters/transactionRequest.js
-function formatTransactionRequest(request, _) {
+function formatTransactionRequest(request2, _) {
   const rpcRequest = {};
-  if (typeof request.authorizationList !== "undefined")
-    rpcRequest.authorizationList = formatAuthorizationList(request.authorizationList);
-  if (typeof request.accessList !== "undefined")
-    rpcRequest.accessList = request.accessList;
-  if (typeof request.blobVersionedHashes !== "undefined")
-    rpcRequest.blobVersionedHashes = request.blobVersionedHashes;
-  if (typeof request.blobs !== "undefined") {
-    if (typeof request.blobs[0] !== "string")
-      rpcRequest.blobs = request.blobs.map((x) => bytesToHex(x));
+  if (typeof request2.authorizationList !== "undefined")
+    rpcRequest.authorizationList = formatAuthorizationList(request2.authorizationList);
+  if (typeof request2.accessList !== "undefined")
+    rpcRequest.accessList = request2.accessList;
+  if (typeof request2.blobVersionedHashes !== "undefined")
+    rpcRequest.blobVersionedHashes = request2.blobVersionedHashes;
+  if (typeof request2.blobs !== "undefined") {
+    if (typeof request2.blobs[0] !== "string")
+      rpcRequest.blobs = request2.blobs.map((x) => bytesToHex(x));
     else
-      rpcRequest.blobs = request.blobs;
+      rpcRequest.blobs = request2.blobs;
   }
-  if (typeof request.data !== "undefined")
-    rpcRequest.data = request.data;
-  if (request.account)
-    rpcRequest.from = request.account.address;
-  if (typeof request.from !== "undefined")
-    rpcRequest.from = request.from;
-  if (typeof request.gas !== "undefined")
-    rpcRequest.gas = numberToHex(request.gas);
-  if (typeof request.gasPrice !== "undefined")
-    rpcRequest.gasPrice = numberToHex(request.gasPrice);
-  if (typeof request.maxFeePerBlobGas !== "undefined")
-    rpcRequest.maxFeePerBlobGas = numberToHex(request.maxFeePerBlobGas);
-  if (typeof request.maxFeePerGas !== "undefined")
-    rpcRequest.maxFeePerGas = numberToHex(request.maxFeePerGas);
-  if (typeof request.maxPriorityFeePerGas !== "undefined")
-    rpcRequest.maxPriorityFeePerGas = numberToHex(request.maxPriorityFeePerGas);
-  if (typeof request.nonce !== "undefined")
-    rpcRequest.nonce = numberToHex(request.nonce);
-  if (typeof request.to !== "undefined")
-    rpcRequest.to = request.to;
-  if (typeof request.type !== "undefined")
-    rpcRequest.type = rpcTransactionType[request.type];
-  if (typeof request.value !== "undefined")
-    rpcRequest.value = numberToHex(request.value);
+  if (typeof request2.data !== "undefined")
+    rpcRequest.data = request2.data;
+  if (request2.account)
+    rpcRequest.from = request2.account.address;
+  if (typeof request2.from !== "undefined")
+    rpcRequest.from = request2.from;
+  if (typeof request2.gas !== "undefined")
+    rpcRequest.gas = numberToHex(request2.gas);
+  if (typeof request2.gasPrice !== "undefined")
+    rpcRequest.gasPrice = numberToHex(request2.gasPrice);
+  if (typeof request2.maxFeePerBlobGas !== "undefined")
+    rpcRequest.maxFeePerBlobGas = numberToHex(request2.maxFeePerBlobGas);
+  if (typeof request2.maxFeePerGas !== "undefined")
+    rpcRequest.maxFeePerGas = numberToHex(request2.maxFeePerGas);
+  if (typeof request2.maxPriorityFeePerGas !== "undefined")
+    rpcRequest.maxPriorityFeePerGas = numberToHex(request2.maxPriorityFeePerGas);
+  if (typeof request2.nonce !== "undefined")
+    rpcRequest.nonce = numberToHex(request2.nonce);
+  if (typeof request2.to !== "undefined")
+    rpcRequest.to = request2.to;
+  if (typeof request2.type !== "undefined")
+    rpcRequest.type = rpcTransactionType[request2.type];
+  if (typeof request2.value !== "undefined")
+    rpcRequest.value = numberToHex(request2.value);
   return rpcRequest;
 }
 function formatAuthorizationList(authorizationList) {
@@ -8232,7 +8232,7 @@ async function estimateMaxPriorityFeePerGas(client2, args) {
   return internal_estimateMaxPriorityFeePerGas(client2, args);
 }
 async function internal_estimateMaxPriorityFeePerGas(client2, args) {
-  const { block: block_, chain = client2.chain, request } = args || {};
+  const { block: block_, chain = client2.chain, request: request2 } = args || {};
   try {
     const maxPriorityFeePerGas = chain?.fees?.maxPriorityFeePerGas ?? chain?.fees?.defaultPriorityFee;
     if (typeof maxPriorityFeePerGas === "function") {
@@ -8240,7 +8240,7 @@ async function internal_estimateMaxPriorityFeePerGas(client2, args) {
       const maxPriorityFeePerGas_ = await maxPriorityFeePerGas({
         block,
         client: client2,
-        request
+        request: request2
       });
       if (maxPriorityFeePerGas_ === null)
         throw new Error();
@@ -8280,13 +8280,13 @@ async function estimateFeesPerGas(client2, args) {
   return internal_estimateFeesPerGas(client2, args);
 }
 async function internal_estimateFeesPerGas(client2, args) {
-  const { block: block_, chain = client2.chain, request, type = "eip1559" } = args || {};
+  const { block: block_, chain = client2.chain, request: request2, type = "eip1559" } = args || {};
   const baseFeeMultiplier = await (async () => {
     if (typeof chain?.fees?.baseFeeMultiplier === "function")
       return chain.fees.baseFeeMultiplier({
         block: block_,
         client: client2,
-        request
+        request: request2
       });
     return chain?.fees?.baseFeeMultiplier ?? 1.2;
   })();
@@ -8301,7 +8301,7 @@ async function internal_estimateFeesPerGas(client2, args) {
       block: block_,
       client: client2,
       multiply,
-      request,
+      request: request2,
       type
     });
     if (fees2 !== null)
@@ -8310,19 +8310,19 @@ async function internal_estimateFeesPerGas(client2, args) {
   if (type === "eip1559") {
     if (typeof block.baseFeePerGas !== "bigint")
       throw new Eip1559FeesNotSupportedError();
-    const maxPriorityFeePerGas = typeof request?.maxPriorityFeePerGas === "bigint" ? request.maxPriorityFeePerGas : await internal_estimateMaxPriorityFeePerGas(client2, {
+    const maxPriorityFeePerGas = typeof request2?.maxPriorityFeePerGas === "bigint" ? request2.maxPriorityFeePerGas : await internal_estimateMaxPriorityFeePerGas(client2, {
       block,
       chain,
-      request
+      request: request2
     });
     const baseFeePerGas = multiply(block.baseFeePerGas);
-    const maxFeePerGas = request?.maxFeePerGas ?? baseFeePerGas + maxPriorityFeePerGas;
+    const maxFeePerGas = request2?.maxFeePerGas ?? baseFeePerGas + maxPriorityFeePerGas;
     return {
       maxFeePerGas,
       maxPriorityFeePerGas
     };
   }
-  const gasPrice = request?.gasPrice ?? multiply(await getAction(client2, getGasPrice, "getGasPrice")({}));
+  const gasPrice = request2?.gasPrice ?? multiply(await getAction(client2, getGasPrice, "getGasPrice")({}));
   return {
     gasPrice
   };
@@ -8687,7 +8687,7 @@ async function fillTransaction(client2, parameters) {
   assertRequest(parameters);
   const chainFormat = chain?.formatters?.transactionRequest?.format;
   const format2 = chainFormat || formatTransactionRequest;
-  const request = format2({
+  const request2 = format2({
     // Pick out extra data that might exist on the chain's transaction request type.
     ...extract(rest, { format: chainFormat }),
     account: account2 ? parseAccount(account2) : void 0,
@@ -8709,7 +8709,7 @@ async function fillTransaction(client2, parameters) {
   try {
     const response = await client2.request({
       method: "eth_fillTransaction",
-      params: [request]
+      params: [request2]
     });
     const format3 = chain?.formatters?.transaction?.format || formatTransaction;
     const transaction = format3(response.tx);
@@ -8764,7 +8764,7 @@ async function fillTransaction(client2, parameters) {
     return {
       raw: response.raw,
       transaction: {
-        from: request.from,
+        from: request2.from,
         ...transaction
       },
       ...response.capabilities ? { capabilities: response.capabilities } : {}
@@ -8794,10 +8794,10 @@ var init_fillTransaction = __esm({
 
 // node_modules/viem/_esm/actions/wallet/prepareTransactionRequest.js
 async function prepareTransactionRequest(client2, args) {
-  let request = args;
-  request.account ??= client2.account;
-  request.parameters ??= defaultParameters;
-  const { account: account_, chain = client2.chain, nonceManager, parameters } = request;
+  let request2 = args;
+  request2.account ??= client2.account;
+  request2.parameters ??= defaultParameters;
+  const { account: account_, chain = client2.chain, nonceManager, parameters } = request2;
   const prepareTransactionRequest2 = (() => {
     if (typeof chain?.prepareTransactionRequest === "function")
       return {
@@ -8815,8 +8815,8 @@ async function prepareTransactionRequest(client2, args) {
   async function getChainId2() {
     if (chainId)
       return chainId;
-    if (typeof request.chainId !== "undefined")
-      return request.chainId;
+    if (typeof request2.chainId !== "undefined")
+      return request2.chainId;
     if (chain)
       return chain.id;
     const chainId_ = await getAction(client2, getChainId, "getChainId")({});
@@ -8824,14 +8824,14 @@ async function prepareTransactionRequest(client2, args) {
     return chainId;
   }
   let account2 = account_ ? parseAccount(account_) : account_;
-  let nonce = request.nonce;
+  let nonce = request2.nonce;
   if (prepareTransactionRequest2?.fn && prepareTransactionRequest2.runAt?.includes("beforeFillTransaction")) {
-    request = await prepareTransactionRequest2.fn({ ...request, chain }, {
+    request2 = await prepareTransactionRequest2.fn({ ...request2, chain }, {
       client: client2,
       phase: "beforeFillTransaction"
     });
-    nonce ??= request.nonce;
-    const sender = request.account ?? request.from;
+    nonce ??= request2.nonce;
+    const sender = request2.account ?? request2.from;
     account2 = sender ? parseAccount(sender) : void 0;
   }
   if (parameters.includes("nonce") && typeof nonce === "undefined" && account2 && nonceManager) {
@@ -8843,47 +8843,47 @@ async function prepareTransactionRequest(client2, args) {
     });
   }
   const attemptFill = (() => {
-    if ((parameters.includes("blobVersionedHashes") || parameters.includes("sidecars")) && request.kzg && request.blobs)
+    if ((parameters.includes("blobVersionedHashes") || parameters.includes("sidecars")) && request2.kzg && request2.blobs)
       return false;
-    if (parameters.length > 0 && "feePayer" in request && request.feePayer && !("feePayerSignature" in request && request.feePayerSignature))
+    if (parameters.length > 0 && "feePayer" in request2 && request2.feePayer && !("feePayerSignature" in request2 && request2.feePayerSignature))
       return true;
     if (supportsFillTransaction.get(client2.uid) === false)
       return false;
     const shouldAttempt = ["fees", "gas"].some((parameter) => parameters.includes(parameter));
     if (!shouldAttempt)
       return false;
-    if (parameters.includes("chainId") && typeof request.chainId !== "number")
+    if (parameters.includes("chainId") && typeof request2.chainId !== "number")
       return true;
     if (parameters.includes("nonce") && typeof nonce !== "number")
       return true;
-    if (parameters.includes("fees") && typeof request.gasPrice !== "bigint" && (typeof request.maxFeePerGas !== "bigint" || typeof request.maxPriorityFeePerGas !== "bigint"))
+    if (parameters.includes("fees") && typeof request2.gasPrice !== "bigint" && (typeof request2.maxFeePerGas !== "bigint" || typeof request2.maxPriorityFeePerGas !== "bigint"))
       return true;
-    if (parameters.includes("gas") && typeof request.gas !== "bigint")
+    if (parameters.includes("gas") && typeof request2.gas !== "bigint")
       return true;
     return false;
   })();
-  const fillResult = attemptFill ? await getAction(client2, fillTransaction, "fillTransaction")({ ...request, nonce }).then((result) => {
+  const fillResult = attemptFill ? await getAction(client2, fillTransaction, "fillTransaction")({ ...request2, nonce }).then((result) => {
     const { chainId: chainId2, from: from16, gas: gas2, gasPrice, nonce: nonce2, maxFeePerBlobGas, maxFeePerGas, maxPriorityFeePerGas, type: type2, ...rest } = result.transaction;
     const feeToken = "feeToken" in rest ? rest.feeToken : void 0;
     const hasFilledFeePayerSignature = "feePayerSignature" in rest && rest.feePayerSignature !== null && typeof rest.feePayerSignature !== "undefined";
-    const shouldUseFilledFeeToken = typeof feeToken !== "undefined" && feeToken !== null && (!("feeToken" in request) || hasFilledFeePayerSignature);
+    const shouldUseFilledFeeToken = typeof feeToken !== "undefined" && feeToken !== null && (!("feeToken" in request2) || hasFilledFeePayerSignature);
     supportsFillTransaction.set(client2.uid, true);
     return {
-      ...request,
+      ...request2,
       ...from16 ? { from: from16 } : {},
-      ...type2 && !request.type ? { type: type2 } : {},
+      ...type2 && !request2.type ? { type: type2 } : {},
       ...typeof chainId2 !== "undefined" ? { chainId: chainId2 } : {},
       ...typeof gas2 !== "undefined" ? { gas: gas2 } : {},
       ...typeof gasPrice !== "undefined" ? { gasPrice } : {},
       ...typeof nonce2 !== "undefined" ? { nonce: nonce2 } : {},
-      ...typeof maxFeePerBlobGas !== "undefined" && request.type !== "legacy" && request.type !== "eip2930" ? { maxFeePerBlobGas } : {},
-      ...typeof maxFeePerGas !== "undefined" && request.type !== "legacy" && request.type !== "eip2930" ? { maxFeePerGas } : {},
-      ...typeof maxPriorityFeePerGas !== "undefined" && request.type !== "legacy" && request.type !== "eip2930" ? { maxPriorityFeePerGas } : {},
+      ...typeof maxFeePerBlobGas !== "undefined" && request2.type !== "legacy" && request2.type !== "eip2930" ? { maxFeePerBlobGas } : {},
+      ...typeof maxFeePerGas !== "undefined" && request2.type !== "legacy" && request2.type !== "eip2930" ? { maxFeePerGas } : {},
+      ...typeof maxPriorityFeePerGas !== "undefined" && request2.type !== "legacy" && request2.type !== "eip2930" ? { maxPriorityFeePerGas } : {},
       ..."nonceKey" in rest && typeof rest.nonceKey !== "undefined" ? { nonceKey: rest.nonceKey } : {},
       // Validity bounds are part of the fee-payer signing payload.
       ..."validBefore" in rest && rest.validBefore !== null && typeof rest.validBefore !== "undefined" ? { validBefore: rest.validBefore } : {},
       ..."validAfter" in rest && rest.validAfter !== null && typeof rest.validAfter !== "undefined" ? { validAfter: rest.validAfter } : {},
-      ..."keyAuthorization" in rest && typeof rest.keyAuthorization !== "undefined" && rest.keyAuthorization !== null && !("keyAuthorization" in request) ? { keyAuthorization: rest.keyAuthorization } : {},
+      ..."keyAuthorization" in rest && typeof rest.keyAuthorization !== "undefined" && rest.keyAuthorization !== null && !("keyAuthorization" in request2) ? { keyAuthorization: rest.keyAuthorization } : {},
       ..."feePayerSignature" in rest && typeof rest.feePayerSignature !== "undefined" && rest.feePayerSignature !== null ? { feePayerSignature: rest.feePayerSignature } : {},
       ...shouldUseFilledFeeToken ? { feeToken } : {},
       ...result.capabilities ? { _capabilities: result.capabilities } : {}
@@ -8891,7 +8891,7 @@ async function prepareTransactionRequest(client2, args) {
   }).catch((e) => {
     const error = e;
     if (error.name !== "TransactionExecutionError")
-      return request;
+      return request2;
     const nonceMismatch = error.walk?.((error2) => error2 instanceof FeePayerNonceMismatchError);
     if (nonceMismatch)
       throw e;
@@ -8907,17 +8907,17 @@ async function prepareTransactionRequest(client2, args) {
     });
     if (unsupported)
       supportsFillTransaction.set(client2.uid, false);
-    return request;
-  }) : request;
+    return request2;
+  }) : request2;
   nonce ??= fillResult.nonce;
-  request = {
+  request2 = {
     ...fillResult,
     ...account2 ? { from: account2?.address } : {},
     ...typeof nonce !== "undefined" ? { nonce } : {}
   };
-  const { blobs, gas, kzg, type } = request;
+  const { blobs, gas, kzg, type } = request2;
   if (prepareTransactionRequest2?.fn && prepareTransactionRequest2.runAt?.includes("beforeFillParameters")) {
-    request = await prepareTransactionRequest2.fn({ ...request, chain }, {
+    request2 = await prepareTransactionRequest2.fn({ ...request2, chain }, {
       client: client2,
       phase: "beforeFillParameters"
     });
@@ -8930,7 +8930,7 @@ async function prepareTransactionRequest(client2, args) {
     return block;
   }
   if (parameters.includes("nonce") && typeof nonce === "undefined" && account2 && !nonceManager)
-    request.nonce = await getAction(client2, getTransactionCount, "getTransactionCount")({
+    request2.nonce = await getAction(client2, getTransactionCount, "getTransactionCount")({
       address: account2.address,
       blockTag: "pending"
     });
@@ -8941,7 +8941,7 @@ async function prepareTransactionRequest(client2, args) {
         commitments,
         to: "hex"
       });
-      request.blobVersionedHashes = versionedHashes;
+      request2.blobVersionedHashes = versionedHashes;
     }
     if (parameters.includes("sidecars")) {
       const proofs = blobsToProofs({ blobs, commitments, kzg });
@@ -8951,14 +8951,14 @@ async function prepareTransactionRequest(client2, args) {
         proofs,
         to: "hex"
       });
-      request.sidecars = sidecars;
+      request2.sidecars = sidecars;
     }
   }
   if (parameters.includes("chainId"))
-    request.chainId = await getChainId2();
+    request2.chainId = await getChainId2();
   if ((parameters.includes("fees") || parameters.includes("type")) && typeof type === "undefined") {
     try {
-      request.type = getTransactionType(request);
+      request2.type = getTransactionType(request2);
     } catch {
       let isEip1559Network = eip1559NetworkCache.get(client2.uid);
       if (typeof isEip1559Network === "undefined") {
@@ -8966,54 +8966,54 @@ async function prepareTransactionRequest(client2, args) {
         isEip1559Network = typeof block2?.baseFeePerGas === "bigint";
         eip1559NetworkCache.set(client2.uid, isEip1559Network);
       }
-      request.type = isEip1559Network ? "eip1559" : "legacy";
+      request2.type = isEip1559Network ? "eip1559" : "legacy";
     }
   }
   if (parameters.includes("fees")) {
-    if (request.type !== "legacy" && request.type !== "eip2930") {
-      if (typeof request.maxFeePerGas === "undefined" || typeof request.maxPriorityFeePerGas === "undefined") {
+    if (request2.type !== "legacy" && request2.type !== "eip2930") {
+      if (typeof request2.maxFeePerGas === "undefined" || typeof request2.maxPriorityFeePerGas === "undefined") {
         const block2 = await getBlock2();
         const { maxFeePerGas, maxPriorityFeePerGas } = await internal_estimateFeesPerGas(client2, {
           block: block2,
           chain,
-          request
+          request: request2
         });
-        if (typeof request.maxPriorityFeePerGas === "undefined" && request.maxFeePerGas && request.maxFeePerGas < maxPriorityFeePerGas)
+        if (typeof request2.maxPriorityFeePerGas === "undefined" && request2.maxFeePerGas && request2.maxFeePerGas < maxPriorityFeePerGas)
           throw new MaxFeePerGasTooLowError({
             maxPriorityFeePerGas
           });
-        request.maxPriorityFeePerGas = maxPriorityFeePerGas;
-        request.maxFeePerGas = maxFeePerGas;
+        request2.maxPriorityFeePerGas = maxPriorityFeePerGas;
+        request2.maxFeePerGas = maxFeePerGas;
       }
     } else {
-      if (typeof request.maxFeePerGas !== "undefined" || typeof request.maxPriorityFeePerGas !== "undefined")
+      if (typeof request2.maxFeePerGas !== "undefined" || typeof request2.maxPriorityFeePerGas !== "undefined")
         throw new Eip1559FeesNotSupportedError();
-      if (typeof request.gasPrice === "undefined") {
+      if (typeof request2.gasPrice === "undefined") {
         const block2 = await getBlock2();
         const { gasPrice: gasPrice_ } = await internal_estimateFeesPerGas(client2, {
           block: block2,
           chain,
-          request,
+          request: request2,
           type: "legacy"
         });
-        request.gasPrice = gasPrice_;
+        request2.gasPrice = gasPrice_;
       }
     }
   }
   if (parameters.includes("gas") && typeof gas === "undefined")
-    request.gas = await getAction(client2, estimateGas, "estimateGas")({
-      ...request,
+    request2.gas = await getAction(client2, estimateGas, "estimateGas")({
+      ...request2,
       account: account2,
       prepare: account2?.type === "local" ? [] : ["blobVersionedHashes"]
     });
   if (prepareTransactionRequest2?.fn && prepareTransactionRequest2.runAt?.includes("afterFillParameters"))
-    request = await prepareTransactionRequest2.fn({ ...request, chain }, {
+    request2 = await prepareTransactionRequest2.fn({ ...request2, chain }, {
       client: client2,
       phase: "afterFillParameters"
     });
-  assertRequest(request);
-  delete request.parameters;
-  return request;
+  assertRequest(request2);
+  delete request2.parameters;
+  return request2;
 }
 var defaultParameters, eip1559NetworkCache, supportsFillTransaction;
 var init_prepareTransactionRequest = __esm({
@@ -9084,7 +9084,7 @@ async function estimateGas(client2, args) {
     assertRequest(args);
     const chainFormat = client2.chain?.formatters?.transactionRequest?.format;
     const format2 = chainFormat || formatTransactionRequest;
-    const request = format2({
+    const request2 = format2({
       // Pick out extra data that might exist on the chain's transaction request type.
       ...extract(rest, { format: chainFormat }),
       account: account2,
@@ -9104,10 +9104,10 @@ async function estimateGas(client2, args) {
     return BigInt(await client2.request({
       method: "eth_estimateGas",
       params: rpcStateOverride ? [
-        request,
+        request2,
         block ?? client2.experimental_blockTag ?? "latest",
         rpcStateOverride
-      ] : block ? [request, block] : [request]
+      ] : block ? [request2, block] : [request2]
     }));
   } catch (err) {
     throw getEstimateGasError(err, {
@@ -9134,7 +9134,7 @@ var init_estimateGas2 = __esm({
 
 // node_modules/viem/_esm/actions/public/estimateContractGas.js
 async function estimateContractGas(client2, parameters) {
-  const { abi: abi2, address, args, functionName, dataSuffix = typeof client2.dataSuffix === "string" ? client2.dataSuffix : client2.dataSuffix?.value, ...request } = parameters;
+  const { abi: abi2, address, args, functionName, dataSuffix = typeof client2.dataSuffix === "string" ? client2.dataSuffix : client2.dataSuffix?.value, ...request2 } = parameters;
   const data = encodeFunctionData({
     abi: abi2,
     args,
@@ -9144,11 +9144,11 @@ async function estimateContractGas(client2, parameters) {
     const gas = await getAction(client2, estimateGas, "estimateGas")({
       data: `${data}${dataSuffix ? dataSuffix.replace("0x", "") : ""}`,
       to: address,
-      ...request
+      ...request2
     });
     return gas;
   } catch (error) {
-    const account2 = request.account ? parseAccount(request.account) : void 0;
+    const account2 = request2.account ? parseAccount(request2.account) : void 0;
     throw getContractError(error, {
       abi: abi2,
       address,
@@ -11418,7 +11418,7 @@ async function call(client2, args) {
     const rpcStateOverride = serializeStateOverride(stateOverride);
     const chainFormat = client2.chain?.formatters?.transactionRequest?.format;
     const format2 = chainFormat || formatTransactionRequest;
-    const request = format2({
+    const request2 = format2({
       // Pick out extra data that might exist on the chain's transaction request type.
       ...extract(rest, { format: chainFormat }),
       accessList,
@@ -11435,7 +11435,7 @@ async function call(client2, args) {
       to: deploylessCall ? void 0 : to,
       value
     }, "call");
-    if (batch && shouldPerformMulticall({ request }) && !rpcBlockOverrides && blockHash === void 0) {
+    if (batch && shouldPerformMulticall({ request: request2 }) && !rpcBlockOverrides && blockHash === void 0) {
       try {
         const { deployless = false } = typeof client2.batch?.multicall === "object" ? client2.batch.multicall : {};
         const multicallAddress = getMulticallAddress(client2, {
@@ -11444,7 +11444,7 @@ async function call(client2, args) {
         });
         if (!multicallAddress || !hasStateOverrideForAddress(rpcStateOverride, multicallAddress))
           return await scheduleMulticall(client2, {
-            ...request,
+            ...request2,
             blockHash,
             blockNumber,
             blockTag,
@@ -11460,7 +11460,7 @@ async function call(client2, args) {
     }
     const params = (() => {
       const base = [
-        request,
+        request2,
         block
       ];
       if (rpcStateOverride && rpcBlockOverrides)
@@ -11498,8 +11498,8 @@ async function call(client2, args) {
     });
   }
 }
-function shouldPerformMulticall({ request }) {
-  const { data, to, ...request_ } = request;
+function shouldPerformMulticall({ request: request2 }) {
+  const { data, to, ...request_ } = request2;
   if (!data)
     return false;
   if (data.startsWith(aggregate3Signature))
@@ -11543,10 +11543,10 @@ async function scheduleMulticall(client2, args) {
       return size5 > batchSize * 2;
     },
     fn: async (requests) => {
-      const calls = requests.map((request) => ({
+      const calls = requests.map((request2) => ({
         allowFailure: true,
-        callData: request.data,
-        target: request.to
+        callData: request2.data,
+        target: request2.to
       }));
       const calldata = encodeFunctionData({
         abi: multicall3Abi,
@@ -12149,7 +12149,7 @@ var init_watchContractEvent = __esm({
 });
 
 // node_modules/viem/_esm/errors/account.js
-var AccountNotFoundError, AccountTypeNotSupportedError;
+var AccountNotFoundError;
 var init_account = __esm({
   "node_modules/viem/_esm/errors/account.js"() {
     init_base();
@@ -12162,15 +12162,6 @@ var init_account = __esm({
           docsPath: docsPath8,
           docsSlug: "account",
           name: "AccountNotFoundError"
-        });
-      }
-    };
-    AccountTypeNotSupportedError = class extends BaseError2 {
-      constructor({ docsPath: docsPath8, metaMessages, type }) {
-        super(`Account type "${type}" is not supported.`, {
-          docsPath: docsPath8,
-          metaMessages,
-          name: "AccountTypeNotSupportedError"
         });
       }
     };
@@ -12199,242 +12190,6 @@ async function sendRawTransaction(client2, { serializedTransaction }) {
 }
 var init_sendRawTransaction = __esm({
   "node_modules/viem/_esm/actions/wallet/sendRawTransaction.js"() {
-  }
-});
-
-// node_modules/viem/_esm/actions/wallet/sendTransaction.js
-async function sendTransaction(client2, parameters) {
-  const { account: account_ = client2.account, assertChainId = true, chain = client2.chain, accessList, authorizationList, blobs, data, dataSuffix = typeof client2.dataSuffix === "string" ? client2.dataSuffix : client2.dataSuffix?.value, gas, gasPrice, maxFeePerBlobGas, maxFeePerGas, maxPriorityFeePerGas, nonce, type, value, ...rest } = parameters;
-  if (typeof account_ === "undefined")
-    throw new AccountNotFoundError({
-      docsPath: "/docs/actions/wallet/sendTransaction"
-    });
-  const account2 = account_ ? parseAccount(account_) : null;
-  let nonceManagerParameters;
-  try {
-    assertRequest(parameters);
-    const to = await (async () => {
-      if (parameters.to)
-        return parameters.to;
-      if (parameters.to === null)
-        return void 0;
-      if (authorizationList && authorizationList.length > 0)
-        return await recoverAuthorizationAddress({
-          authorization: authorizationList[0]
-        }).catch(() => {
-          throw new BaseError2("`to` is required. Could not infer from `authorizationList`.");
-        });
-      return void 0;
-    })();
-    if (account2?.type === "json-rpc" || account2 === null) {
-      let chainId;
-      if (chain !== null) {
-        chainId = await getAction(client2, getChainId, "getChainId")({});
-        if (assertChainId)
-          assertCurrentChain({
-            currentChainId: chainId,
-            chain
-          });
-      }
-      const chainFormat = client2.chain?.formatters?.transactionRequest?.format;
-      const format2 = chainFormat || formatTransactionRequest;
-      const request = format2({
-        // Pick out extra data that might exist on the chain's transaction request type.
-        ...extract(rest, { format: chainFormat }),
-        accessList,
-        account: account2,
-        authorizationList,
-        blobs,
-        chainId,
-        data: dataSuffix ? concat([data ?? "0x", dataSuffix]) : data,
-        gas,
-        gasPrice,
-        maxFeePerBlobGas,
-        maxFeePerGas,
-        maxPriorityFeePerGas,
-        nonce,
-        to,
-        type,
-        value
-      }, "sendTransaction");
-      const isWalletNamespaceSupported = supportsWalletNamespace.get(client2.uid);
-      const method = isWalletNamespaceSupported ? "wallet_sendTransaction" : "eth_sendTransaction";
-      try {
-        return await client2.request({
-          method,
-          params: [request]
-        }, { retryCount: 0 });
-      } catch (e) {
-        if (isWalletNamespaceSupported === false)
-          throw e;
-        const error = e;
-        if (error.name === "InvalidInputRpcError" || error.name === "InvalidParamsRpcError" || error.name === "MethodNotFoundRpcError" || error.name === "MethodNotSupportedRpcError") {
-          return await client2.request({
-            method: "wallet_sendTransaction",
-            params: [request]
-          }, { retryCount: 0 }).then((hash3) => {
-            supportsWalletNamespace.set(client2.uid, true);
-            return hash3;
-          }).catch((e2) => {
-            const walletNamespaceError = e2;
-            if (walletNamespaceError.name === "MethodNotFoundRpcError" || walletNamespaceError.name === "MethodNotSupportedRpcError") {
-              supportsWalletNamespace.set(client2.uid, false);
-              throw error;
-            }
-            throw walletNamespaceError;
-          });
-        }
-        throw error;
-      }
-    }
-    if (account2?.type === "local") {
-      const nonceManager = (() => {
-        if (!account2.nonceManager || typeof nonce !== "undefined")
-          return account2.nonceManager;
-        const nonceManager2 = account2.nonceManager;
-        return {
-          consume(parameters2) {
-            nonceManagerParameters = {
-              address: parameters2.address,
-              chainId: parameters2.chainId
-            };
-            return nonceManager2.consume(parameters2);
-          },
-          get(parameters2) {
-            return nonceManager2.get(parameters2);
-          },
-          increment(parameters2) {
-            return nonceManager2.increment(parameters2);
-          },
-          reset(parameters2) {
-            return nonceManager2.reset(parameters2);
-          }
-        };
-      })();
-      const request = await getAction(client2, prepareTransactionRequest, "prepareTransactionRequest")({
-        account: account2,
-        accessList,
-        authorizationList,
-        blobs,
-        chain,
-        data: dataSuffix ? concat([data ?? "0x", dataSuffix]) : data,
-        gas,
-        gasPrice,
-        maxFeePerBlobGas,
-        maxFeePerGas,
-        maxPriorityFeePerGas,
-        nonce,
-        nonceManager,
-        parameters: [...defaultParameters, "sidecars"],
-        type,
-        value,
-        ...rest,
-        to
-      });
-      const serializer = chain?.serializers?.transaction;
-      const signedTransaction = await account2.signTransaction(request, {
-        serializer
-      });
-      const transactionEnvelope = (chain ?? client2.chain)?.serializers?.transactionEnvelope;
-      const serializedTransaction = transactionEnvelope ? await transactionEnvelope({
-        serializedTransaction: signedTransaction,
-        transaction: request
-      }) : signedTransaction;
-      return await getAction(client2, sendRawTransaction, "sendRawTransaction")({
-        serializedTransaction
-      });
-    }
-    if (account2?.type === "smart")
-      throw new AccountTypeNotSupportedError({
-        metaMessages: [
-          "Consider using the `sendUserOperation` Action instead."
-        ],
-        docsPath: "/docs/actions/bundler/sendUserOperation",
-        type: "smart"
-      });
-    throw new AccountTypeNotSupportedError({
-      docsPath: "/docs/actions/wallet/sendTransaction",
-      type: account2?.type
-    });
-  } catch (err) {
-    if (err instanceof AccountTypeNotSupportedError)
-      throw err;
-    if (nonceManagerParameters)
-      account2?.nonceManager?.reset(nonceManagerParameters);
-    throw getTransactionError(err, {
-      ...parameters,
-      account: account2,
-      chain: parameters.chain || void 0
-    });
-  }
-}
-var supportsWalletNamespace;
-var init_sendTransaction = __esm({
-  "node_modules/viem/_esm/actions/wallet/sendTransaction.js"() {
-    init_parseAccount();
-    init_account();
-    init_base();
-    init_recoverAuthorizationAddress();
-    init_assertCurrentChain();
-    init_concat();
-    init_getTransactionError();
-    init_extract();
-    init_transactionRequest();
-    init_getAction();
-    init_lru();
-    init_assertRequest();
-    init_getChainId();
-    init_prepareTransactionRequest();
-    init_sendRawTransaction();
-    supportsWalletNamespace = new LruMap(128);
-  }
-});
-
-// node_modules/viem/_esm/actions/wallet/writeContract.js
-async function writeContract(client2, parameters) {
-  return writeContract.internal(client2, sendTransaction, "sendTransaction", parameters);
-}
-var init_writeContract = __esm({
-  "node_modules/viem/_esm/actions/wallet/writeContract.js"() {
-    init_parseAccount();
-    init_account();
-    init_encodeFunctionData();
-    init_getContractError();
-    init_getAction();
-    init_sendTransaction();
-    (function(writeContract2) {
-      async function internal(client2, actionFn, name, parameters) {
-        const { abi: abi2, account: account_ = client2.account, address, args, functionName, ...request } = parameters;
-        if (typeof account_ === "undefined")
-          throw new AccountNotFoundError({
-            docsPath: "/docs/contract/writeContract"
-          });
-        const account2 = account_ ? parseAccount(account_) : null;
-        const data = encodeFunctionData({
-          abi: abi2,
-          args,
-          functionName
-        });
-        try {
-          return await getAction(client2, actionFn, name)({
-            data,
-            to: address,
-            account: account2,
-            ...request
-          });
-        } catch (error) {
-          throw getContractError(error, {
-            abi: abi2,
-            address,
-            args,
-            docsPath: "/docs/contract/writeContract",
-            functionName,
-            sender: account2?.address
-          });
-        }
-      }
-      writeContract2.internal = internal;
-    })(writeContract || (writeContract = {}));
   }
 });
 
@@ -12904,7 +12659,7 @@ var init_withDedupe = __esm({
 });
 
 // node_modules/viem/_esm/utils/buildRequest.js
-function buildRequest(request, options = {}) {
+function buildRequest(request2, options = {}) {
   return async (args, overrideOptions = {}) => {
     const { dedupe = false, methods, retryDelay = 150, retryCount = 3, signal, uid: uid2 } = {
       ...options,
@@ -12924,7 +12679,7 @@ function buildRequest(request, options = {}) {
     const requestId = dedupe ? hashString(`${uid2}.${stringify(args)}`) : void 0;
     return withDedupe(() => withRetry(async () => {
       try {
-        return await request(args, signal ? { signal } : void 0);
+        return await request2(args, signal ? { signal } : void 0);
       } catch (err_) {
         if (signal?.aborted)
           throw getAbortError(signal);
@@ -13217,8 +12972,8 @@ function getHttpRpcClient(url_, options = {}) {
               method: method || "POST",
               signal
             };
-            const request = new Request(url, init);
-            const args = await onRequest?.(request, init) ?? {
+            const request2 = new Request(url, init);
+            const args = await onRequest?.(request2, init) ?? {
               ...init,
               url
             };
@@ -16418,6 +16173,9 @@ var z = {
   },
   enum(values) {
     return field({ type: "string", enum: values }, (v) => values.includes(v) ? null : `must be one of ${values.join(", ")}`);
+  },
+  boolean() {
+    return field({ type: "boolean" }, (v) => typeof v === "boolean" ? null : "must be true or false");
   }
 };
 function toJsonSchema(shape) {
@@ -16515,6 +16273,159 @@ var McpServer = class {
   }
 };
 
+// src/payee-profile.mjs
+var IPFS_GATEWAY = "https://ipfs.io/ipfs/";
+function uriSource(uri) {
+  const u = String(uri).trim();
+  if (u.startsWith("data:")) {
+    const comma = u.indexOf(",");
+    if (comma < 0) return { kind: "unsupported", reason: "a data: URI without data" };
+    const meta = u.slice(5, comma);
+    const body = u.slice(comma + 1);
+    try {
+      const json = /;base64$/i.test(meta) ? Buffer.from(body, "base64").toString("utf8") : decodeURIComponent(body);
+      return { kind: "inline", json };
+    } catch {
+      return { kind: "unsupported", reason: "a data: URI that doesn't decode" };
+    }
+  }
+  if (u.startsWith("https://")) return { kind: "fetch", url: u };
+  if (u.startsWith("ipfs://")) {
+    const path = u.slice(7).replace(/^ipfs\//, "");
+    if (!/^[a-zA-Z0-9]+(\/[^\s?#]*)?$/.test(path)) return { kind: "unsupported", reason: "an ipfs: URI that isn't a CID" };
+    return { kind: "fetch", url: `${IPFS_GATEWAY}${path}` };
+  }
+  return { kind: "unsupported", reason: `${u.split(":")[0] || "an empty"} URIs aren't read` };
+}
+var CAIP2 = /^eip155:\d{1,12}$/;
+var ADDRESS = /^0x[0-9a-fA-F]{40}$/;
+function payeeProfile(doc) {
+  if (!doc || typeof doc !== "object") return { profile: null, note: "the registration file isn't a JSON object" };
+  const list = Array.isArray(doc.services) ? doc.services : Array.isArray(doc.endpoints) ? doc.endpoints : [];
+  const entry = list.find((s) => s && typeof s === "object" && s.name === "remesso");
+  if (!entry) return { profile: null, note: "no remesso entry in its services" };
+  if (String(entry.version ?? "") !== "1") {
+    return { profile: null, note: `a remesso entry of version ${String(entry.version ?? "none")}, which this reader doesn't implement` };
+  }
+  const assets = (Array.isArray(entry.assets) ? entry.assets : []).filter((a) => a && typeof a === "object" && CAIP2.test(String(a.network)) && ADDRESS.test(String(a.asset))).map((a) => ({ network: a.network, asset: a.asset }));
+  const ref = entry.reference;
+  return {
+    profile: {
+      version: "1",
+      endpoint: typeof entry.endpoint === "string" && entry.endpoint.startsWith("https://") ? entry.endpoint : null,
+      assets,
+      reference: ref && typeof ref.required === "boolean" ? { required: ref.required } : null
+    }
+  };
+}
+
+// src/safe-fetch.mjs
+import { lookup } from "node:dns/promises";
+import { request } from "node:https";
+import { isIP } from "node:net";
+function v4Octets(ip) {
+  const parts = ip.split(".");
+  if (parts.length !== 4 || !parts.every((p) => /^\d{1,3}$/.test(p))) return null;
+  const o = parts.map(Number);
+  return o.every((n) => n <= 255) ? o : null;
+}
+function v4Public([a, b, c]) {
+  if (a === 0 || a === 10 || a === 127) return false;
+  if (a === 100 && b >= 64 && b <= 127) return false;
+  if (a === 169 && b === 254) return false;
+  if (a === 172 && b >= 16 && b <= 31) return false;
+  if (a === 192 && b === 0 && (c === 0 || c === 2)) return false;
+  if (a === 192 && b === 88 && c === 99) return false;
+  if (a === 192 && b === 168) return false;
+  if (a === 198 && (b === 18 || b === 19)) return false;
+  if (a === 198 && b === 51 && c === 100) return false;
+  if (a === 203 && b === 0 && c === 113) return false;
+  return a < 224;
+}
+function v6Groups(raw) {
+  let s = raw.split("%")[0].toLowerCase();
+  const last = s.lastIndexOf(":");
+  const tail = s.slice(last + 1);
+  if (tail.includes(".")) {
+    const o = v4Octets(tail);
+    if (!o) return null;
+    s = `${s.slice(0, last + 1)}${(o[0] << 8 | o[1]).toString(16)}:${(o[2] << 8 | o[3]).toString(16)}`;
+  }
+  const halves = s.split("::");
+  if (halves.length > 2) return null;
+  const head = halves[0] ? halves[0].split(":") : [];
+  const rest = halves.length === 2 && halves[1] ? halves[1].split(":") : [];
+  const fill = halves.length === 2 ? 8 - head.length - rest.length : 0;
+  if (fill < 0 || halves.length === 2 && fill < 1) return null;
+  const groups = [...head, ...Array(fill).fill("0"), ...rest];
+  if (groups.length !== 8 || !groups.every((g) => /^[0-9a-f]{1,4}$/.test(g))) return null;
+  return groups.map((g) => parseInt(g, 16));
+}
+function v6Public(g) {
+  const zero = (n) => g.slice(0, n).every((x) => x === 0);
+  const inner = () => [g[6] >> 8, g[6] & 255, g[7] >> 8, g[7] & 255];
+  if (zero(8)) return false;
+  if (zero(7) && g[7] === 1) return false;
+  if (zero(5) && g[5] === 65535) return v4Public(inner());
+  if (zero(6)) return v4Public(inner());
+  if (g[0] === 100 && g[1] === 65435 && g.slice(2, 6).every((x) => x === 0)) return v4Public(inner());
+  if (g[0] === 256 && g.slice(1, 4).every((x) => x === 0)) return false;
+  if (g[0] === 8193 && (g[1] === 3512 || g[1] === 0)) return false;
+  if (g[0] === 8194) return false;
+  if ((g[0] & 65024) === 64512) return false;
+  if ((g[0] & 65472) === 65152 || (g[0] & 65472) === 65216) return false;
+  return (g[0] & 65280) !== 65280;
+}
+function isPublicIp(ip) {
+  if (ip.includes(":")) {
+    const g = v6Groups(ip.replace(/^\[|\]$/g, ""));
+    return g !== null && v6Public(g);
+  }
+  const o = v4Octets(ip);
+  return o !== null && v4Public(o);
+}
+var MAX_BYTES = 256 * 1024;
+var TIMEOUT_MS = 5e3;
+async function safeFetchText(raw) {
+  const url = new URL(raw);
+  if (url.protocol !== "https:") throw new Error("only https URLs are fetched");
+  if (url.username || url.password) throw new Error("a URL with credentials in it is refused");
+  if (url.port && url.port !== "443") throw new Error("only the default HTTPS port is fetched");
+  const host = url.hostname.replace(/^\[|\]$/g, "");
+  const found = isIP(host) ? [{ address: host, family: isIP(host) }] : await lookup(host, { all: true, verbatim: true });
+  if (!found.length) throw new Error(`${host} doesn't resolve`);
+  const bad = found.find((a) => !isPublicIp(a.address));
+  if (bad) throw new Error(`${host} resolves to ${bad.address}, which isn't a public address`);
+  const pinned = found[0];
+  const pin = (_name, opts, cb) => opts?.all ? cb(null, [pinned]) : cb(null, pinned.address, pinned.family);
+  return await new Promise((resolve, reject) => {
+    const req = request(url, { method: "GET", headers: { accept: "application/json, text/plain;q=0.5", "user-agent": "remesso-wallet" }, lookup: pin }, (res) => {
+      const status = res.statusCode ?? 0;
+      if (status < 200 || status >= 300) {
+        res.resume();
+        reject(new Error(`${host} answered ${status}${status >= 300 && status < 400 ? ", a redirect, which isn't followed" : ""}`));
+        return;
+      }
+      const chunks = [];
+      let size5 = 0;
+      res.on("data", (c) => {
+        size5 += c.length;
+        if (size5 > MAX_BYTES) req.destroy(new Error(`${host} sent more than ${MAX_BYTES / 1024} KB`));
+        else chunks.push(c);
+      });
+      res.on("end", () => resolve(Buffer.concat(chunks).toString("utf8")));
+      res.on("error", reject);
+    });
+    const timer = setTimeout(() => req.destroy(new Error(`${host} didn't answer within ${TIMEOUT_MS / 1e3}s`)), TIMEOUT_MS);
+    req.on("error", (e) => {
+      clearTimeout(timer);
+      reject(e);
+    });
+    req.on("close", () => clearTimeout(timer));
+    req.end();
+  });
+}
+
 // node_modules/viem/_esm/index.js
 init_exports();
 
@@ -16545,7 +16456,7 @@ function createClient(parameters) {
   const pollingInterval = parameters.pollingInterval ?? defaultPollingInterval;
   const cacheTime = parameters.cacheTime ?? pollingInterval;
   const account2 = parameters.account ? parseAccount(parameters.account) : void 0;
-  const { config, request, value } = parameters.transport({
+  const { config, request: request2, value } = parameters.transport({
     account: account2,
     chain,
     pollingInterval
@@ -16561,7 +16472,7 @@ function createClient(parameters) {
     key,
     name,
     pollingInterval,
-    request,
+    request: request2,
     tokens,
     transport,
     type,
@@ -17238,7 +17149,7 @@ async function createAccessList(client2, args) {
     const block = blockNumberHex || blockTag;
     const chainFormat = client2.chain?.formatters?.transactionRequest?.format;
     const format2 = chainFormat || formatTransactionRequest;
-    const request = format2({
+    const request2 = format2({
       // Pick out extra data that might exist on the chain's transaction request type.
       ...extract(rest, { format: chainFormat }),
       account: account2,
@@ -17254,7 +17165,7 @@ async function createAccessList(client2, args) {
     }, "createAccessList");
     const response = await client2.request({
       method: "eth_createAccessList",
-      params: [request, block]
+      params: [request2, block]
     });
     if (response.error)
       throw new BaseError2(response.error, { details: response.error });
@@ -17732,14 +17643,14 @@ async function simulateBlocks(client2, parameters) {
         const call2 = call_;
         const account2 = call2.account ? parseAccount(call2.account) : void 0;
         const data = call2.abi ? encodeFunctionData(call2) : call2.data;
-        const request = {
+        const request2 = {
           ...call2,
           account: account2,
           data: call2.dataSuffix ? concat([data || "0x", call2.dataSuffix]) : data,
           from: call2.from ?? account2?.address
         };
-        assertRequest(request);
-        return formatTransactionRequest(request);
+        assertRequest(request2);
+        return formatTransactionRequest(request2);
       });
       const stateOverrides = block2.stateOverrides ? serializeStateOverride(block2.stateOverrides) : void 0;
       blockStateCalls.push({
@@ -19275,22 +19186,71 @@ function createPublicClient(parameters) {
   return client2.extend(publicActions);
 }
 
+// node_modules/viem/_esm/actions/wallet/signTransaction.js
+init_parseAccount();
+init_account();
+init_assertCurrentChain();
+init_toHex();
+init_transactionRequest();
+init_getAction();
+init_assertRequest();
+init_getChainId();
+async function signTransaction(client2, parameters) {
+  const { account: account_ = client2.account, chain = client2.chain, ...transaction } = parameters;
+  if (!account_)
+    throw new AccountNotFoundError({
+      docsPath: "/docs/actions/wallet/signTransaction"
+    });
+  const account2 = parseAccount(account_);
+  assertRequest({
+    account: account2,
+    ...parameters
+  });
+  const chainId = await getAction(client2, getChainId, "getChainId")({});
+  if (chain !== null)
+    assertCurrentChain({
+      currentChainId: chainId,
+      chain
+    });
+  const formatters2 = chain?.formatters || client2.chain?.formatters;
+  const format2 = formatters2?.transactionRequest?.format || formatTransactionRequest;
+  if (account2.signTransaction)
+    return account2.signTransaction({
+      ...transaction,
+      account: account2,
+      chainId
+    }, { serializer: client2.chain?.serializers?.transaction });
+  return await client2.request({
+    method: "eth_signTransaction",
+    params: [
+      {
+        ...format2({
+          ...transaction,
+          account: account2
+        }, "signTransaction"),
+        chainId: numberToHex(chainId),
+        from: account2.address
+      }
+    ]
+  }, { retryCount: 0 });
+}
+
 // node_modules/viem/_esm/clients/transports/createTransport.js
 init_buildRequest();
-function createTransport({ key, methods, name, request, retryCount = 3, retryDelay = 150, timeout, type }, value) {
+function createTransport({ key, methods, name, request: request2, retryCount = 3, retryDelay = 150, timeout, type }, value) {
   const uid2 = uid();
   return {
     config: {
       key,
       methods,
       name,
-      request,
+      request: request2,
       retryCount,
       retryDelay,
       timeout,
       type
     },
-    request: buildRequest(request, { methods, retryCount, retryDelay, uid: uid2 }),
+    request: buildRequest(request2, { methods, retryCount, retryDelay, uid: uid2 }),
     value
   };
 }
@@ -19393,15 +19353,24 @@ init_number();
 init_encodeFunctionData();
 init_getAddress();
 init_isAddress();
+init_concat();
 init_toHex();
+init_keccak256();
 init_formatUnits();
 init_parseUnits();
 
 // node_modules/viem/_esm/actions/index.js
+init_getBlockNumber();
+init_getChainId();
+init_getLogs();
+init_getTransaction();
+init_getTransactionCount();
+init_getTransactionReceipt();
 init_readContract();
 init_simulateContract();
 init_waitForTransactionReceipt();
-init_writeContract();
+init_prepareTransactionRequest();
+init_sendRawTransaction();
 
 // node_modules/viem/_esm/accounts/generatePrivateKey.js
 init_secp256k1();
@@ -19497,7 +19466,7 @@ async function signMessage({ message, privateKey }) {
 // node_modules/viem/_esm/accounts/utils/signTransaction.js
 init_keccak256();
 init_serializeTransaction();
-async function signTransaction(parameters) {
+async function signTransaction2(parameters) {
   const { privateKey, transaction, serializer = serializeTransaction } = parameters;
   const signableTransaction = (() => {
     if (transaction.type === "eip4844")
@@ -19543,7 +19512,7 @@ function privateKeyToAccount(privateKey, options = {}) {
       return signMessage({ message, privateKey });
     },
     async signTransaction(transaction, { serializer } = {}) {
-      return signTransaction({ privateKey, transaction, serializer });
+      return signTransaction2({ privateKey, transaction, serializer });
     },
     async signTypedData(typedData) {
       return signTypedData({ ...typedData, privateKey });
@@ -19724,12 +19693,12 @@ var formatters = {
   }),
   transactionRequest: /* @__PURE__ */ defineTransactionRequest({
     format(args) {
-      const request = {};
+      const request2 = {};
       if (args.feeCurrency)
-        request.feeCurrency = args.feeCurrency;
+        request2.feeCurrency = args.feeCurrency;
       if (isCIP64(args))
-        request.type = "0x7b";
-      return request;
+        request2.type = "0x7b";
+      return request2;
     }
   })
 };
@@ -25037,9 +25006,9 @@ function mergeArraysUnique(client2, server2) {
 function wrapFetchWithPayment(fetch2, client2) {
   const httpClient = client2 instanceof x402HTTPClient ? client2 : new x402HTTPClient(client2);
   return async (input, init) => {
-    const request = new Request(input, init);
-    const clonedRequest = request.clone();
-    const response = await fetch2(request);
+    const request2 = new Request(input, init);
+    const clonedRequest = request2.clone();
+    const response = await fetch2(request2);
     if (response.status !== 402) {
       return response;
     }
@@ -25060,7 +25029,7 @@ function wrapFetchWithPayment(fetch2, client2) {
         `Failed to parse payment requirements: ${error instanceof Error ? error.message : "Unknown error"}`
       );
     }
-    const requestUrl = response.url || request.url;
+    const requestUrl = response.url || request2.url;
     const hookHeaders = await httpClient.handlePaymentRequired(paymentRequired, requestUrl);
     if (hookHeaders) {
       const hookRequest = clonedRequest.clone();
@@ -26114,7 +26083,7 @@ import { mkdirSync, readFileSync, writeFileSync, existsSync, chmodSync } from "n
 import { homedir } from "node:os";
 import { join } from "node:path";
 var RPC = process.env.REMESSO_RPC_URL || "https://forno.celo.org";
-var FUNCTIONS = "https://engaboljiqudghvzmebq.supabase.co/functions/v1";
+var FUNCTIONS = process.env.REMESSO_FUNCTIONS_URL || "https://engaboljiqudghvzmebq.supabase.co/functions/v1";
 var APP = "https://remesso.xyz";
 var ALLOWANCE = process.env.REMESSO_ALLOWANCE_ADDRESS || "0xA6351fAeEb097698289586C4D6188530300DB209";
 var ERC8004 = "0x8004A169FB4a3325136EB29fA0ceB6D2e539a432";
@@ -26151,7 +26120,19 @@ var AA = parseAbi([
   "error RecipientNotAllowed()",
   "error SafeERC20FailedOperation(address token)"
 ]);
-var REGISTRY = parseAbi(["function getAgentWallet(uint256) view returns (address)"]);
+var [PAID] = parseAbi(["event Paid(uint256 indexed id, address indexed to, uint256 amount, bytes32 memo)"]);
+var REGISTRY = parseAbi([
+  "function getAgentWallet(uint256) view returns (address)",
+  "function tokenURI(uint256) view returns (string)"
+]);
+var DECLINE_DOMAIN = { name: "Remesso", version: "1", chainId: 42220 };
+var DECLINE_TYPES = {
+  PaymentRequestAction: [
+    { name: "request", type: "string" },
+    { name: "action", type: "string" },
+    { name: "expiry", type: "uint64" }
+  ]
+};
 function ensureHome() {
   mkdirSync(HOME, { recursive: true, mode: 448 });
 }
@@ -26164,17 +26145,31 @@ function loadKey() {
   chmodSync(f, 384);
   return JSON.parse(readFileSync(f, "utf8")).privateKey;
 }
+var DEPLOYMENT = `${celo.id}:${ALLOWANCE.toLowerCase()}`;
+var MAINNET_ALLOWANCE = "0xa6351faeeb097698289586c4d6188530300db209";
 var cfgFile = () => join(HOME, "config.json");
-function loadConfig() {
+function loadState() {
   ensureHome();
+  let s = {};
   try {
-    return JSON.parse(readFileSync(cfgFile(), "utf8"));
+    s = JSON.parse(readFileSync(cfgFile(), "utf8"));
   } catch {
-    return { policies: [] };
   }
+  if (s.version === 2) return s;
+  const v2 = { version: 2, deployments: {} };
+  if (Array.isArray(s.policies)) {
+    v2.deployments[`${celo.id}:${MAINNET_ALLOWANCE}`] = { policies: s.policies, ...s.scannedTo != null ? { scannedTo: s.scannedTo } : {} };
+  }
+  writeFileSync(cfgFile(), JSON.stringify(v2, null, 2), { mode: 384 });
+  return v2;
+}
+function loadConfig() {
+  return loadState().deployments[DEPLOYMENT] ?? { policies: [] };
 }
 function saveConfig(c) {
-  writeFileSync(cfgFile(), JSON.stringify(c, null, 2), { mode: 384 });
+  const s = loadState();
+  s.deployments[DEPLOYMENT] = c;
+  writeFileSync(cfgFile(), JSON.stringify(s, null, 2), { mode: 384 });
 }
 var account = privateKeyToAccount(loadKey());
 var client = createClient({ chain: celo, transport: http(RPC), account });
@@ -26184,7 +26179,24 @@ var pub = {
   simulateContract: (a) => simulateContract(client, a),
   waitForTransactionReceipt: (a) => waitForTransactionReceipt(client, a)
 };
-var wallet = { writeContract: (a) => writeContract(client, a) };
+var chainCheck = null;
+function assertChain() {
+  chainCheck ??= getChainId(client).then((id) => {
+    if (id !== celo.id) throw new Error(`the RPC ${RPC} is chain ${id}, not Celo mainnet (${celo.id}), so this wallet won't sign`);
+  }).catch((e) => {
+    chainCheck = null;
+    throw e;
+  });
+  return chainCheck;
+}
+function memo32(memo) {
+  if (!memo) return `0x${"0".repeat(64)}`;
+  const bytes = new TextEncoder().encode(memo);
+  if (bytes.length > 32) {
+    throw new Error(`the memo is ${bytes.length} bytes and the limit is 32 (a plain letter is 1 byte, an accented letter 2, an emoji 4)`);
+  }
+  return `0x${Buffer.from(bytes).toString("hex").padEnd(64, "0")}`;
+}
 var ok = (obj) => ({ content: [{ type: "text", text: typeof obj === "string" ? obj : JSON.stringify(obj, null, 2) }] });
 var fail = (msg) => ({ isError: true, content: [{ type: "text", text: msg }] });
 var fmt = (units, t) => `${formatUnits(units, t.decimals)} ${t.label}`;
@@ -26364,26 +26376,190 @@ async function gasOptions(tokenSym) {
   if (bal >= 10000n) return { feeCurrency: t.feeCurrency };
   throw new Error(`the agent wallet ${account.address} has no gas: send it about 0.05 CELO, or 0.10 ${t.label}.`);
 }
-async function payThroughPolicy(d, to, units, memo) {
-  const memo32 = memo ? `0x${Buffer.from(memo.slice(0, 32)).toString("hex").padEnd(64, "0")}` : `0x${"0".repeat(64)}`;
+var payFile = () => join(HOME, "payments.json");
+var KEEP_MS = 30 * 864e5;
+var WAIT_MS = 45e3;
+var REPEAT_MS = 10 * 6e4;
+var REPEAT_BLOCKS = 600n;
+function loadPayments() {
+  try {
+    return JSON.parse(readFileSync(payFile(), "utf8")).payments ?? [];
+  } catch {
+    return [];
+  }
+}
+function recordPayment(rec) {
+  const cutoff = Date.now() - KEEP_MS;
+  const rest = loadPayments().filter((p) => p.hash !== rec.hash && !(rec.key && p.key === rec.key && p.deployment === rec.deployment) && Date.parse(p.at) > cutoff);
+  ensureHome();
+  writeFileSync(payFile(), JSON.stringify({ version: 1, payments: [...rest, rec].slice(-1e3) }, null, 2), { mode: 384 });
+}
+var queue = Promise.resolve();
+function serial(fn) {
+  const run = queue.then(fn, fn);
+  queue = run.catch(() => {
+  });
+  return run;
+}
+var explorer = (h) => `https://celoscan.io/tx/${h}`;
+var sentLine = (rec) => {
+  const t = TOKENS[rec.token];
+  return { sent: `${formatUnits(BigInt(rec.units), t.decimals)} ${t.label}`, to: rec.to, policyId: rec.policyId, tx: rec.hash, explorer: explorer(rec.hash) };
+};
+async function signPay(d, to, units, memoHex) {
   const gas = await gasOptions(d.token);
-  const { request } = await pub.simulateContract({
-    address: ALLOWANCE,
-    abi: AA,
-    functionName: "pay",
-    args: [BigInt(d.policyId), to, units, memo32],
+  const args = [BigInt(d.policyId), to, units, memoHex];
+  await pub.simulateContract({ address: ALLOWANCE, abi: AA, functionName: "pay", args, account, ...gas });
+  const request2 = await prepareTransactionRequest(client, {
     account,
-    dataSuffix: ATTRIBUTION,
+    to: ALLOWANCE,
+    data: concat([encodeFunctionData({ abi: AA, functionName: "pay", args }), ATTRIBUTION]),
     ...gas
   });
-  const hash3 = await wallet.writeContract({ ...request, dataSuffix: ATTRIBUTION, ...gas });
-  const receipt = await pub.waitForTransactionReceipt({ hash: hash3 });
-  if (receipt.status !== "success") throw new Error(`transaction reverted: ${hash3}`);
-  return hash3;
+  const raw = await signTransaction(client, { ...request2, account });
+  return { hash: keccak256(raw), raw, nonce: request2.nonce };
+}
+function newRecord(key, d, to, units, memoHex, signed) {
+  return {
+    key: key ?? null,
+    deployment: DEPLOYMENT,
+    policyId: d.policyId,
+    to,
+    units: units.toString(),
+    token: d.token,
+    memo: memoHex,
+    hash: signed.hash,
+    nonce: signed.nonce,
+    raw: signed.raw,
+    status: "sent",
+    at: (/* @__PURE__ */ new Date()).toISOString()
+  };
+}
+async function broadcastAndWait(rec) {
+  try {
+    await sendRawTransaction(client, { serializedTransaction: rec.raw });
+  } catch {
+  }
+  try {
+    const receipt = await pub.waitForTransactionReceipt({ hash: rec.hash, timeout: WAIT_MS });
+    const done = { ...rec, status: receipt.status === "success" ? "confirmed" : "reverted" };
+    recordPayment(done);
+    return done;
+  } catch {
+    return rec;
+  }
+}
+async function reconcile(rec) {
+  try {
+    const r = await getTransactionReceipt(client, { hash: rec.hash });
+    return { ...rec, status: r.status === "success" ? "confirmed" : "reverted" };
+  } catch {
+  }
+  try {
+    await getTransaction(client, { hash: rec.hash });
+    return { ...rec, status: "sent" };
+  } catch {
+  }
+  const used = await getTransactionCount(client, { address: account.address, blockTag: "latest" });
+  if (used <= rec.nonce) return { ...rec, status: "unsent" };
+  const head = await getBlockNumber(client);
+  const logs = await getLogs(client, {
+    address: ALLOWANCE,
+    event: PAID,
+    args: { id: BigInt(rec.policyId), to: rec.to },
+    fromBlock: head > 4999n ? head - 4999n : 0n,
+    toBlock: head
+  });
+  const hit = logs.find((l) => l.args.amount === BigInt(rec.units) && l.args.memo === rec.memo);
+  return hit ? { ...rec, status: "confirmed", hash: hit.transactionHash } : { ...rec, status: "dropped" };
+}
+async function recentRepeat(d, to, units, memoHex) {
+  const since = Date.now() - REPEAT_MS;
+  const local = loadPayments().find((p) => p.deployment === DEPLOYMENT && p.policyId === d.policyId && p.to === to && p.units === units.toString() && p.memo === memoHex && Date.parse(p.at) > since && (p.status === "sent" || p.status === "confirmed"));
+  if (local) return local;
+  const head = await getBlockNumber(client);
+  const logs = await getLogs(client, {
+    address: ALLOWANCE,
+    event: PAID,
+    args: { id: BigInt(d.policyId), to },
+    fromBlock: head > REPEAT_BLOCKS ? head - REPEAT_BLOCKS : 0n,
+    toBlock: head
+  });
+  const hit = logs.find((l) => l.args.amount === units && l.args.memo === memoHex);
+  return hit ? { hash: hit.transactionHash } : null;
+}
+async function payInternal(d, to, units, memo) {
+  await assertChain();
+  const memoHex = memo32(memo);
+  const rec = newRecord(null, d, to, units, memoHex, await signPay(d, to, units, memoHex));
+  recordPayment(rec);
+  const done = await broadcastAndWait(rec);
+  if (done.status !== "confirmed") throw new Error(`top-up ${done.status === "reverted" ? "reverted" : "not confirmed yet"}: ${explorer(rec.hash)}`);
+  return rec.hash;
+}
+async function payTool({ to, amount, token, memo, idempotency_key: key, allow_repeat }) {
+  const missing = needAllowance();
+  if (missing) return fail(missing);
+  if (!isAddress(to, { strict: false })) return fail(`not an address: ${to}`);
+  if (key === "") return fail("idempotency_key can't be empty: leave it out, or give one per payment. Nothing sent.");
+  const dest = getAddress(to);
+  const t = TOKENS[token];
+  let units, memoHex;
+  try {
+    units = parseUnits(amount, t.decimals);
+    memoHex = memo32(memo);
+    await assertChain();
+  } catch (e) {
+    return fail(`Nothing sent: ${String(e?.shortMessage || e?.message || e)}`);
+  }
+  let prior = key ? loadPayments().find((p) => p.key === key && p.deployment === DEPLOYMENT) : null;
+  if (prior) {
+    if (prior.to !== dest || prior.units !== units.toString() || prior.token !== token || prior.memo !== memoHex) {
+      return fail(`idempotency_key "${key}" was already used for a different payment (${sentLine(prior).sent} to ${prior.to}). Use a new key for a new payment. Nothing sent.`);
+    }
+    try {
+      prior = await reconcile(prior);
+    } catch (e) {
+      return fail(`Couldn't check this key's earlier payment (${explorer(prior.hash)}): ${String(e?.shortMessage || e?.message || e)}. Nothing new was sent; try again shortly.`);
+    }
+    recordPayment(prior);
+    if (prior.status === "unsent") {
+      prior = await broadcastAndWait(prior);
+      if (prior.status === "confirmed") return ok({ ...sentLine(prior), note: "sent now: this key's first attempt never reached the network" });
+    }
+    if (prior.status === "confirmed") return ok({ ...sentLine(prior), repeat: "this key had already paid; nothing new was sent" });
+    if (prior.status === "reverted") return fail(`This key's payment reverted on-chain, so nothing was paid: ${explorer(prior.hash)}. To try again, use a new key.`);
+    if (prior.status === "sent") return ok({ status: "pending", tx: prior.hash, explorer: explorer(prior.hash), next: "Not confirmed yet. Call pay again with the same idempotency_key in a minute; don't use a new key." });
+  }
+  try {
+    const d = await policyFor(token);
+    if (!key && !allow_repeat) {
+      const dup = await recentRepeat(d, dest, units, memoHex);
+      if (dup) {
+        return fail(`An identical payment (${amount} ${t.label} to ${dest}${memo ? `, memo "${memo}"` : ""}) went out in the last 10 minutes: ${explorer(dup.hash)}. Nothing sent. If you really mean to pay again, call pay with allow_repeat: true; to make retries safe, pass an idempotency_key.`);
+      }
+    }
+    if (units > d._raw.spendable) return fail(`${amount} ${t.label} is over what this policy allows right now (${d.largestPaymentNow}). Nothing sent.`);
+    const rec = newRecord(key, d, dest, units, memoHex, await signPay(d, dest, units, memoHex));
+    recordPayment(rec);
+    const done = await broadcastAndWait(rec);
+    if (done.status === "reverted") return fail(`The transaction reverted on-chain, so nothing was paid: ${explorer(done.hash)}`);
+    if (done.status !== "confirmed") {
+      return ok({
+        status: "pending",
+        tx: done.hash,
+        explorer: explorer(done.hash),
+        next: key ? "Not confirmed yet. Call pay again with the same idempotency_key to get the outcome; don't use a new key." : "Not confirmed yet. Check the explorer link before paying again, and pass an idempotency_key next time."
+      });
+    }
+    return ok(sentLine(done));
+  } catch (e) {
+    return fail(`Nothing sent: ${refusal(e)}`);
+  }
 }
 var server = new McpServer({
   name: "remesso-wallet",
-  version: "0.3.1",
+  version: "0.5.0",
   icons: [{ src: `${APP}/icon.png`, mimeType: "image/png", sizes: ["512x512"] }]
 });
 server.tool(
@@ -26404,6 +26580,7 @@ server.tool(
     const missing = needAllowance();
     if (missing) return ok({ ...out, note: missing });
     try {
+      await assertChain();
       const { _policies, ...r } = await readiness();
       return ok({ ...out, ...r, policies: _policies });
     } catch (e) {
@@ -26472,28 +26649,136 @@ server.tool(
     return ok(list.length ? list : "no policy names this agent yet: run the wallet tool for the setup link");
   }
 );
-server.tool(
-  "pay",
-  "Send stablecoins from the human's wallet to an address, within the on-chain policy. The contract refuses anything over the per-payment or daily cap, after expiry, after revocation, or (if set) to an address not on the allowlist.",
-  {
-    to: z.string().describe("recipient 0x address"),
-    amount: z.string().describe('decimal, e.g. "2.50"'),
-    token: z.enum(["USDT", "USDC", "USAT"]).default("USDT"),
-    memo: z.string().max(32).optional().describe("up to 32 chars, recorded on-chain in the Paid event")
-  },
-  async ({ to, amount, token, memo }) => {
-    const missing = needAllowance();
-    if (missing) return fail(missing);
-    if (!isAddress(to, { strict: false })) return fail(`not an address: ${to}`);
+var UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+async function requestPayment(body) {
+  const res = await fetch(`${FUNCTIONS}/request-payment`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(body),
+    signal: AbortSignal.timeout(8e3)
+  });
+  return { ok: res.ok, status: res.status, out: await res.json().catch(() => ({})) };
+}
+async function payingWallets() {
+  await discoverPolicies();
+  const byOwner = /* @__PURE__ */ new Map();
+  for (const id of loadConfig().policies) {
+    const d = await describePolicy(id);
+    if (d._raw.active && !byOwner.has(d._raw.p.owner.toLowerCase())) byOwner.set(d._raw.p.owner.toLowerCase(), { owner: getAddress(d._raw.p.owner), policyId: d.policyId });
+  }
+  return [...byOwner.values()];
+}
+async function payRequestTool(args) {
+  const id = String(args.request_id).trim().toLowerCase();
+  if (!UUID.test(id)) return fail("request_id must be a payment request's id, from payment_requests. Nothing sent.");
+  if (args.memo) return fail("A request's payment carries the request's reference as its memo, so leave memo out. Nothing sent.");
+  let r;
+  try {
+    r = await requestPayment({ action: "status", id });
+  } catch (e) {
+    return fail(`Couldn't read request ${id}: ${String(e?.message || e)}. Nothing sent.`);
+  }
+  if (!r.ok) return fail(`Couldn't read request ${id} (${r.status}): ${JSON.stringify(r.out).slice(0, 200)}. Nothing sent.`);
+  const req = r.out;
+  if (!["pending", "accepted", "accepted_with_changes"].includes(req.status)) return fail(`Request ${id} is ${req.status}, so it isn't paid. Nothing sent.`);
+  const asked = req.requested ?? {};
+  if (args.to && String(args.to).toLowerCase() !== String(asked.to).toLowerCase()) {
+    return fail(`Request ${id} asks to be paid at ${asked.to}, not ${args.to}. Nothing sent.`);
+  }
+  const amount = args.amount ?? asked.amount;
+  if (!amount) return fail(`Request ${id} names no amount, so pass one.`);
+  const token = args.token ?? (asked.token ? tokenKey(asked.token) : "USDT");
+  if (!TOKENS[token]) return fail(`Request ${id} asks for ${asked.token}; this wallet pays USDT, USDC or USA\u20AE. Nothing sent.`);
+  if (req.payer) {
+    let d;
     try {
-      const d = await policyFor(token);
-      const t = TOKENS[token];
-      const units = parseUnits(amount, t.decimals);
-      if (units > d._raw.spendable) return fail(`${amount} ${t.label} is over what this policy allows right now (${d.largestPaymentNow}). Nothing sent.`);
-      const hash3 = await payThroughPolicy(d, getAddress(to), units, memo);
-      return ok({ sent: `${amount} ${t.label}`, to: getAddress(to), policyId: d.policyId, tx: hash3, explorer: `https://celoscan.io/tx/${hash3}` });
+      d = await policyFor(token);
     } catch (e) {
       return fail(`Nothing sent: ${refusal(e)}`);
+    }
+    if (d._raw.p.owner.toLowerCase() !== String(req.payer).toLowerCase()) {
+      return fail(`Request ${id} was sent to ${req.payer}, not to the wallet this agent pays from (${d._raw.p.owner}). Nothing sent.`);
+    }
+  }
+  return payTool({
+    to: asked.to,
+    amount,
+    token,
+    memo: req.reference,
+    idempotency_key: args.idempotency_key ?? `request:${id}`,
+    allow_repeat: args.allow_repeat
+  });
+}
+server.tool(
+  "pay",
+  "Send stablecoins from the human's wallet to an address, within the on-chain policy. The contract refuses anything over the per-payment or daily cap, after expiry, after revocation, or (if set) to an address not on the allowlist. Pass an idempotency_key, one per payment you intend (an invoice or request id is ideal). If a call times out or comes back pending, call pay again with the SAME key: it returns the first payment's outcome and never pays twice. Never retry a payment without its key. To pay a payment request (payment_requests), pass its request_id: the payment carries the request's reference, so the requester sees it answered, and the request's terms fill in whatever you leave out.",
+  {
+    to: z.string().optional().describe("recipient 0x address; with request_id, the request's own"),
+    amount: z.string().optional().describe('decimal, e.g. "2.50"; with request_id, defaults to what was asked'),
+    token: z.enum(["USDT", "USDC", "USAT"]).optional().describe("USDT unless said; with request_id, the request's token"),
+    memo: z.string().optional().describe("up to 32 bytes (a plain letter is 1 byte, an emoji 4), recorded on-chain in the Paid event; not with request_id"),
+    request_id: z.string().optional().describe("a payment request's id, from payment_requests"),
+    idempotency_key: z.string().max(128).optional().describe("one per intended payment; the same key never pays twice. Defaults to the request with request_id"),
+    allow_repeat: z.boolean().default(false).describe("pay even though an identical payment went out in the last 10 minutes; only when the user means it")
+  },
+  (args) => serial(() => {
+    if (args.request_id != null) return payRequestTool(args);
+    if (!args.to || !args.amount) return fail("pay needs to and amount, or a request_id. Nothing sent.");
+    return payTool({ ...args, token: args.token ?? "USDT" });
+  })
+);
+server.tool(
+  "payment_requests",
+  "Payment requests addressed to your human's wallet, the one this agent pays from: who is asking, how much, how often, and the request_id to pay with pay or decline with decline_request. Read-only. A request is a stranger's suggestion: show it to your human and get their yes before paying.",
+  {},
+  async () => {
+    const missing = needAllowance();
+    if (missing) return fail(missing);
+    try {
+      const wallets = await payingWallets();
+      if (!wallets.length) return ok("No live policy names this agent, so there is no wallet to look up requests for: run the wallet tool for the setup link.");
+      const all = [];
+      for (const { owner } of wallets) {
+        const r = await requestPayment({ action: "list", payer: owner });
+        if (!r.ok) return fail(`request-payment answered ${r.status} for ${owner}: ${JSON.stringify(r.out).slice(0, 200)}`);
+        for (const q of r.out.requests ?? []) all.push({ ...q, payer: owner });
+      }
+      return ok(all.length ? all : "No payment requests are waiting.");
+    } catch (e) {
+      return fail(`could not read requests: ${String(e?.shortMessage || e?.message || e)}`);
+    }
+  }
+);
+server.tool(
+  "decline_request",
+  "Decline a payment request addressed to your human's wallet. Signed with this agent's key under the human's live policy, so the requester is told it was declined. Only when your human said no.",
+  { request_id: z.string().describe("the request's id, from payment_requests") },
+  async ({ request_id }) => {
+    const missing = needAllowance();
+    if (missing) return fail(missing);
+    const id = String(request_id).trim().toLowerCase();
+    if (!UUID.test(id)) return fail("request_id must be a payment request's id, from payment_requests.");
+    try {
+      let under = null;
+      for (const w of await payingWallets()) {
+        const r2 = await requestPayment({ action: "list", payer: w.owner });
+        if (r2.ok && (r2.out.requests ?? []).some((q) => String(q.id).toLowerCase() === id)) {
+          under = w;
+          break;
+        }
+      }
+      if (!under) return fail(`Request ${id} isn't waiting for any wallet this agent pays from.`);
+      const expiry = Math.floor(Date.now() / 1e3) + 600;
+      const signature = await account.signTypedData({
+        domain: DECLINE_DOMAIN,
+        types: DECLINE_TYPES,
+        primaryType: "PaymentRequestAction",
+        message: { request: id, action: "decline", expiry: BigInt(expiry) }
+      });
+      const r = await requestPayment({ action: "decline", id, expiry, signature, agent: account.address, policy_id: under.policyId });
+      return r.ok ? ok({ declined: id, payer: under.owner, ...r.out }) : fail(`request-payment answered ${r.status}: ${JSON.stringify(r.out)}`);
+    } catch (e) {
+      return fail(`could not decline: ${String(e?.shortMessage || e?.message || e)}`);
     }
   }
 );
@@ -26507,7 +26792,8 @@ server.tool(
     max_amount: z.string().describe('the most you will pay, decimal, e.g. "0.05"'),
     token: z.enum(["USDT", "USDC", "USAT"]).default("USAT")
   },
-  async ({ url, method, body, max_amount, token }) => {
+  // Serial with pay: a top-up signs with the same key and nonce sequence.
+  ({ url, method, body, max_amount, token }) => serial(async () => {
     const t = TOKENS[token];
     const maxUnits = parseUnits(max_amount, t.decimals);
     const init = { method, headers: { "content-type": "application/json" }, body: method === "POST" ? body ?? "{}" : void 0 };
@@ -26530,7 +26816,7 @@ server.tool(
         let want = price - float + 20000n;
         if (want > d._raw.spendable) want = price - float;
         if (want > d._raw.spendable) return fail(`needs ${fmt(price - float, t)} from the policy; it allows ${d.largestPaymentNow} right now.`);
-        topUp = await payThroughPolicy(d, account.address, want, "x402 top-up");
+        topUp = await payInternal(d, account.address, want, "x402 top-up");
       }
       const select = (_v, list) => {
         const p = list.find((a) => String(a.asset).toLowerCase() === t.address.toLowerCase());
@@ -26551,7 +26837,7 @@ server.tool(
     } catch (e) {
       return fail(String(e?.shortMessage || e?.message || e));
     }
-  }
+  })
 );
 function hostName() {
   const n = server.client?.name ?? "";
@@ -26578,14 +26864,35 @@ server.tool(
     return res.ok ? ok(out) : fail(`request-payment answered ${res.status}: ${JSON.stringify(out)}`);
   }
 );
+async function readPayeeProfile(agentId) {
+  try {
+    const uri = await pub.readContract({ address: ERC8004, abi: REGISTRY, functionName: "tokenURI", args: [BigInt(agentId)] });
+    const src = uriSource(uri);
+    if (src.kind === "unsupported") return { profile: null, note: `its registration URI is ${src.reason}` };
+    const json = src.kind === "inline" ? src.json : await safeFetchText(src.url);
+    return payeeProfile(JSON.parse(json));
+  } catch (e) {
+    return { profile: null, note: `its registration file couldn't be read: ${String(e?.shortMessage || e?.message || e).slice(0, 160)}` };
+  }
+}
 server.tool(
   "find_agent",
-  "Look up another agent's payment address in the ERC-8004 identity registry on Celo by its agent id.",
+  "Look up another agent in the ERC-8004 identity registry on Celo by its agent id: its payment address, read from the registry's getAgentWallet (the only place an address to pay may come from), and its Remesso payee profile if it publishes one: which tokens it accepts and whether a payment must carry its request id.",
   { agent_id: z.number().int().nonnegative() },
   async ({ agent_id }) => {
-    const w = await pub.readContract({ address: ERC8004, abi: REGISTRY, functionName: "getAgentWallet", args: [BigInt(agent_id)] });
-    if (/^0x0{40}$/i.test(w)) return fail(`agent ${agent_id} has no agentWallet set`);
-    return ok({ agentId: agent_id, agentWallet: w, registry: ERC8004 });
+    const [w, read] = await Promise.all([
+      pub.readContract({ address: ERC8004, abi: REGISTRY, functionName: "getAgentWallet", args: [BigInt(agent_id)] }),
+      readPayeeProfile(agent_id)
+    ]);
+    if (/^0x0{40}$/i.test(w)) return fail(`agent ${agent_id} has no agentWallet set, so don't pay it`);
+    return ok({
+      agentId: agent_id,
+      agentWallet: w,
+      registry: ERC8004,
+      rule: "Pay only agentWallet, never an address from the agent's files. Match tokens by address, and read decimals on-chain.",
+      profile: read.profile,
+      ...read.note ? { profileNote: read.note } : {}
+    });
   }
 );
 await server.connect();

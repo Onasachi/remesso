@@ -18,6 +18,22 @@ deno test --allow-env supabase/functions/_shared/self.test.ts
 # failure classifier — pins the rules to the strings the executor writes
 deno test --allow-env supabase/functions/_shared/failures.test.ts
 
+# run receipts — a run counts only from a successful receipt with its RunExecuted
+deno test supabase/functions/_shared/receipt.test.ts
+
+# stale-run recovery — what a pass does with a run a dead invocation left in flight
+deno test supabase/functions/_shared/recovery.test.ts
+
+# signed declines — the EIP-712 message request-payment checks before a decline
+deno test --allow-env supabase/functions/_shared/request-decline.test.ts
+
+# the money path on a mainnet fork. Both need `anvil --fork-url https://forno.celo.org
+# --port 8546`; the e2e one also needs a local Supabase (`supabase start -x studio,
+# imgproxy,realtime,storage-api,logflare,vector,edge-runtime,mailpit,supavisor,postgres-meta`).
+# They sign with the real executor key and refuse anything but anvil and localhost.
+deno run --allow-env --allow-read --allow-write --allow-net scripts/fork-forced-revert.ts
+deno run --allow-all scripts/fork-e2e-runs.ts
+
 # cNGN crypto — verifies our AES/Ed25519 against the docs' reference impls
 deno test --allow-env --allow-read --allow-write --allow-run --allow-net --allow-sys \
   supabase/functions/_shared/cngn.test.ts
@@ -43,8 +59,34 @@ deno test --allow-env --unstable-sloppy-imports web/lib/allowance.test.ts
 # phone numbers — E.164 normalisation and masking for MiniPay recipients
 (cd web && deno test --unstable-sloppy-imports lib/phone.test.ts)   # from web/: needs its node_modules
 
+# policy scan — every agent policy, newest first, so none drops off a Stop list
+(cd web && deno test --unstable-sloppy-imports lib/policies.test.ts)   # from web/: needs its node_modules
+
 # skill manifests — regenerate from the live 402, or --check for drift
 deno run --allow-net --allow-write --allow-read scripts/build-skill-manifest.ts
+
+# deployment manifest — regenerate from /agent and the chain, or --check for drift;
+# then hold every hand-typed copy of the deployment to it (offline)
+deno run --allow-net --allow-read --allow-write --allow-env scripts/build-deployments.ts
+deno test --allow-env --allow-read --unstable-sloppy-imports scripts/deployments.test.ts
+
+# the plugin wallet on a mainnet fork: a payment retried with its key pays once, a
+# wallet on the wrong chain refuses to sign. Needs `anvil --fork-url https://forno.celo.org
+# --port 8546` and `anvil --chain-id 1337 --port 8547`.
+deno run --allow-all scripts/fork-wallet-pay.ts
+
+# the receiving side (Phase 3): payment events, request binding, webhooks
+deno test supabase/functions/_shared/events.test.ts              # cursor, reorg, logs into rows
+deno test --allow-env supabase/functions/_shared/request-binding.test.ts   # what may answer a request
+deno test --allow-env supabase/functions/_shared/standard-webhooks.test.ts # sign/verify vs svix
+deno test --allow-env supabase/functions/_shared/webhook-actions.test.ts
+deno test --allow-env supabase/functions/_shared/safe-fetch.test.ts        # SAFE_FETCH_NETWORK=1 + --allow-net: live pinned test
+deno test supabase/functions/deliver-webhooks/plan.test.ts
+(cd web && deno test --allow-env --allow-net --allow-read --unstable-sloppy-imports lib/fee.test.ts lib/payee-profile.test.ts lib/safe-fetch.test.ts)
+# end to end against a local Supabase (and, for the last, the fork on :8546):
+deno run --allow-all scripts/receiving-e2e.ts       # real index-events/payment-events/request-payment, read-only mainnet
+deno run --allow-all scripts/webhooks-local-e2e.ts  # subscribe, deliver, retry, rotate, replay
+deno run --allow-all scripts/fork-agent-to-agent.ts # inbox, pay with request_id, bind by memo, paid
 
 # Claude plugin and the npm package — plugin/ and packages/remesso-wallet/ are
 # assembled from skills/ and mcp/; edit those, then rebuild (after
@@ -600,8 +642,22 @@ forbid showing.
 column in `payment_requests` that moves money and no code path from a row to
 `createSchedule`. The form announces that a link filled it in, because a
 silently prefilled recipient is how a link becomes a trick. Rows are advisory,
-capped at 10 pending per payer, and readable by anyone who names the address —
+capped at 10 live per payer, and readable by anyone who names the address —
 they are inbound requests to be paid, which is what an invoice is.
+
+Since 2026-10-24 (`20261024000003_request_inbox.sql`):
+- **Live** means pending and under 30 days old. The inbox and the cap use the
+  one definition, `payment_request_live()`.
+- **The cap is checked and applied in one locked call**,
+  `create_payment_request`.
+- **Hiding a request in the app is per session**, and changes nothing for
+  anyone else. An anonymous session's wallet is a claim, not a proof, and
+  anyone who named the address could see the ids.
+- **Only the payer's own EIP-712 signature declines a request for everyone**:
+  `action: "decline"` on `request-payment`, defined in
+  `_shared/request-decline.ts`.
+- `dismiss_payment_request` survives only as a per-session hide for the app
+  deployed before then.
 
 **`_shared/x402-pay.ts`** is the other direction — Remesso paying somebody
 else's x402 service. Two ceilings (per call, and rolling 24h from the
@@ -726,6 +782,27 @@ addresses. A legal answer is still owed before it opens to everyone.
   (`PRIVY_AUTHORIZATION_KEY`; `~/.remesso/keys/privy-authorization.json`) is
   the signer quorum's key (`PRIVY_SIGNER_QUORUM_ID`).
 
+**A payment retried with its key pays once (2026-10-25).** An agent whose
+tool call times out tries again, and `pay()` checks nothing about repeats, so
+that was a second payment inside every cap. Both agent wallets now take an
+`idempotency_key`; without one, an identical payment in the last ten minutes is
+refused unless `allow_repeat` is passed.
+
+- **The plugin wallet** (`mcp/src/server.mjs`) signs first and writes the hash,
+  nonce and signed bytes to `~/.remesso-agent/payments.json` (0600) before
+  broadcasting.
+  - A retry reconciles from that record: confirmed, reverted or pending.
+  - A record that never left the machine goes out with its own bytes. One whose
+    nonce was taken is paid fresh.
+- **The hosted connector** passes the key to Privy as its idempotency key,
+  scoped to the person's wallet. Privy repeats the first answer for 24 hours,
+  so nothing of ours stores keys.
+- **Memos are counted in bytes.** A 17-letter memo of accented letters is 34
+  bytes and is refused, not cut.
+- **The plugin wallet refuses to sign unless its RPC answers chain 42220.** Its
+  state is keyed by chain and contract, so the next allowance contract starts
+  its own scan.
+
 ## The pre-flight agent — advice before a payment, never the payment
 
 `preflight` (cron `remesso-preflight`, every 30 min) first records the ARS and
@@ -750,6 +827,60 @@ is cancelled on-chain.
   in a dry run only. On 2026-10-13 a dry run found #8 (wARS) cancelled on-chain
   while its row still said `active`. The chain wins, as it should.
 
+## The receiving side — payment events, requests, webhooks (2026-10-25)
+
+Built in Phase 3 of `docs/agent-to-agent-implementation.md`. The backend was
+deployed 2026-10-25; the web app and the hosted connector ship with the merge
+to `main`.
+
+**`payment_events`, read from the chain by `index-events`.** It runs every
+minute and covers V5's runs and schedules plus the allowance contract's
+payments and policies, so early sends by named triggers and agents' policy
+payments are covered too. Neither passes through our functions.
+- **One row per log.** The cursor moves with its batch in one call, and only
+  from where it was.
+- **`final` means at or below the RPC's `finalized` block.** Phase 0's first
+  12.5 hours measured that at a median 23 minutes behind the head, 31 at most,
+  with no block replaced at any level. The 24-hour report is
+  `scripts/finality-report.ts`.
+- **A reorg under the cursor rolls back to the finalized block.** Events above
+  it are marked `removed`, never deleted. A changed block at or below
+  finality halts the indexer for a person.
+- **`seq` moves on every change,** so `payment-events?after=` and the webhook
+  worker miss nothing.
+- **A missing fact refuses the batch.** That covers a run's token, a policy's
+  owner and a block's time. A blank row kept forever is worse than a minute's
+  wait.
+- **The first passes backfilled from the deployment blocks in 15 minutes**
+  (2026-10-25), 50,000 blocks per contract per pass. Every log both contracts
+  had emitted matched a recorded event.
+
+**Requests have states, and accepted is not paid.**
+- `pending`, `accepted`, `accepted_with_changes`, `declined`, `expired`.
+- A payment is `paid` only with a transaction from `payment_events`.
+- Evidence binds only if it's from the wallet asked, pays the address that
+  asked, and was made after the request (`_shared/request-binding.ts`).
+- A V5 schedule answers through `request-payment`'s `answer` action or
+  `confirm-schedule` (`req=` in a pay link). A policy payment answers by
+  carrying the request's 32-character `reference` in its memo.
+- A requested amount is what the recipient receives. The form signs
+  `grossFor` of it (`web/lib/fee.ts`), and the fee rounds up as V5's does.
+
+**Webhooks.**
+- Subscribing is signed by the receiving address (EIP-712). The endpoint must
+  echo a challenge first.
+- Deliveries are Standard Webhooks: `payment.received`, `payment.finalized`,
+  `payment.removed`, with the same `webhook-id` on every retry for 24 hours.
+- `_shared/safe-fetch.ts` connects to the address it checked (HTTP/1.1 over
+  `Deno.connect` and `startTls`). That's verified in the Edge Runtime, not yet
+  on the hosted platform. If `startTls` is missing there, it falls back to a
+  re-checked `fetch`, which leaves a DNS-rebinding window.
+- `webhooks` has no rate limit beyond signatures and nonces.
+
+**The hosted connector can't decline a request.** Its Privy policy allows only
+`pay()`, so it can't sign typed data. The plugin wallet can: request-payment
+accepts a decline signed by an agent with a live policy from the payer.
+
 ## Invariants — do not break
 
 - **`delivered` is not `paid_out`.** For a bank payout, the swap settling means
@@ -758,6 +889,24 @@ is cancelled on-chain.
   UI must never render an `ngn_bank` run's `delivered` as a finished state.
 - **The contract is the authority; the database mirrors it.** Anything that
   tells a sender a run will go through reads `runnability()` on-chain.
+- **A run is what its receipt says.**
+  - `delivered` needs a successful receipt holding this contract's
+    `RunExecuted` for the schedule (`_shared/receipt.ts`).
+  - `amount_out` is that event's `amountOut`: after the commission on the
+    Direct rail, never the quote.
+  - viem returns a reverted receipt without throwing. Until 2026-10-24 nothing
+    checked it, so a reverted run could read as delivered, at the amount sent.
+  - `scripts/check-past-runs.ts` audits the recorded runs against their
+    receipts.
+- **Every send from the executor key holds the executor lease and saves its
+  hash first.**
+  - `execute-due-runs` and `trigger-run` both sign with that key. Each holds
+    `_shared/lease.ts` from fetching the nonce until the receipt.
+  - The hash goes on the run row before the broadcast, so a dead invocation
+    leaves a hash, never an unrecorded payment. Each pass starts by settling
+    such rows from the chain (`_shared/recovery.ts`).
+  - Anything new that signs with the executor key must do the same, or two
+    sends pick one nonce.
 - **The Goldsky subgraph is read by the UI only.** `useHistory` lets a
   `RunExecuted` event settle a row on screen seconds before the backend
   writes the receipt, and a bank run it settles is `redeeming`, never

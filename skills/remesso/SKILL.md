@@ -26,9 +26,11 @@ If the Remesso wallet is installed, you already have a wallet: the
 `remesso-wallet` tools
 `wallet`, `await_setup`, `link_policy`, `limits`, `pay`, `pay_x402`, `request_payment` and
 `find_agent`. **Use them instead of the code below.** They spend from the user's
-wallet only within a `RemessoAgentAllowance` policy the user set on-chain (cap
-per payment and per day, a total, an expiry), and the key never passes through
-the conversation. The `remesso-wallet` skill says how to use them.
+wallet only within a `RemessoAgentAllowance` policy the user set on-chain (a cap
+per payment and per day, and an expiry), and the key never passes through the
+conversation. A policy has no total of its own: every policy on a token draws on
+the one approval the user gave the contract. The `remesso-wallet` skill says how
+to use them.
 
 It installs as a plugin in Claude Code (`/plugin marketplace add
 https://bitbucket.org/crackedstudios/remesso.git`, then `/plugin install remesso@remesso`) and as the
@@ -140,6 +142,36 @@ None of these creates anything. Every route ends with the payer signing
 `createSchedule` in their own wallet. A request prefills a form; it cannot
 approve an allowance, move a token, or oblige anyone to pay you.
 
+**A requested amount is what you receive.** The payer's form adds Remesso's
+0.25% on top, so asking for 5 means 5 arrives.
+
+### Knowing you were paid
+
+Accepted is not paid. Only a payment with a transaction is, and that is the
+thing to check before you release anything.
+
+- **Your request's status:** `POST …/request-payment` with
+  `{"action":"status","id":"<request id>"}` says pending, accepted,
+  accepted_with_changes, declined or expired, and lists each payment's
+  transaction. A payer's agent answers your request by paying with its
+  `reference` in the memo, or by reporting the schedule with `"action":"answer"`.
+- **Your payment events:** `GET …/payment-events?address=0xYou&role=to` lists
+  every run and policy payment to you, read from the chain. Each says whether
+  it is `final`, and a reorg marks one `removed` instead of dropping it. Pass
+  the answer's `next` back as `after` to see only what changed.
+- **Webhooks:** `POST …/webhooks` subscribes an HTTPS endpoint, signed by your
+  wallet (EIP-712; `GET` it for the typed data). Your endpoint must echo a
+  challenge first. Deliveries use the Standard Webhooks headers, carry
+  `payment.received`, `payment.finalized` or `payment.removed`, keep the same
+  `webhook-id` across retries for 24 hours, and say whether the payment is final.
+
+**Tell payers what you accept.** Add a `remesso` entry to your ERC-8004
+registration's `services`, listing the tokens you take and whether a payment
+must carry your request's reference
+([docs/AGENTS.md](https://bitbucket.org/crackedstudios/remesso/src/main/docs/AGENTS.md)).
+A payer's agent pays only `getAgentWallet(agentId)`, never an address from the
+file.
+
 ## Paying on a schedule
 
 [`examples/create-schedule.ts`](https://bitbucket.org/crackedstudios/remesso/src/main/examples/create-schedule.ts)
@@ -157,8 +189,11 @@ lets Remesso's executor — whichever key that is — bring a payment forward on
 worth setting, because a schedule created directly on-chain is discovered by a
 sync that runs every five minutes, and until then only a trigger can move it.
 
-**The fee comes out of the payment, not on top.** At 25bps a 0.05 transfer
-costs the payer exactly 0.05; the recipient receives 0.049875.
+**The fee comes out of the schedule's amount, not on top.** At 25bps a 0.05
+transfer costs the payer exactly 0.05; the recipient receives 0.049875. A
+payment request names what the recipient receives, so to meet one, schedule the
+gross: the smallest amount whose net is the request (the fee rounds up). 5
+asked is 5.012532 scheduled.
 
 ## Verify rather than believe
 

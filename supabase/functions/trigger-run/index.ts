@@ -24,19 +24,31 @@
 /// EIP-3009 nonce on-chain; the simulation before it keeps "a run that would
 /// revert charges nobody". What remains is a run that simulated cleanly and
 /// then reverted in the seconds after settlement — logged loudly, and the
-/// payer told they were charged.
+/// payer told they were charged. Until 2026-10-24 a run that reverted after
+/// being mined was answered `ok: true`: the receipt's status was never read.
+/// Now the answer comes from the receipt (`_shared/receipt.ts`).
+///
+/// The cron signs with the same key, so the run holds the executor lease
+/// (`_shared/lease.ts`) from before settlement until its receipt. Taken before
+/// settlement, so a busy key turns a caller away before anyone is charged.
+import { createClient } from "npm:@supabase/supabase-js@2";
 import {
+  broadcast,
+  confirmRun,
   CURRENT_EXECUTOR,
   executorV4,
   feeOf,
   getSchedule,
   liquidityIsHealthy,
-  runNow,
+  type SignedRun,
+  signRun,
   simulateRunNow,
   triggerability,
   v4Runnability,
 } from "../_shared/celo.ts";
 import { CELO, runAmountProblem } from "../_shared/config.ts";
+import { type ExecutorLease, takeExecutorLease } from "../_shared/lease.ts";
+import type { RunOutcome } from "../_shared/receipt.ts";
 import { CNGN_RAILS_ENABLED, PAYOUT_DIRECT, RAIL_DISABLED_DETAIL } from "../_shared/rails.ts";
 import {
   decodePayment,
@@ -56,6 +68,15 @@ const CORS = {
   // price nor read the settlement.
   ...X402_CORS,
 };
+
+const db = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
+
+/// The executor lease is held through settlement and the receipt, so the TTL
+/// covers both with room to spare; it expires by itself if this dies. A caller
+/// waits at most `LEASE_WAIT_MS` for a cron run to finish with the key.
+const LEASE_TTL_S = 120;
+const LEASE_WAIT_MS = 20_000;
+const CONFIRM_TIMEOUT_MS = 30_000;
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: CORS });
@@ -183,40 +204,90 @@ Deno.serve(async (req) => {
     return json({ error: "the run would not go through", detail: (e as Error).message.slice(0, 200) }, 409);
   }
 
-  // --- settlement --------------------------------------------------------
-  // Before the run, so the signature is spent before anything is given for
-  // it. A second request with the same payment fails here.
-  const paid = await settle(payment, check.matched, what);
-  if (!paid.ok) {
-    const q = paymentRequired(accepts, what, "payment could not be settled");
-    return json(q.body, 402, q.headers);
-  }
-
-  // --- the work ----------------------------------------------------------
-  let hash: string;
+  // --- the executor key ----------------------------------------------------
+  let lease: ExecutorLease | null = null;
   try {
-    const out = await runNow(id, amountOutMinimum);
-    hash = out.hash;
+    lease = await takeExecutorLease(db, "trigger-run", { ttlSec: LEASE_TTL_S, waitMs: LEASE_WAIT_MS });
   } catch (e) {
-    // Simulated cleanly seconds ago, paid for, and reverted anyway — the
-    // schedule changed in between (a cancel, a cron run inside the minute).
-    // Our failure to deliver what was bought: loud, and the payer is told.
-    console.error("trigger-run: RUN FAILED after settlement", raw, paid.txHash, (e as Error).message);
-    return json({
-      error: "you were charged but the run did not go through",
-      detail: (e as Error).message.slice(0, 200),
-      settlement: paid.txHash ?? null,
-    }, 409, settlementHeaders(paid.txHash, check.version));
+    console.error("trigger-run:", (e as Error).message);
+  }
+  if (!lease) {
+    // Nothing is settled, so nothing is charged.
+    return json(
+      { error: "Remesso is busy sending another payment", detail: "nothing was charged; try again in a few seconds" },
+      503,
+      { "Retry-After": "5" },
+    );
   }
 
-  return new Response(JSON.stringify({ ok: true, schedule: raw, txHash: hash, settled: true }), {
-    status: 200,
-    headers: {
-      ...CORS,
-      "Content-Type": "application/json",
-      ...settlementHeaders(paid.txHash, check.version),
-    },
-  });
+  let minedNonce: number | undefined;
+  try {
+    // --- settlement ------------------------------------------------------
+    // Before the run, so the signature is spent before anything is given for
+    // it. A second request with the same payment fails here.
+    const paid = await settle(payment, check.matched, what);
+    if (!paid.ok) {
+      const q = paymentRequired(accepts, what, "payment could not be settled");
+      return json(q.body, 402, q.headers);
+    }
+    const charged = (status: number, body: Record<string, unknown>) =>
+      json({ ...body, settlement: paid.txHash ?? null }, status, settlementHeaders(paid.txHash, check.version));
+
+    // --- the work --------------------------------------------------------
+    let signed: SignedRun;
+    try {
+      signed = await signRun("runNow", id, amountOutMinimum, lease.nonceFloor);
+    } catch (e) {
+      // Simulated cleanly seconds ago, paid for, and would revert now — the
+      // schedule changed in between (a cancel, a cron run inside the minute).
+      // Our failure to deliver what was bought: loud, and the payer is told.
+      console.error("trigger-run: RUN FAILED after settlement", raw, paid.txHash, (e as Error).message);
+      return charged(409, {
+        error: "you were charged but the run did not go through",
+        detail: (e as Error).message.slice(0, 200),
+      });
+    }
+
+    try {
+      await broadcast(signed);
+    } catch (e) {
+      // Maybe sent, maybe not; the receipt says which.
+      console.error("trigger-run: broadcast failed", raw, signed.hash, (e as Error).message);
+    }
+
+    let outcome: RunOutcome;
+    try {
+      ({ outcome } = await confirmRun(signed.hash, id, { confirmations: 1, timeoutMs: CONFIRM_TIMEOUT_MS }));
+    } catch {
+      console.error("trigger-run: NO RECEIPT after settlement", raw, paid.txHash, signed.hash);
+      return charged(504, {
+        error: "you were charged, and the run's outcome is not confirmed yet",
+        detail: "check txHash on Celo",
+        txHash: signed.hash,
+      });
+    }
+    minedNonce = signed.nonce;
+
+    if (!outcome.ok) {
+      console.error("trigger-run: RUN REVERTED after settlement", raw, paid.txHash, signed.hash);
+      return charged(409, {
+        error: "you were charged but the run did not go through",
+        detail: outcome.reason,
+        txHash: signed.hash,
+      });
+    }
+
+    return new Response(JSON.stringify({ ok: true, schedule: raw, txHash: signed.hash, settled: true }), {
+      status: 200,
+      headers: {
+        ...CORS,
+        "Content-Type": "application/json",
+        ...settlementHeaders(paid.txHash, check.version),
+      },
+    });
+  } finally {
+    await lease.release(minedNonce);
+  }
 });
 
 const json = (b: unknown, status = 200, extra: Record<string, string> = {}) =>

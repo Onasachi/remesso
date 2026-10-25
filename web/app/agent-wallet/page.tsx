@@ -2,7 +2,7 @@
 
 import { Suspense, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { useAccount, usePublicClient, useWriteContract } from "wagmi";
+import { useAccount, usePublicClient, useReadContract, useWriteContract } from "wagmi";
 import { readContract, waitForTransactionReceipt } from "wagmi/actions";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { isAddress, getAddress, parseEventLogs } from "viem";
@@ -20,6 +20,7 @@ import {
 } from "@/lib/config";
 import { formatExact, parseUnits } from "@/lib/format";
 import { useIsMiniPay } from "@/lib/hooks";
+import { scanPolicies } from "@/lib/policies";
 import { ActionBar, CopyValue } from "@/components/ui";
 import { ConnectBar } from "@/components/ConnectBar";
 import { Icon } from "@/components/Icon";
@@ -28,16 +29,19 @@ import { Icon } from "@/components/Icon";
 ///
 /// The Claude plugin's `wallet` tool hands its human this page with the agent's
 /// address in `?agent=`. Two transactions from the person's own wallet: an
-/// allowance to RemessoAgentAllowance (the total the agent can ever move) and a
-/// policy (per payment, per day, until when). The money never leaves their
-/// wallet, and the caps are the contract's, not the agent's good behaviour.
+/// allowance to RemessoAgentAllowance and a policy (per payment, per day, until
+/// when). The money never leaves their wallet, and the caps are the contract's,
+/// not the agent's good behaviour.
+///
+/// The allowance is one number per owner and token, and every policy on that
+/// token draws from it: the contract has no total per policy. So the screen
+/// calls it a shared total and shows what it already is, rather than offering
+/// it as this agent's own limit (docs/agent-to-agent.md, 1a).
 ///
 /// The address comes from the link, never typed or pasted, and inside MiniPay
 /// it is not shown — the same rules as a pay link.
 
 const TOKENS: TokenInfo[] = [USDT, USDC, USAT];
-/// How many of the newest policies the Stop list reads. See Existing.
-const RECENT_IDS = 200;
 const DURATIONS = [
   { label: "1 week", days: 7 },
   { label: "1 month", days: 30 },
@@ -124,6 +128,16 @@ function NewPolicy({ owner, agent }: { owner: `0x${string}`; agent: `0x${string}
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState<{ id: bigint; hash: string } | null>(null);
 
+  // What this person's policies on this token can already draw on, together.
+  const { data: shared } = useReadContract({
+    address: token.address,
+    abi: erc20Abi,
+    functionName: "allowance",
+    args: [owner, AGENT_ALLOWANCE_ADDRESS as `0x${string}`],
+    query: { enabled: Boolean(AGENT_ALLOWANCE_ADDRESS) },
+  });
+  const already = (shared as bigint | undefined) ?? 0n;
+
   let problem: string | null = null;
   let units: { pp: bigint; pd: bigint; total: bigint } | null = null;
   try {
@@ -132,11 +146,18 @@ function NewPolicy({ owner, agent }: { owner: `0x${string}`; agent: `0x${string}
     const total = parseUnits(budget, token.decimals);
     if (pp === 0n || pd === 0n || total === 0n) problem = "Every limit must be more than zero.";
     else if (pp > pd) problem = "One payment can't be more than the daily limit.";
-    else if (pp > total) problem = "One payment can't be more than the total.";
+    else if (pp > already + total) problem = "One payment can't be more than the shared total.";
     else units = { pp, pd, total };
   } catch (e) {
     problem = (e as Error).message;
   }
+
+  const amount = (v: bigint) => `${formatExact(v, token.decimals, 0)} ${token.symbol}`;
+  const sharedHint =
+    already > 0n
+      ? `Every agent limit on ${token.symbol} draws from one shared total, ${amount(already)} now.` +
+        (units ? ` This makes it ${amount(already + units.total)}.` : "")
+      : `Every agent limit on ${token.symbol} draws from one shared total, so other limits you set on ${token.symbol} can use this too.`;
 
   async function create() {
     if (!units || !AGENT_ALLOWANCE_ADDRESS) return;
@@ -145,7 +166,7 @@ function NewPolicy({ owner, agent }: { owner: `0x${string}`; agent: `0x${string}
       // `approve` replaces an allowance rather than adding to it, so keep what
       // earlier policies on this token were counting on and add this budget.
       await ensureCelo();
-      setBusy("Approving the total");
+      setBusy("Adding to the shared total");
       const current = await readContract(wagmiConfig, {
         address: token.address,
         abi: erc20Abi,
@@ -223,8 +244,8 @@ function NewPolicy({ owner, agent }: { owner: `0x${string}`; agent: `0x${string}
       <Money id="pd" label="Most per day" value={perDay} onChange={setPerDay} unit={token.symbol} cls={field} />
       <Money
         id="total"
-        label="Most in total"
-        hint="The agent can never move more than this, whatever the daily limit."
+        label="Add to the shared total"
+        hint={sharedHint}
         value={budget}
         onChange={setBudget}
         unit={token.symbol}
@@ -247,7 +268,7 @@ function NewPolicy({ owner, agent }: { owner: `0x${string}`; agent: `0x${string}
       </div>
       {problem && <p className="text-[13px] text-danger">{problem}</p>}
       {error && <p className="text-[13px] text-danger">{error}</p>}
-      <ActionBar note="Two steps in your wallet: approve the total, then set the limits.">
+      <ActionBar note="Two steps in your wallet: add to the shared total, then set this agent's limits.">
         <button className="btn-primary flex-1 rounded-[20px]" disabled={Boolean(busy) || !units} onClick={create}>
           {busy ?? "Set the limit"}
         </button>
@@ -305,21 +326,14 @@ function Existing({ owner, agent }: { owner: `0x${string}`; agent: `0x${string}`
     queryKey: ["agent-policies", owner, agent],
     enabled: Boolean(client && AGENT_ALLOWANCE_ADDRESS),
     queryFn: async () => {
-      // Read policies by id, newest first, rather than searching PolicyCreated
-      // logs: forno answers getLogs over at most 5,000 blocks (~83 minutes),
-      // so a search from the deploy block failed silently soon after launch and
-      // this list, with its Stop buttons, never appeared. Ids are dense and few;
-      // the newest RECENT_IDS cover every policy until usage grows past them.
+      // Every policy, not the newest 200: this list holds the Stop buttons, so
+      // a live policy must never drop off it (see lib/policies.ts).
       const aa = AGENT_ALLOWANCE_ADDRESS as `0x${string}`;
-      const next = await client!.readContract({ address: aa, abi: agentAllowanceAbi, functionName: "nextPolicyId" });
-      const ids: bigint[] = [];
-      for (let id = next - 1n; id >= 1n && ids.length < RECENT_IDS; id--) ids.push(id);
-      const policies = await Promise.all(
-        ids.map((id) => client!.readContract({ address: aa, abi: agentAllowanceAbi, functionName: "policy", args: [id] })),
+      const mine = await scanPolicies(
+        client!,
+        aa,
+        (p) => p.owner.toLowerCase() === owner.toLowerCase() && p.agent.toLowerCase() === agent.toLowerCase(),
       );
-      const mine = ids
-        .map((id, i) => ({ id, p: policies[i] }))
-        .filter(({ p }) => p.owner.toLowerCase() === owner.toLowerCase() && p.agent.toLowerCase() === agent.toLowerCase());
       return Promise.all(
         mine.map(async ({ id, p }) => ({
           id,

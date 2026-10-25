@@ -51,6 +51,9 @@ export const z = {
   enum(values) {
     return field({ type: "string", enum: values }, (v) => (values.includes(v) ? null : `must be one of ${values.join(", ")}`));
   },
+  boolean() {
+    return field({ type: "boolean" }, (v) => (typeof v === "boolean" ? null : "must be true or false"));
+  },
 };
 
 function toJsonSchema(shape) {

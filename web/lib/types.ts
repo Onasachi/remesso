@@ -101,6 +101,6 @@ export type PaymentRequest = {
   max_runs: number | null;
   from_name: string | null;
   note: string | null;
-  status: "pending" | "dismissed" | "used";
+  status: "pending" | "dismissed" | "used" | "declined";
   created_at: string;
 };

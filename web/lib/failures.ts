@@ -21,6 +21,8 @@ export type FailureCategory =
   | "destination_mismatch"
   | "bank_unverified"
   | "cngn_failed"
+  | "reverted"
+  | "interrupted"
   | "network_error"
   | "other";
 
@@ -100,6 +102,18 @@ const COPY: Record<FailureCategory, FailureCopy> = {
     detail:
       "The conversion happened but the naira payout did not complete. This needs a person to look at it.",
     action: "Contact support",
+  },
+  reverted: {
+    title: "The network turned it down",
+    detail:
+      "The transfer was sent, but the network rejected it, usually because something changed in the seconds before it landed. Nothing left your wallet, and it will be tried again.",
+    action: null,
+  },
+  interrupted: {
+    title: "Stopped before it went out",
+    detail:
+      "Remesso stopped before this transfer was completed. Nothing left your wallet, and it will be tried again.",
+    action: null,
   },
   network_error: {
     title: "The network didn’t accept it",

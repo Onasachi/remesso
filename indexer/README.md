@@ -1,7 +1,7 @@
-# indexer — Goldsky subgraph over `RemessoExecutorV5`
+# indexer — Goldsky subgraph over `RemessoExecutorV5` and `RemessoAgentAllowance`
 
 An [instant subgraph](https://docs.goldsky.com/subgraphs/reference/instant-subgraph):
-generated from the ABI, no mapping handlers. Every event the contract emits
+generated from the ABI, no mapping handlers. Every event the contracts emit
 becomes an entity (`runExecuteds`, `scheduleCreateds`, `scheduleCancelleds`,
 …) with Goldsky's own `block_number`, `timestamp_`, `transactionHash_`
 fields. The event parameter named `id` is exposed as `idParam`, because `id`
@@ -13,8 +13,18 @@ is the entity key.
 | subgraph | `remesso-celo-celo/1.0.1` — V5 (`0x3C357af3…bEd8`), deployed 2026-10-16 with `goldsky subgraph deploy remesso-celo/1.0.1 --from-abi goldsky.json` (the CLI appends the chain to the name). Tagged `prod`. The dashboard-deployed `remesso-celo/1.0.0` indexed V3 only. |
 | endpoint | `https://api.goldsky.com/api/public/project_cmub9zi745rtc01ts1xx66zy6/subgraphs/remesso-celo-celo/prod/gn` — through the `prod` tag, so the next version is `goldsky subgraph tag create remesso-celo-celo/<v> --tag prod`, not an env change |
 | chain | `celo` (42220), from block `80268721` — V5's deployment block |
+| next | `1.1.0` adds `RemessoAgentAllowance` (`0xA635…B209`) from its deployment block `80467202`. In `goldsky.json`, not deployed yet. |
 
-**One contract per subgraph, and the app knows it.** Schedule ids restart at 1
+**The allowance contract's policies, by owner (`1.1.0`).** Its four events
+become `policyCreateds`, `paids`, `recipientSets` and `policyRevokeds`. A
+policy's `owner` and `agent` are on `policyCreateds`, so a person's policies
+are one query instead of a scan of every id. Nothing reads them yet: the
+setup screen and the hosted connector read every id in multicall batches
+(`web/lib/policies.ts`), which is exact and costs a call per 250 policies.
+This is for when that stops being cheap. The event names don't collide with
+V5's, so both contracts share one subgraph.
+
+**One executor per subgraph, and the app knows it.** Schedule ids restart at 1
 in every deployment, so `useOnchainRuns` only asks the subgraph about
 schedules whose `executor_address` is the configured executor. Before
 2026-10-16 it asked about every schedule, and a V4 schedule's page could show
@@ -51,6 +61,7 @@ instance in `goldsky.json`, with its own start block) or the ABI does.
 ```bash
 cd contracts && forge build
 jq '.abi' contracts/out/RemessoExecutorV5.sol/RemessoExecutorV5.json > indexer/abis/RemessoExecutorV5.json
+jq '.abi' contracts/out/RemessoAgentAllowance.sol/RemessoAgentAllowance.json > indexer/abis/RemessoAgentAllowance.json
 cd indexer && goldsky subgraph deploy remesso-celo/1.1.0 --from-abi goldsky.json
 goldsky subgraph tag create remesso-celo-celo/1.1.0 --tag prod
 ```

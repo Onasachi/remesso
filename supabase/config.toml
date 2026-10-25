@@ -90,3 +90,27 @@ verify_jwt = false
 
 [functions.latam-route]
 verify_jwt = false
+
+# Phase 0 of the agent-to-agent plan: samples Celo's safe and finalized heads
+# every minute for two days. Cron-invoked with the service role, like the other
+# pollers.
+[functions.measure-finality]
+verify_jwt = true
+
+# Phase 3: the chain's payment events. index-events is cron-invoked with the
+# service role, like the other pollers. payment-events serves free reads of
+# them by address: what anyone can already read on-chain, so no JWT.
+[functions.index-events]
+verify_jwt = true
+
+[functions.payment-events]
+verify_jwt = false
+
+# Phase 3 webhooks. Subscribing is signed by the receiving wallet (EIP-712),
+# not a Supabase JWT, like request-payment's decline. The worker is
+# cron-invoked with the service role.
+[functions.webhooks]
+verify_jwt = false
+
+[functions.deliver-webhooks]
+verify_jwt = true

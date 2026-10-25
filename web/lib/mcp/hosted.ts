@@ -11,6 +11,7 @@
 /// Off unless HOSTED_AGENT_ENABLED=1: holding keys that can move people's money,
 /// even capped, waits on a legal answer.
 
+import { createHash } from "node:crypto";
 import { PrivyClient } from "@privy-io/node";
 import { toDataSuffix } from "@celo/attribution-tags";
 import {
@@ -20,12 +21,15 @@ import {
 import { privateKeyToAccount } from "viem/accounts";
 import { RPC_URL } from "@/lib/config";
 import { refuse, text, type Tool } from "@/lib/mcp/protocol";
+import { scanPolicies } from "@/lib/policies";
 
 const celo = defineChain({
   id: 42220,
   name: "Celo",
   nativeCurrency: { name: "CELO", symbol: "CELO", decimals: 18 },
   rpcUrls: { default: { http: [process.env.CELO_RPC_URL ?? RPC_URL] } },
+  // The canonical Multicall3, which viem's own Celo definition names too.
+  contracts: { multicall3: { address: "0xcA11bde05977b3631167028862bE2a173976CA11" } },
 });
 const pub = createPublicClient({ chain: celo, transport: http() });
 
@@ -68,6 +72,7 @@ const ERC20 = parseAbi([
   "function balanceOf(address) view returns (uint256)",
   "function allowance(address,address) view returns (uint256)",
 ]);
+const [PAID] = parseAbi(["event Paid(uint256 indexed id, address indexed to, uint256 amount, bytes32 memo)"]);
 
 // ---- Privy: each person owns their agent; Remesso is only a signer ----
 //
@@ -185,20 +190,101 @@ export async function stopAgent(personId: string, personJwt: string): Promise<{ 
 
 // ---- reading the chain: policies naming the agent, and readiness ----
 
-/// Read by id rather than by event search: forno answers getLogs over 5,000
-/// blocks at most. Bounded so a busy contract cannot stall a tool call; move
-/// to an index before the contract holds thousands of policies.
+const FUNCTIONS = (process.env.NEXT_PUBLIC_SUPABASE_URL ?? "").replace(/\/+$/, "") + "/functions/v1";
+
+/// Every policy naming the agent, from the event table: `payment-events`
+/// holds each `PolicyCreated`, indexed by agent, so the connector no longer
+/// reads every policy on every call. The indexer can run a minute behind, and
+/// `agent_await_setup` must see a policy the person created seconds ago, so
+/// ids newer than the newest indexed one are still read from the chain. With
+/// the table unreachable, or knowing none, every policy is read
+/// (lib/policies.ts).
 async function policiesFor(agent: `0x${string}`): Promise<number[]> {
-  const next = Number(await pub.readContract({ address: ALLOWANCE, abi: AA, functionName: "nextPolicyId" }));
-  const ids = Array.from({ length: Math.max(0, next - 1) }, (_, i) => i + 1).slice(-1000);
-  const out: number[] = [];
-  for (let i = 0; i < ids.length; i += 25) {
-    const batch = ids.slice(i, i + 25);
-    const ps = await Promise.all(batch.map((id) => pub.readContract({ address: ALLOWANCE, abi: AA, functionName: "policy", args: [BigInt(id)] })));
-    ps.forEach((p, k) => { if (p.agent.toLowerCase() === agent.toLowerCase()) out.push(batch[k]); });
-  }
-  return out;
+  const mine = (p: { agent: string }) => p.agent.toLowerCase() === agent.toLowerCase();
+  let indexed: number[] = [];
+  try {
+    const q = new URLSearchParams({ address: agent.toLowerCase(), role: "agent", kind: "policy_created", limit: "500" });
+    const res = await fetch(`${FUNCTIONS}/payment-events?${q}`, { signal: AbortSignal.timeout(4_000) });
+    if (res.ok) {
+      const { events } = (await res.json()) as { events?: { contract: string; refId: string; removed: boolean }[] };
+      indexed = [...new Set((events ?? [])
+        .filter((e) => !e.removed && e.contract === ALLOWANCE.toLowerCase())
+        .map((e) => Number(e.refId)))];
+    }
+  } catch { /* read the chain instead */ }
+  const newest = indexed.length ? BigInt(Math.max(...indexed)) : 0n;
+  const fresh = await scanPolicies(pub, ALLOWANCE, mine, newest);
+  return [...new Set([...indexed, ...fresh.map(({ id }) => Number(id))])];
 }
+
+/// The wallets an agent pays from: its policies' owners.
+async function ownersOf(agent: `0x${string}`): Promise<`0x${string}`[]> {
+  const ids = await policiesFor(agent);
+  const ps = await Promise.all(ids.map((id) => pub.readContract({ address: ALLOWANCE, abi: AA, functionName: "policy", args: [BigInt(id)] })));
+  return [...new Set(ps.map((p) => getAddress(p.owner)))];
+}
+
+// ---- payment requests: what someone asked the person to pay ----
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+type RequestStatus = {
+  id: string;
+  reference: string;
+  status: string;
+  payer?: string;
+  requested: { to: string; amount: string | null; token: string | null; intervalSeconds: number | null; runs: number | null };
+};
+type ListedRequest = {
+  id: string; reference: string; to: string; amount: string | null; token: string | null;
+  intervalSeconds: number | null; runs: number | null; from: string | null; note: string | null; status: string; createdAt: string;
+};
+
+async function requestPayment(body: Record<string, unknown>) {
+  const res = await fetch(`${FUNCTIONS}/request-payment`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(body),
+    signal: AbortSignal.timeout(8_000),
+  });
+  return { ok: res.ok, status: res.status, out: (await res.json().catch(() => ({}))) as Record<string, unknown> };
+}
+
+// ---- payments that can't be paid twice ----
+//
+// An agent's tool call can time out after the payment went out, and it tries
+// again: a second payment, inside every cap (docs/agent-to-agent.md, 2b).
+// With an idempotency_key, the request carries it to Privy, which answers a
+// repeat of the same request, for 24 hours, with the first one's result
+// instead of sending again. So no table or metadata here holds the keys.
+// Without one, an identical payment in the last ten minutes is refused.
+
+/// A memo is bytes32 on-chain, so it is measured in bytes: an accented letter
+/// is two, an emoji four. Refused rather than cut, because a cut reference no
+/// longer matches what it refers to.
+function memo32(memo: unknown): Hex | string {
+  const bytes = new TextEncoder().encode(String(memo ?? ""));
+  if (bytes.length > 32) return `the memo is ${bytes.length} bytes and the limit is 32 (a plain letter is 1 byte, an accented letter 2, an emoji 4)`;
+  return `0x${Buffer.from(bytes).toString("hex").padEnd(64, "0")}` as Hex;
+}
+
+/// Privy's key space is the whole app's, so a person's key is scoped to their
+/// own agent wallet before it leaves us: two people's "invoice-1" are not one.
+const privyKey = (walletId: string, key: string) => createHash("sha256").update(`${walletId}:${key}`).digest("hex");
+
+/// A Paid event for this policy and recipient, with this amount and memo, in
+/// the last `blocks` blocks. Both the policy id and the recipient are indexed.
+async function paidRecently(policyId: number, to: `0x${string}`, units: bigint, memo: Hex, blocks: bigint): Promise<Hex | null> {
+  const head = await pub.getBlockNumber();
+  const logs = await pub.getLogs({
+    address: ALLOWANCE, event: PAID, args: { id: BigInt(policyId), to },
+    fromBlock: head > blocks ? head - blocks : 0n, toBlock: head,
+  });
+  return logs.find((l) => l.args.amount === units && l.args.memo === memo)?.transactionHash ?? null;
+}
+const REPEAT_BLOCKS = 600n; // ten minutes of Celo blocks
+const RECONCILE_BLOCKS = 4_999n; // forno's getLogs limit
+const WAIT_MS = 45_000;
 
 type Described = {
   id: number; sym: Sym | null; label: string; active: boolean; revoked: boolean; expires: string;
@@ -364,63 +450,200 @@ export function hostedTools(origin: string, personId: string | null): Tool[] {
     description:
       "Send a payment from the signed-in person's own wallet through their agent policy, signed by their hosted agent: no wallet " +
       "tap needed. The contract refuses anything over the per-payment or daily cap, after expiry or revocation. Read the recipient, " +
-      "amount and token back to the person and get their yes first.",
+      "amount and token back to the person and get their yes first. Pass an idempotency_key, one per payment you intend. If a call " +
+      "times out or comes back pending, call again with the SAME key: it returns the first payment's outcome and never pays twice. " +
+      "Never retry a payment without its key. To pay a payment request (agent_payment_requests), pass its request_id: the payment " +
+      "carries the request's reference, so the requester can see it answered, and its terms fill in whatever you leave out.",
     inputSchema: {
       type: "object",
       properties: {
-        to: { type: "string", description: "recipient's 0x address" },
-        amount: { type: "string", description: 'decimal, e.g. "2.50"' },
+        to: { type: "string", description: "recipient's 0x address; with request_id, the request's own" },
+        amount: { type: "string", description: 'decimal, e.g. "2.50"; with request_id, defaults to what was asked' },
         token: { type: "string", enum: ["USDT", "USDC", "USAT"], default: "USDT" },
-        memo: { type: "string", maxLength: 32, description: "recorded on-chain in the Paid event" },
+        memo: { type: "string", description: "up to 32 bytes (a plain letter is 1 byte, an emoji 4), recorded on-chain in the Paid event; not with request_id" },
+        request_id: { type: "string", description: "a payment request's id, from agent_payment_requests" },
+        idempotency_key: { type: "string", minLength: 1, maxLength: 128, description: "one per intended payment; the same key never pays twice (for 24 hours). Defaults to the request with request_id" },
+        allow_repeat: { type: "boolean", default: false, description: "pay even though an identical payment went out in the last 10 minutes; only when the person means it" },
       },
-      required: ["to", "amount"],
       additionalProperties: false,
     },
     annotations: DESTRUCTIVE,
     async run(a) {
       const agent = await who();
-      const to = String(a.to ?? "").trim();
+      // What is paid: the arguments, or with request_id, the request's terms
+      // for whatever was left out.
+      let input = {
+        to: a.to,
+        amount: a.amount,
+        token: a.token ?? "USDT",
+        memo: a.memo as unknown,
+        key: a.idempotency_key == null ? null : String(a.idempotency_key),
+      };
+      let requestId: string | null = null;
+      let requestPayer: string | null = null;
+      if (a.request_id != null) {
+        requestId = String(a.request_id).trim().toLowerCase();
+        if (!UUID.test(requestId)) return refuse("request_id must be a payment request's id, from agent_payment_requests");
+        if (a.memo != null && String(a.memo) !== "") {
+          return refuse("A request's payment carries the request's reference as its memo, so leave memo out. Nothing sent.");
+        }
+        const r = await requestPayment({ action: "status", id: requestId });
+        if (!r.ok) return refuse(`Couldn't read request ${requestId} (${r.status}): ${JSON.stringify(r.out).slice(0, 200)}. Nothing sent.`);
+        const req = r.out as unknown as RequestStatus;
+        // Accepted covers a retry: the first attempt may already have bound it.
+        if (!["pending", "accepted", "accepted_with_changes"].includes(req.status)) {
+          return refuse(`Request ${requestId} is ${req.status}, so it isn't paid. Nothing sent.`);
+        }
+        if (a.to != null && String(a.to).toLowerCase() !== String(req.requested.to).toLowerCase()) {
+          return refuse(`Request ${requestId} asks to be paid at ${req.requested.to}, not ${String(a.to)}. Nothing sent.`);
+        }
+        if (a.amount == null && !req.requested.amount) return refuse(`Request ${requestId} names no amount, so pass one.`);
+        requestPayer = req.payer ?? null;
+        input = {
+          to: req.requested.to,
+          amount: a.amount ?? req.requested.amount,
+          token: a.token ?? req.requested.token ?? "USDT",
+          memo: req.reference,
+          key: input.key ?? `request:${requestId}`,
+        };
+      }
+      const to = String(input.to ?? "").trim();
       if (!isAddress(to)) return refuse(`not an address: ${to}`);
-      const sym = bySym(a.token ?? "USDT");
+      const sym = bySym(input.token);
       if (!sym) return refuse("token must be USDT, USDC or USAT");
       const t = TOKENS[sym];
+      const amountText = String(input.amount ?? "");
       let units: bigint;
       try {
-        units = parseUnits(String(a.amount ?? ""), t.decimals);
+        units = parseUnits(amountText, t.decimals);
       } catch {
         return refuse(`amount must be a decimal with at most ${t.decimals} places`);
       }
       if (units <= 0n) return refuse("amount must be more than zero");
+      const memo = memo32(input.memo);
+      if (!memo.startsWith("0x")) return refuse(`Nothing sent: ${memo}`);
+      const key = input.key;
+      const dest = getAddress(to);
       const ds = await Promise.all((await policiesFor(agent.address)).map((id) => describe(id, agent.address)));
       const d = ds.filter((x) => x.active && x.sym === sym).sort((x, y) => (y._spendable > x._spendable ? 1 : -1))[0];
       if (!d) return refuse(`no live ${t.label} policy for this agent. Run agent_wallet for the setup link.`);
-      if (units > d._spendable) return refuse(`${a.amount} ${t.label} is more than the policy allows right now (${d.largestNow}). Nothing sent.`);
+      // A request is addressed to one wallet. Paying someone else's from this
+      // person's wallet answers nothing, and it is what an injected
+      // instruction would ask for.
+      if (requestPayer && d._owner.toLowerCase() !== requestPayer.toLowerCase()) {
+        return refuse(`Request ${requestId} was sent to ${requestPayer}, not to your wallet (${d._owner}). Nothing sent.`);
+      }
+      const done = (hash: string, note?: string) => text(
+        `Sent ${amountText} ${t.label} to ${dest} from your wallet (policy #${d.id})` +
+          `${requestId ? `, paying request ${requestId}` : ""}.${note ? ` ${note}` : ""}\nhttps://celoscan.io/tx/${hash}`,
+        { tx: hash, policyId: d.id, to: dest, amount: amountText, token: sym, ...(requestId ? { requestId } : {}) },
+      );
 
-      const memo = `0x${Buffer.from(String(a.memo ?? "").slice(0, 32)).toString("hex").padEnd(64, "0")}` as Hex;
-      const args = [BigInt(d.id), getAddress(to), units, memo] as const;
-      try {
-        await pub.simulateContract({ address: ALLOWANCE, abi: AA, functionName: "pay", args, account: agent.address });
-      } catch (e) {
-        return refuse(`Nothing sent: ${refusal(e)}`);
+      if (!key && !a.allow_repeat) {
+        const dup = await paidRecently(d.id, dest, units, memo as Hex, REPEAT_BLOCKS);
+        if (dup) {
+          return refuse(`An identical payment (${amountText} ${t.label} to ${dest}) went out in the last 10 minutes: https://celoscan.io/tx/${dup}. ` +
+            "Nothing sent. If the person really means to pay again, call with allow_repeat: true; to make retries safe, pass an idempotency_key.");
+        }
+      }
+
+      const args = [BigInt(d.id), dest, units, memo as Hex] as const;
+      let problem = units > d._spendable ? `${amountText} ${t.label} is more than the policy allows right now (${d.largestNow})` : null;
+      if (!problem) {
+        try {
+          await pub.simulateContract({ address: ALLOWANCE, abi: AA, functionName: "pay", args, account: agent.address });
+        } catch (e) {
+          problem = refusal(e);
+        }
+      }
+      if (problem) {
+        // A retry whose first attempt landed can be refused here only because
+        // that payment used up the room. Its Paid event is the answer.
+        if (key) {
+          const first = await paidRecently(d.id, dest, units, memo as Hex, RECONCILE_BLOCKS).catch(() => null);
+          if (first) return done(first, "This key had already paid; nothing new was sent.");
+        }
+        return refuse(`Nothing sent: ${problem}`);
       }
       const noGas = await ensureGas(agent.address);
       if (noGas) return refuse(noGas);
       const data = (encodeFunctionData({ abi: AA, functionName: "pay", args }) + SUFFIX.slice(2)) as Hex;
-      const sent = await privy().wallets().ethereum().sendTransaction(agent.walletId, {
-        caip2: "eip155:42220",
-        params: { transaction: { to: ALLOWANCE, data, value: "0x0" } },
-        authorization_context: asRemesso(),
-      });
-      const receipt = await pub.waitForTransactionReceipt({ hash: sent.hash as Hex });
-      if (receipt.status !== "success") return refuse(`The payment reverted on-chain: https://celoscan.io/tx/${sent.hash}`);
-      return text(
-        `Sent ${a.amount} ${t.label} to ${getAddress(to)} from your wallet (policy #${d.id}).\nhttps://celoscan.io/tx/${sent.hash}`,
-        { tx: sent.hash, policyId: d.id, to: getAddress(to), amount: String(a.amount), token: sym },
-      );
+      let sent: { hash: string };
+      try {
+        sent = await privy().wallets().ethereum().sendTransaction(agent.walletId, {
+          caip2: "eip155:42220",
+          params: { transaction: { to: ALLOWANCE, data, value: "0x0" } },
+          authorization_context: asRemesso(),
+          ...(key ? { idempotency_key: privyKey(agent.walletId, key) } : {}),
+        });
+      } catch (e) {
+        // Privy refuses a key it has seen with a different request body.
+        if (key && /idempoten/i.test(String((e as Error)?.message ?? e))) {
+          return refuse(`idempotency_key "${key}" was already used for a different payment. Use a new key for a new payment. Nothing sent.`);
+        }
+        throw e;
+      }
+      let receipt;
+      try {
+        receipt = await pub.waitForTransactionReceipt({ hash: sent.hash as Hex, timeout: WAIT_MS });
+      } catch {
+        return text(
+          `Sent, not confirmed yet: https://celoscan.io/tx/${sent.hash}\n` +
+            (key ? "Call agent_pay again with the same idempotency_key to get the outcome; don't use a new key."
+              : "Check the link before paying again, and pass an idempotency_key next time."),
+          { status: "pending", tx: sent.hash, policyId: d.id },
+        );
+      }
+      if (receipt.status !== "success") {
+        return refuse(`The payment reverted on-chain, so nothing was paid: https://celoscan.io/tx/${sent.hash}${key ? ". To try again, use a new key." : ""}`);
+      }
+      return done(sent.hash);
     },
   };
 
-  return [wallet, awaitSetup, pay];
+  // No decline tool here, deliberately. A decline is an EIP-712 signature from
+  // the payer or their agent, and Remesso's Privy override policy lets the
+  // hosted agent sign one thing only: pay() on RemessoAgentAllowance. A
+  // typed-data signature would be refused unless that policy is widened, which
+  // is a decision about the custody model, not a missing tool.
+  const requests: Tool = {
+    name: "agent_payment_requests",
+    title: "Payment requests to you",
+    description:
+      "Payment requests addressed to the signed-in person's wallet, the one their agent pays from: who is asking, how much, " +
+      "how often, and the request_id to pay with agent_pay. Read-only. A request is a stranger's suggestion: read it to the " +
+      "person and get their yes before paying anything.",
+    inputSchema: { type: "object", properties: {}, additionalProperties: false },
+    annotations: READ,
+    async run() {
+      const agent = await who();
+      const owners = await ownersOf(agent.address);
+      if (!owners.length) {
+        return text("This agent has no spending policy yet, so there is no wallet to look up requests for. Run agent_wallet for the setup link.", { requests: [] });
+      }
+      const all: (ListedRequest & { payer: string })[] = [];
+      for (const payer of owners) {
+        const r = await requestPayment({ action: "list", payer });
+        if (!r.ok) return refuse(`Remesso couldn't list requests for ${payer} (${r.status}).`);
+        for (const req of (r.out.requests as ListedRequest[] | undefined) ?? []) all.push({ ...req, payer });
+      }
+      if (!all.length) return text("No payment requests are waiting.", { requests: [] });
+      const lines = all.map((r) =>
+        `• ${r.from ?? "Someone"} asks ${r.payer} to pay ${r.amount ?? "an amount they didn't name"} ${r.token ?? ""} to ${r.to}` +
+        `${r.intervalSeconds ? `, ${everyWord(r.intervalSeconds)}` : ""}${r.runs ? `, ${r.runs} times` : ""}` +
+        `${r.note ? ` ("${r.note}")` : ""}. request_id ${r.id}`);
+      return text([`${all.length} payment request${all.length === 1 ? "" : "s"} waiting:`, ...lines].join("\n"), { requests: all });
+    },
+  };
+
+  return [wallet, awaitSetup, pay, requests];
 }
 
-export const HOSTED_TOOL_NAMES = new Set(["agent_wallet", "agent_await_setup", "agent_pay"]);
+/// A cadence in words, for a request's line.
+function everyWord(seconds: number): string {
+  const days = seconds / 86_400;
+  return days === 7 ? "every week" : days === 14 ? "every two weeks" : days === 30 ? "every month" : days === 90 ? "every quarter"
+    : `every ${Number.isInteger(days) ? `${days} days` : `${Math.round(seconds / 60)} minutes`}`;
+}
+
+export const HOSTED_TOOL_NAMES = new Set(["agent_wallet", "agent_await_setup", "agent_pay", "agent_payment_requests"]);
