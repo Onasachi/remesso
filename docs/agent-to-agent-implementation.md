@@ -806,7 +806,11 @@ Built on the `builder-codes` branch, from `developer-kit` (2026-10-25).
 2. `supabase functions deploy index-events execute-due-runs trigger-run agent`,
    with your OK. Events recorded before the new `index-events` have no
    `builderCodes`, so their runs read the creating transaction instead, and
-   none is missed.
+   none is missed. **Done 2026-10-25:**
+   - `/agent` publishes `developers.builderCodes`;
+   - both `index-events` cursors moved within seconds of the deploy;
+   - only code already live in `agent`, `request-payment` and
+     `confirm-schedule` went out with Phase 6.
 3. Publish `remesso-sdk` 0.2.0 by hand: `cd packages/remesso-sdk && npm publish`.
 4. Merge to `main`, after `developer-kit`, for the developer page.
 5. On mainnet, with your OK: `scripts/e2e-sdk.ts --send`. Its schedule is
