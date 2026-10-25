@@ -927,7 +927,9 @@ accepts a decline signed by an agent with a live policy from the payer.
 - requests, payment events and webhooks;
 - agent lookup and links.
 
-`/developers` on the app is its quickstart. Not published as of 2026-10-25.
+`/developers` on the app is its quickstart. Its whole loop passed on mainnet
+on 2026-10-25 (`e2e-sdk.ts --send`, the third run; the first two found what
+"Reads lag" describes). Not published to npm as of that date.
 
 **Nothing in it about the deployment is typed by hand.** People believe an SDK
 that describes something we no longer serve.

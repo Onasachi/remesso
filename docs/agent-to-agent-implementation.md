@@ -643,6 +643,15 @@ After Phases 1 and 2.
 
     New tests replay both. Answered again, the run's request read accepted
     and paid.
+- [x] **The third mainnet run (2026-10-25), with the corrected fix deployed:
+  every check passed.**
+  - The request was answered on the first call, seconds after its schedule
+    (#4) landed: the backend's own retries rode out the lag.
+  - The schedule's `payment.received` arrived 413 seconds after the start,
+    and the request read paid with that transaction.
+  - Gas in USDT for three transactions (0.007028 USDT, no CELO).
+  - One agent payment after a retry with the same key, and its webhook.
+  - The policy and the subscription were revoked at the end.
 - [x] **`web/app/developers/page.tsx`**, next to `/claude`:
   - a six-step quickstart, from `npm install` to a payment and its webhook;
   - getting paid by request, and agent payments;
@@ -669,10 +678,10 @@ After Phases 1 and 2.
 3. Run `scripts/e2e-sdk.ts --send`. **First run 2026-10-25:** it paid
    correctly, and five checks failed on stale reads (above), now fixed.
    **Second run, after deploying the retry:** all passed but the answer,
-   which got a 500 from a node that threw (above). Then:
-   - `supabase functions deploy request-payment confirm-schedule` again, with
-     your OK, for the corrected retry;
-   - fund the test wallet and run it once more, for a clean pass.
+   which got a 500 from a node that threw (above). **Done 2026-10-25:**
+   `request-payment` and `confirm-schedule` redeployed with the corrected
+   retry (a repeated answer on the live endpoint returns the first answer),
+   and the third run passed every check.
 4. Publish `remesso-sdk` 0.1.0 by hand: `cd packages/remesso-sdk && npm publish`.
 5. Merge to `main`, for `/developers`, the agent card and the docs.
 6. Publish `remesso-wallet` 0.5.0 if it isn't out yet: it carries the skill
