@@ -1,6 +1,14 @@
 # Agent-to-agent: implementation plan
 
-**Status: Phase 0 measuring; Phases 1 to 3 built, tested and deployed; Phase 4 built and tested, not shipped (2026-10-25).** This turns
+**Status (2026-10-25):**
+- Phase 0 is measuring.
+- Phases 1 to 3 are deployed and merged.
+- Phase 4 passed on mainnet and is on npm (`remesso-sdk` 0.1.0). Its merge
+  is pending.
+- Phase 5 isn't planned.
+- Phase 6 is being built.
+
+This turns
 [`agent-to-agent.md`](agent-to-agent.md) into phases of work.
 
 - That doc says what to build and why. This one says in what order, in which
@@ -40,7 +48,7 @@
 | 2 | One manifest, payments that can't be paid twice, every policy findable | 1 | 4–5 days |
 | 3 | The receiving side: events, requests, webhooks, payee profiles | 0, 1, 2 | 10–12 days |
 | 4 | The developer kit | 3 | 6–7 days |
-| 5 | Standing orders | design any time; build after 2 and 3 | 10–12 days, plus the independent audit |
+| 5 | Standing orders (not planned, 2026-10-25) | design any time; build after 2 and 3 | 10–12 days, plus the independent audit |
 | 6 | Builder codes | 3 | 2–3 days |
 
 Sizes are rough working days, including review and mainnet checks. Revise them
@@ -248,9 +256,11 @@ functions.
        (on a dummy address, deleted after);
      - a request made through `request-payment` was readable by the deployed
        app's `payment_requests_for`, then deleted.
-3. Merge to `main`, so Vercel deploys the web app.
+3. Merge to `main`, so Vercel deploys the web app. **Done 2026-10-25**, with
+   Phases 2 and 3 (pull request #2).
 4. Publish `remesso-wallet` by hand: `cd packages/remesso-wallet && npm publish`.
    Publish only the newest build, 0.5.0, which carries Phases 2 and 3 as well.
+   **Done 2026-10-25:** 0.5.0 is on npm.
 5. Run `scripts/check-past-runs.ts --write`, with your OK, to fix the 18
    amounts.
 
@@ -352,9 +362,9 @@ After Phase 1, because the branch carries both.
 
 1. Merge to `main`, for the web app and the hosted connector (Vercel). This
    also ships Phase 1's web changes, so Phase 1's migrations must be pushed
-   first.
+   first. **Done 2026-10-25** (pull request #2).
 2. Publish `remesso-wallet` by hand. If Phase 3 ships with it, publish 0.5.0
-   only: 0.3.2 and 0.4.0 were never published.
+   only: 0.3.2 and 0.4.0 were never published. **Done 2026-10-25:** 0.5.0.
 3. Deploy subgraph `1.1.0` and tag it `prod` (`indexer/README.md`). This can
    wait until something reads policies from it.
 
@@ -540,8 +550,10 @@ After Phases 1 and 2.
      test request was deleted after;
    - still open: whether the hosted platform has `Deno.startTls`. Nothing
      reports which transport ran.
-3. Merge to `main`, for the web app and the hosted connector.
+3. Merge to `main`, for the web app and the hosted connector. **Done
+   2026-10-25** (pull request #2).
 4. Publish `remesso-wallet` 0.5.0 by hand. It carries Phases 1 and 2 too.
+   **Done 2026-10-25.**
 5. Regenerate the skill manifests from the live `/agent`. **Nothing to do on
    2026-10-25:** `--check` found both current.
 6. Update the ERC-8004 metadata (`scripts/erc8004-v5.ts --send`): two mainnet
@@ -683,14 +695,21 @@ After Phases 1 and 2.
    retry (a repeated answer on the live endpoint returns the first answer),
    and the third run passed every check.
 4. Publish `remesso-sdk` 0.1.0 by hand: `cd packages/remesso-sdk && npm publish`.
+   **Done 2026-10-25.**
 5. Merge to `main`, for `/developers`, the agent card and the docs.
 6. Publish `remesso-wallet` 0.5.0 if it isn't out yet: it carries the skill
-   change too.
+   change too. **Done 2026-10-25.**
 7. Follow `/developers` alone from an empty folder, and time it.
 
 **Done when:** everything under "Done when" in step 4 of the design doc holds.
 
 ## Phase 5: standing orders
+
+**Not planned (2026-10-25).** We decided not to build a second allowance
+contract. The live `RemessoAgentAllowance` stays as it is, and agents with a
+timer of their own can still pay on a schedule (step 5 of the design doc,
+"Until it ships"). Phase 6 doesn't depend on it. The plan below is kept in
+case that changes.
 
 - [ ] **Design review.** Confirm or change the proposed answers in step 5 of
   the design doc, and write the result into the contract's NatSpec.
