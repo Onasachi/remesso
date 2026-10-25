@@ -1,6 +1,6 @@
 # Agent-to-agent: implementation plan
 
-**Status: Phase 0 measuring; Phases 1 to 3 built and tested, not deployed (2026-10-25).** This turns
+**Status: Phase 0 measuring; Phases 1 to 3 built and tested, backends deployed, web app not merged yet (2026-10-25).** This turns
 [`agent-to-agent.md`](agent-to-agent.md) into phases of work.
 
 - That doc says what to build and why. This one says in what order, in which
@@ -95,7 +95,8 @@ written down.
 
 These are the problems in step 1 of the design doc. No contract change.
 
-**Built and tested 2026-10-24. Not deployed yet:** see "Ship Phase 1".
+**Built and tested 2026-10-24. Backend deployed 2026-10-25:** steps 1 and 2 of
+"Ship Phase 1". The web app ships with the merge.
 
 ### 1.1 Runs record what happened on-chain
 
@@ -232,9 +233,21 @@ In this order: the functions need the migrations, and the web app needs the
 functions.
 
 1. `supabase db push`: the executor lease and the request inbox.
+   **Done 2026-10-25.**
 2. `supabase functions deploy execute-due-runs trigger-run request-payment ai-assist`.
    `ai-assist` is included because it classifies failures into the new
-   categories.
+   categories. **Done 2026-10-25.**
+   - Both ran from a worktree at `4658b8f`, the end of Phase 2. A plain push
+     from the branch would have applied Phase 3's migrations too, and the
+     branch's `request-payment` needs Phase 3's columns. Phase 3's deploy
+     ships the newer `request-payment`.
+   - Checked live afterwards:
+     - a pass of `execute-due-runs` returned `recovered: []`;
+     - `ai-assist` classified both new reasons by rule;
+     - the lease was exclusive, recorded its nonce floor and refused `anon`
+       (on a dummy address, deleted after);
+     - a request made through `request-payment` was readable by the deployed
+       app's `payment_requests_for`, then deleted.
 3. Merge to `main`, so Vercel deploys the web app.
 4. Publish `remesso-wallet` by hand: `cd packages/remesso-wallet && npm publish`.
    Publish only the newest build, 0.5.0, which carries Phases 2 and 3 as well.
@@ -349,8 +362,8 @@ After Phase 1, because the branch carries both.
 
 ## Phase 3: the receiving side
 
-**Built and tested 2026-10-25. Not deployed yet:** see "Ship Phase 3". It ships
-after Phases 1 and 2.
+**Built and tested 2026-10-25. Backend deployed 2026-10-25:** steps 1, 2 and 5
+of "Ship Phase 3". The web app and the hosted connector ship with the merge.
 
 ### 3.1 Payment events from the chain
 
@@ -485,8 +498,8 @@ after Phases 1 and 2.
   endpoints.
 - [x] `skills/remesso/SKILL.md` and the wallet skill cover requests, events,
   webhooks and the payee entry. The plugin and wallet are 0.5.0.
-- [ ] Regenerate the skill manifests after deploying: they're read from the
-  live `/agent`.
+- [x] Regenerate the skill manifests after deploying: they're read from the
+  live `/agent`. Checked 2026-10-25: both were already current.
 
 ### Tested end to end
 
@@ -513,12 +526,24 @@ After Phases 1 and 2.
 1. `supabase db push`, which includes the `index-events` and
    `deliver-webhooks` crons. Then right away,
    `supabase functions deploy index-events payment-events webhooks deliver-webhooks request-payment confirm-schedule agent`.
-   The crons call functions that don't exist until then.
-2. The first passes backfill from the deployment blocks, which takes about an
-   hour.
+   The crons call functions that don't exist until then. **Done 2026-10-25.**
+2. The first passes backfill from the deployment blocks. **Done 2026-10-25, in
+   15 minutes:** 50,000 blocks per contract per pass, then 19 blocks behind the
+   head. Checked live afterwards:
+   - every log both contracts had emitted, up to block 81,030,401, matched a
+     recorded event: 1 schedule and 1 run on V5, and 6 policies, 7 payments
+     and 2 revocations on the allowance contract;
+   - schedule #1's run reads 997,500 units, the net. Its `runs` row says the
+     gross, one of the 18 amounts step 5 of "Ship Phase 1" fixes;
+   - `payment-events`, `request-payment`'s `status` and `list`, `webhooks`,
+     `deliver-webhooks`, `confirm-schedule` and `/agent` answered as built. A
+     test request was deleted after;
+   - still open: whether the hosted platform has `Deno.startTls`. Nothing
+     reports which transport ran.
 3. Merge to `main`, for the web app and the hosted connector.
 4. Publish `remesso-wallet` 0.5.0 by hand. It carries Phases 1 and 2 too.
-5. Regenerate the skill manifests from the live `/agent`.
+5. Regenerate the skill manifests from the live `/agent`. **Nothing to do on
+   2026-10-25:** `--check` found both current.
 6. Update the ERC-8004 metadata (`scripts/erc8004-v5.ts --send`): two mainnet
    transactions, about two cents each, with your OK.
 

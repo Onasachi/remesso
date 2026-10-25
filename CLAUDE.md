@@ -829,8 +829,9 @@ is cancelled on-chain.
 
 ## The receiving side — payment events, requests, webhooks (2026-10-25)
 
-Built in Phase 3 of `docs/agent-to-agent-implementation.md`, not deployed as
-of 2026-10-25.
+Built in Phase 3 of `docs/agent-to-agent-implementation.md`. The backend was
+deployed 2026-10-25; the web app and the hosted connector ship with the merge
+to `main`.
 
 **`payment_events`, read from the chain by `index-events`.** It runs every
 minute and covers V5's runs and schedules plus the allowance contract's
@@ -850,7 +851,9 @@ payments are covered too. Neither passes through our functions.
 - **A missing fact refuses the batch.** That covers a run's token, a policy's
   owner and a block's time. A blank row kept forever is worse than a minute's
   wait.
-- **The first passes backfill from the deployment blocks:** about an hour.
+- **The first passes backfilled from the deployment blocks in 15 minutes**
+  (2026-10-25), 50,000 blocks per contract per pass. Every log both contracts
+  had emitted matched a recorded event.
 
 **Requests have states, and accepted is not paid.**
 - `pending`, `accepted`, `accepted_with_changes`, `declined`, `expired`.
