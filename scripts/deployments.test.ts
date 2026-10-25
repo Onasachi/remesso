@@ -83,7 +83,7 @@ Deno.test("local MCP wallet: mcp/src/server.mjs", () => {
   const f = "mcp/src/server.mjs";
   const src = source(f);
   same(f, "RPC default", find(f, src, /REMESSO_RPC_URL\s*\|\|\s*"([^"]+)"/, "the RPC default"), manifest.chain.rpc);
-  same(f, "FUNCTIONS", find(f, src, /const FUNCTIONS = "([^"]+)"/, "FUNCTIONS"), manifest.functions.base);
+  same(f, "FUNCTIONS", find(f, src, /const FUNCTIONS = (?:process\.env\.REMESSO_FUNCTIONS_URL \|\| )?"([^"]+)"/, "FUNCTIONS"), manifest.functions.base);
   same(f, "APP", find(f, src, /const APP = "([^"]+)"/, "APP"), manifest.app.origin);
   same(f, "ALLOWANCE", find(f, src, /REMESSO_ALLOWANCE_ADDRESS\s*\|\|\s*"(0x[0-9a-fA-F]{40})"/, "the ALLOWANCE default"), ALLOWANCE);
   same(f, "ERC8004", find(f, src, /const ERC8004 = "(0x[0-9a-fA-F]{40})"/, "ERC8004"), REGISTRY);

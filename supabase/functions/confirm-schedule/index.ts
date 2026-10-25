@@ -18,17 +18,20 @@
 /// and the row says only what the chain says. A caller can at most ask for
 /// the truth to be written sooner.
 ///
-/// POST { schedule: <row uuid>, txHash?: <0x…> }
+/// POST { schedule: <row uuid>, txHash?: <0x…>, request?: <payment request uuid> }
 ///   - a row with no `onchain_id` needs the `createSchedule` transaction. Its
 ///     ScheduleCreated event must come from the configured executor and name
 ///     the row's own sender, and the schedule must match the row's terms.
 ///   - a row with one is re-read from its own contract. `txHash`, if given,
 ///     pins the read to that transaction's block: forno can answer from a
 ///     block behind right after a write, and a status read then is stale.
+///   - `request`, from a pay link's `req=`, binds the schedule to that payment
+///     request (`_shared/request-binding.ts`).
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { decodeEventLog, parseAbi } from "npm:viem@2";
 import { CELO } from "../_shared/config.ts";
 import { getSchedule, publicClient } from "../_shared/celo.ts";
+import { answerWithSchedule } from "../_shared/request-binding.ts";
 import { mirrorStatus } from "../_shared/schedule-status.ts";
 
 const db = createClient(
@@ -70,7 +73,7 @@ Deno.serve(async (req) => {
     { global: { headers: { Authorization: req.headers.get("Authorization") ?? "" } } },
   );
 
-  let body: { schedule?: string; txHash?: string };
+  let body: { schedule?: string; txHash?: string; request?: string };
   try {
     body = await req.json();
   } catch {
@@ -80,6 +83,10 @@ Deno.serve(async (req) => {
   if (!/^[0-9a-f-]{36}$/i.test(rowId)) return json({ error: "schedule must be a row id" }, 400);
   const txHash = body.txHash ? String(body.txHash) : undefined;
   if (txHash && !/^0x[0-9a-fA-F]{64}$/.test(txHash)) return json({ error: "txHash must be a transaction hash" }, 400);
+  const requestId = body.request ? String(body.request) : undefined;
+  if (requestId && !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(requestId)) {
+    return json({ error: "request must be a payment request id" }, 400);
+  }
 
   const { data, error } = await user
     .from("schedules")
@@ -104,7 +111,7 @@ Deno.serve(async (req) => {
 
     if (row.onchain_id === null) {
       if (!receipt) return json({ error: "txHash is required to confirm a new schedule" }, 400);
-      return await adopt(row, wallet, receipt);
+      return await adopt(row, wallet, receipt, requestId);
     }
 
     // Already mirrored: refresh the status from the row's own contract.
@@ -117,7 +124,8 @@ Deno.serve(async (req) => {
       next_run_at: new Date(Number(s.nextRunAt) * 1000).toISOString(),
     }).eq("id", row.id);
     if (uErr) return json({ error: uErr.message }, 500);
-    return json({ ok: true, status });
+    const request = await answerRequest(requestId, String(row.onchain_id), contract);
+    return json({ ok: true, status, ...(request ? { request } : {}) });
   } catch (e) {
     console.error("confirm-schedule:", rowId, (e as Error).message);
     return json({ error: "could not read the chain", detail: (e as Error).message.slice(0, 200) }, 502);
@@ -129,6 +137,7 @@ async function adopt(
   row: Row,
   wallet: string,
   receipt: Awaited<ReturnType<typeof publicClient.waitForTransactionReceipt>>,
+  requestId: string | undefined,
 ) {
   // The event from OUR contract only. Another contract can emit an event with
   // the same signature, and its "schedule id" means nothing here.
@@ -198,7 +207,22 @@ async function adopt(
     ({ error } = await db.from("schedules").update(update).eq("id", row.id));
   }
   if (error) return json({ error: error.message }, 500);
-  return json({ ok: true, onchainId: String(id), status: update.status });
+  const request = await answerRequest(requestId, String(id), CELO.executor);
+  return json({ ok: true, onchainId: String(id), status: update.status, ...(request ? { request } : {}) });
+}
+
+/// The request the form came from (`req=` in a pay link), bound to the
+/// schedule by the same rules as request-payment's answer action. Its outcome
+/// rides along: the schedule is confirmed either way.
+async function answerRequest(requestId: string | undefined, onchainId: string, contract: string) {
+  if (!requestId) return undefined;
+  try {
+    const r = await answerWithSchedule(db, requestId, contract, onchainId);
+    return r.ok ? { status: r.status, signed: r.terms } : { error: r.reason };
+  } catch (e) {
+    console.error("confirm-schedule: answering request", requestId, (e as Error).message);
+    return { error: "could not record the answer" };
+  }
 }
 
 const json = (b: unknown, status = 200) =>

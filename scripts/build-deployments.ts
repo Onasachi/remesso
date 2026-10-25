@@ -20,6 +20,10 @@ const FUNCTIONS = "https://engaboljiqudghvzmebq.supabase.co/functions/v1";
 const APP = "https://remesso.xyz";
 const RPC = "https://forno.celo.org";
 const OUT = "deployments/celo-mainnet.json";
+/// The same bytes inside the functions tree, which is all a Supabase deploy is
+/// sure to bundle: `_shared/deployments.ts` imports this copy. Written and
+/// checked together with OUT, so the two can't differ.
+const EDGE_COPY = "supabase/functions/_shared/celo-mainnet.json";
 const check = Deno.args.includes("--check");
 
 /// Not in `/agent`, which describes the executor's side only. Read back from
@@ -172,22 +176,25 @@ const manifest = {
 
 const body = JSON.stringify(manifest, null, 2) + "\n";
 if (check) {
-  let current = "";
-  try {
-    current = await Deno.readTextFile(OUT);
-  } catch {
-    fail(`${OUT} is missing; run without --check to write it`);
+  for (const path of [OUT, EDGE_COPY]) {
+    let current = "";
+    try {
+      current = await Deno.readTextFile(path);
+    } catch {
+      fail(`${path} is missing; run without --check to write it`);
+    }
+    if (current !== body) {
+      const was = JSON.parse(current);
+      const changed = Object.keys(manifest).filter(
+        (k) => JSON.stringify(was[k]) !== JSON.stringify((manifest as Record<string, unknown>)[k]),
+      );
+      fail(`${path} has drifted from the deployment (${changed.join(", ") || "formatting"}); re-run without --check`);
+    }
+    console.log(`${path} matches the deployment`);
   }
-  if (current !== body) {
-    const was = JSON.parse(current);
-    const changed = Object.keys(manifest).filter(
-      (k) => JSON.stringify(was[k]) !== JSON.stringify((manifest as Record<string, unknown>)[k]),
-    );
-    fail(`${OUT} has drifted from the deployment (${changed.join(", ") || "formatting"}); re-run without --check`);
-  }
-  console.log(`${OUT} matches the deployment`);
 } else {
   await Deno.mkdir("deployments", { recursive: true });
   await Deno.writeTextFile(OUT, body);
-  console.log(`wrote ${OUT}: ${tokens.length} tokens, ${tokens.filter((t) => t.directAllowed).length} allowed on V5`);
+  await Deno.writeTextFile(EDGE_COPY, body);
+  console.log(`wrote ${OUT} and ${EDGE_COPY}: ${tokens.length} tokens, ${tokens.filter((t) => t.directAllowed).length} allowed on V5`);
 }
