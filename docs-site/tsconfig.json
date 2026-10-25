@@ -1,0 +1,10 @@
+// Not used by `docusaurus start` or `build`: for the editor and `npm run typecheck`.
+{
+  "extends": "@docusaurus/tsconfig",
+  "compilerOptions": {
+    "baseUrl": ".",
+    "strict": true,
+    "resolveJsonModule": true
+  },
+  "exclude": [".docusaurus", "build", "scripts"]
+}

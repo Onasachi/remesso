@@ -101,6 +101,13 @@ deno run --allow-all --config packages/remesso-sdk/deno.json --unstable-sloppy-i
 deno run --allow-all --config packages/remesso-sdk/deno.json --unstable-sloppy-imports scripts/e2e-sdk.ts
 # Publishing remesso-sdk to npm is done by hand: cd packages/remesso-sdk && npm publish
 
+# the developer docs (docs-site/, Docusaurus 3, served at docs.remesso.xyz). Every
+# ```ts block type-checks against the SDK's source, and the token, contract and
+# endpoint tables render from a copy of the deployment manifest:
+deno run --allow-read --allow-write --allow-run --allow-env docs-site/scripts/check-snippets.ts
+deno run --allow-read --allow-write scripts/build-docs-data.ts --check
+(cd docs-site && npm install && npm run build)   # fails on any broken link or anchor
+
 # builder codes (Phase 6): an integrator's ERC-8021 code rides on every run
 deno test --allow-env supabase/functions/_shared/attribution.test.ts   # read and write, pinned to Celo's SDK
 deno test --allow-env supabase/functions/_shared/builder-codes.test.ts # which codes a run carries; never fails a run
@@ -964,6 +971,19 @@ accepts a decline signed by an agent with a live policy from the payer.
 on 2026-10-25 (`e2e-sdk.ts --send`, the third run; the first two found what
 "Reads lag" describes). Published to npm as `remesso-sdk` 0.1.0 the same day,
 and as 0.2.0, which adds builder codes, after Phase 6.
+
+**Its full documentation is `docs-site/`**, a Docusaurus site for
+`docs.remesso.xyz` (2026-10-25): guides, six use cases built end to end, and
+an API reference. Like the SDK, it is held to the source:
+- `docs-site/scripts/check-snippets.ts` type-checks every TypeScript block
+  against the SDK's own source;
+- addresses, tokens and limits render from `docs-site/src/data/deployment.json`,
+  which `scripts/build-docs-data.ts` copies from the manifest (`--check` for
+  drift);
+- the build throws on a broken link or anchor.
+
+So a change to the SDK's API or to the deployment shows up as a failing check
+there until the pages follow.
 
 **Nothing in it about the deployment is typed by hand.** People believe an SDK
 that describes something we no longer serve.
