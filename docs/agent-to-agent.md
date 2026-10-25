@@ -1,6 +1,6 @@
 # Agent-to-agent remittance: letting developers build on Remesso
 
-**Status: steps 1 and 2 built and tested (2026-10-24 and 25), not deployed
+**Status: steps 1 to 3 built and tested (2026-10-24 and 25), not deployed
 yet; the rest is planned.** Written 2026-10-23. Revised the same day after an audit of this
 plan against the contracts, the Supabase functions and migrations, both MCP
 servers and the web app. Every finding below was checked in the code before it

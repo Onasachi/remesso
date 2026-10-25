@@ -75,6 +75,19 @@ deno test --allow-env --allow-read --unstable-sloppy-imports scripts/deployments
 # --port 8546` and `anvil --chain-id 1337 --port 8547`.
 deno run --allow-all scripts/fork-wallet-pay.ts
 
+# the receiving side (Phase 3): payment events, request binding, webhooks
+deno test supabase/functions/_shared/events.test.ts              # cursor, reorg, logs into rows
+deno test --allow-env supabase/functions/_shared/request-binding.test.ts   # what may answer a request
+deno test --allow-env supabase/functions/_shared/standard-webhooks.test.ts # sign/verify vs svix
+deno test --allow-env supabase/functions/_shared/webhook-actions.test.ts
+deno test --allow-env supabase/functions/_shared/safe-fetch.test.ts        # SAFE_FETCH_NETWORK=1 + --allow-net: live pinned test
+deno test supabase/functions/deliver-webhooks/plan.test.ts
+(cd web && deno test --allow-env --allow-net --allow-read --unstable-sloppy-imports lib/fee.test.ts lib/payee-profile.test.ts lib/safe-fetch.test.ts)
+# end to end against a local Supabase (and, for the last, the fork on :8546):
+deno run --allow-all scripts/receiving-e2e.ts       # real index-events/payment-events/request-payment, read-only mainnet
+deno run --allow-all scripts/webhooks-local-e2e.ts  # subscribe, deliver, retry, rotate, replay
+deno run --allow-all scripts/fork-agent-to-agent.ts # inbox, pay with request_id, bind by memo, paid
+
 # Claude plugin and the npm package — plugin/ and packages/remesso-wallet/ are
 # assembled from skills/ and mcp/; edit those, then rebuild (after
 # `cd mcp && npm run build` if the server changed). --check fails on drift.
@@ -813,6 +826,57 @@ is cancelled on-chain.
 - `?dry=1` observes and decides, writes nothing; `&hours=N` widens the window
   in a dry run only. On 2026-10-13 a dry run found #8 (wARS) cancelled on-chain
   while its row still said `active`. The chain wins, as it should.
+
+## The receiving side — payment events, requests, webhooks (2026-10-25)
+
+Built in Phase 3 of `docs/agent-to-agent-implementation.md`, not deployed as
+of 2026-10-25.
+
+**`payment_events`, read from the chain by `index-events`.** It runs every
+minute and covers V5's runs and schedules plus the allowance contract's
+payments and policies, so early sends by named triggers and agents' policy
+payments are covered too. Neither passes through our functions.
+- **One row per log.** The cursor moves with its batch in one call, and only
+  from where it was.
+- **`final` means at or below the RPC's `finalized` block.** Phase 0's first
+  12.5 hours measured that at a median 23 minutes behind the head, 31 at most,
+  with no block replaced at any level. The 24-hour report is
+  `scripts/finality-report.ts`.
+- **A reorg under the cursor rolls back to the finalized block.** Events above
+  it are marked `removed`, never deleted. A changed block at or below
+  finality halts the indexer for a person.
+- **`seq` moves on every change,** so `payment-events?after=` and the webhook
+  worker miss nothing.
+- **A missing fact refuses the batch.** That covers a run's token, a policy's
+  owner and a block's time. A blank row kept forever is worse than a minute's
+  wait.
+- **The first passes backfill from the deployment blocks:** about an hour.
+
+**Requests have states, and accepted is not paid.**
+- `pending`, `accepted`, `accepted_with_changes`, `declined`, `expired`.
+- A payment is `paid` only with a transaction from `payment_events`.
+- Evidence binds only if it's from the wallet asked, pays the address that
+  asked, and was made after the request (`_shared/request-binding.ts`).
+- A V5 schedule answers through `request-payment`'s `answer` action or
+  `confirm-schedule` (`req=` in a pay link). A policy payment answers by
+  carrying the request's 32-character `reference` in its memo.
+- A requested amount is what the recipient receives. The form signs
+  `grossFor` of it (`web/lib/fee.ts`), and the fee rounds up as V5's does.
+
+**Webhooks.**
+- Subscribing is signed by the receiving address (EIP-712). The endpoint must
+  echo a challenge first.
+- Deliveries are Standard Webhooks: `payment.received`, `payment.finalized`,
+  `payment.removed`, with the same `webhook-id` on every retry for 24 hours.
+- `_shared/safe-fetch.ts` connects to the address it checked (HTTP/1.1 over
+  `Deno.connect` and `startTls`). That's verified in the Edge Runtime, not yet
+  on the hosted platform. If `startTls` is missing there, it falls back to a
+  re-checked `fetch`, which leaves a DNS-rebinding window.
+- `webhooks` has no rate limit beyond signatures and nonces.
+
+**The hosted connector can't decline a request.** Its Privy policy allows only
+`pay()`, so it can't sign typed data. The plugin wallet can: request-payment
+accepts a decline signed by an agent with a live policy from the payer.
 
 ## Invariants — do not break
 

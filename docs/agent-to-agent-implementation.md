@@ -1,6 +1,6 @@
 # Agent-to-agent: implementation plan
 
-**Status: Phase 0 measuring; Phases 1 and 2 built and tested, not deployed (2026-10-25).** This turns
+**Status: Phase 0 measuring; Phases 1 to 3 built and tested, not deployed (2026-10-25).** This turns
 [`agent-to-agent.md`](agent-to-agent.md) into phases of work.
 
 - That doc says what to build and why. This one says in what order, in which
@@ -237,7 +237,7 @@ functions.
    categories.
 3. Merge to `main`, so Vercel deploys the web app.
 4. Publish `remesso-wallet` by hand: `cd packages/remesso-wallet && npm publish`.
-   If Phase 2 ships with it, publish 0.4.0 only.
+   Publish only the newest build, 0.5.0, which carries Phases 2 and 3 as well.
 5. Run `scripts/check-past-runs.ts --write`, with your OK, to fix the 18
    amounts.
 
@@ -340,8 +340,8 @@ After Phase 1, because the branch carries both.
 1. Merge to `main`, for the web app and the hosted connector (Vercel). This
    also ships Phase 1's web changes, so Phase 1's migrations must be pushed
    first.
-2. Publish `remesso-wallet` 0.4.0 by hand. It carries Phase 1's skill change
-   too, so 0.3.2 can be skipped.
+2. Publish `remesso-wallet` by hand. If Phase 3 ships with it, publish 0.5.0
+   only: 0.3.2 and 0.4.0 were never published.
 3. Deploy subgraph `1.1.0` and tag it `prod` (`indexer/README.md`). This can
    wait until something reads policies from it.
 
@@ -349,126 +349,178 @@ After Phase 1, because the branch carries both.
 
 ## Phase 3: the receiving side
 
+**Built and tested 2026-10-25. Not deployed yet:** see "Ship Phase 3". It ships
+after Phases 1 and 2.
+
 ### 3.1 Payment events from the chain
 
-- [ ] **A migration.**
-  - `payment_events`, whose primary key is chain id, tx hash and log index.
-  - It holds the contract, the kind, the schedule or policy id, from, to,
-    token, amount and memo.
-  - It also holds the run number, whether it was an early send, the block
-    number, the block hash and whether the event is final.
-  - `chain_cursors` holds a block number and its hash for each contract.
-- [ ] **`record_payment_events(...)`**, an RPC that inserts a batch and moves
-  the cursor in one transaction.
-- [ ] **`index-events`**, a cron function that runs every minute (pg_cron, like
-  the others):
-  - It checks the cursor's block hash against the chain, and rolls back on a
-    reorg.
-  - It reads `RunExecuted`, `RunTriggered` and `ScheduleCreated` from V5. From
-    the allowance contract it reads `Paid`, `PolicyCreated` and
-    `PolicyRevoked`. It reads up to the depth Phase 0 chose.
-  - It adds the token from `getSchedule` or `policy`, then records the batch.
-  - The reorg decision is a pure function with tests.
-- [ ] **`payment-events`**, a public function: free reads of events by address,
-  after a cursor.
-- [ ] **The hosted connector stops scanning.** It finds policies through
-  `payment-events`, using `PolicyCreated` by agent.
+- [x] **A migration**, `20261025000001_payment_events.sql`:
+  - `payment_events`, keyed by chain, tx hash and log index;
+  - each row holds the payer, recipient, agent, token, amount after the fee,
+    memo (and as text), run number, early send, block number, block hash, block
+    time, `final` and `removed`;
+  - `seq` moves on every change, so one cursor sees new events, finality and
+    rollbacks;
+  - `chain_cursors`, seeded at each contract's deployment block;
+  - `record_payment_events` writes a batch and moves the cursor only from where
+    it was;
+  - `rollback_payment_events` marks events above a block removed, and refuses
+    to reach a final one;
+  - the cron `remesso-index-events`, every minute.
+- [x] **`index-events`:**
+  - it checks the cursor's block hash, and on a reorg rolls back to the
+    finalized block. A changed block at or below finality halts it for a
+    person;
+  - it reads windows of 5,000 blocks, at most 10 per contract per pass. The
+    window's last block is checked before and after the read;
+  - it adds the token, the policy's owner and block times. A missing fact
+    refuses the batch rather than recording a blank;
+  - an event is final at or below the RPC's `finalized` block. Over the first
+    12.5 hours of Phase 0 that ran a median 23 minutes behind the head, 31 at
+    most, and no block was ever replaced;
+  - the pure parts are `_shared/events.ts`, tested by `events.test.ts` (11).
+- [x] **`payment-events`**, public: events by address and role, after a `seq`
+  cursor. Amounts travel as exact strings.
+- [x] **The hosted connector stops scanning.** It finds policies through
+  `payment-events` (`PolicyCreated` by agent). It still scans the ids newer
+  than the newest one reported, because the indexer lags by up to a minute.
+- [x] **The manifest moves to the backend.** `_shared/deployments.ts` reads
+  `_shared/celo-mainnet.json`, a second copy that `build-deployments.ts` writes
+  and `--check`s, because a deploy bundles only `supabase/functions`.
 
 ### 3.2 Request tracking
 
-- [ ] **A migration adds:**
-  - the request's reference;
-  - its state (`pending`, `accepted`, `accepted_with_changes`, `declined`,
-    `expired`);
-  - a payment state per request (`scheduled`, `paid`, `failed`);
-  - the bound schedule id and executor address, or the tx hash;
-  - the terms actually signed.
-- [ ] **`request-payment` gains `status` and `answer` actions.** `answer` binds
-  a schedule only when all of these hold:
-  - its sender, destination, token and amount match;
-  - it was created after the request, going by its `ScheduleCreated` row;
-  - it doesn't already answer another request.
-- [ ] **Policy payments bind through the memo.** `index-events` matches a
-  `Paid` memo to a live request from that policy's owner to that recipient.
-- [ ] **Payment states follow `payment_events`.** Each `RunExecuted` of a bound
-  schedule becomes a `paid` entry.
-- [ ] **Gross-up.** An amount that comes from the payee, in a request or a pay
-  link, is what they receive.
-  - `grossFor(net, feeBps)` in `web/lib/` returns the smallest amount whose
-    net is at least the request, after V5's rounded-up fee
-    (`Math.mulDiv(..., Math.Rounding.Ceil)`). Test it like `format.test.ts`.
-  - The form shows both amounts: what they receive and what you send.
-  - Pay links already out there now cost their payers 0.25% more.
-- [ ] **The app reports what answered a request.** `web/lib/payLink.ts`
-  accepts `req=`. The form reports the schedule to `confirm-schedule`, which
-  runs the same binding.
-- [ ] **Inbox tools.** Add `payment_requests` and `decline_request` to the
-  local MCP wallet and the hosted connector. `pay` and `agent_pay` take a
-  `request_id` and put it in the memo.
+- [x] **A migration**, `20261025000002_request_tracking.sql`. Each request
+  gains:
+  - its `reference`, the id without dashes;
+  - the states `accepted` and `accepted_with_changes`;
+  - its answer: a V5 schedule or a policy payment's transaction;
+  - the signed terms.
+
+  A schedule or a payment answers one request at most.
+- [x] **The binding rules**, in `_shared/request-binding.ts` (7 tests):
+  - evidence binds only if it is from the wallet asked, pays the address that
+    asked, and was made after the request;
+  - the terms decide only between accepted and accepted with changes;
+  - amounts are compared with what the recipient receives.
+- [x] **`request-payment` gains `list`, `status` and `answer`.** `decline`
+  also takes an agent with a live policy from the payer. `status` gives the
+  request's state, its payer, and each payment's transaction.
+- [x] **Policy payments bind through the memo**, after every indexer pass.
+- [x] **Payment states follow `payment_events`:** `paid` with transactions,
+  `scheduled`, or `failed` with the executor's own reason.
+- [x] **Gross-up.**
+  - `web/lib/fee.ts` (5 tests): `grossFor` is the smallest gross whose net
+    covers the request. 5 USDT asked is 5.012532 sent.
+  - The form shows what they receive and what you send, and signs the gross.
+    Its fee line now rounds up, as V5 does.
+- [x] **The app reports what answered a request.** `payLink.ts` takes `req=`,
+  and `confirm-schedule` binds the new schedule to it. The binding's outcome
+  comes back in the answer, never as an error.
+- [x] **Inbox tools.**
+  - The plugin wallet gets `payment_requests` and `decline_request`. Its
+    `pay` gains `request_id`: the reference goes in the memo, the request is
+    the default idempotency key, and a request sent to another wallet is
+    refused.
+  - The hosted connector gets `agent_payment_requests` and `request_id` on
+    `agent_pay`.
+  - **Not built: a hosted decline.** The Privy policy allows only `pay()`, so
+    the hosted agent can't sign typed data.
 
 ### 3.3 Webhooks
 
-- [ ] **A migration:**
-  - `webhook_subscriptions`: address, URL, its secret in Supabase Vault, state,
-    verified at.
-  - `webhook_nonces`, so a signed request can't be replayed.
-  - `webhook_deliveries`: unique on event and subscription, with attempts, the
-    next attempt and the last error.
-- [ ] **`webhooks`**, a public function to subscribe, rotate, revoke and
-  replay.
-  - Each call is signed with EIP-712 over the recipient, URL, chain, action,
-    nonce and expiry (ERC-1271 for smart accounts).
-  - A new endpoint must echo a challenge before it receives any payment.
-- [ ] **`deliver-webhooks`**, a cron worker that runs every minute:
-  - It sends Standard Webhooks headers.
-  - The id stays the same on every retry. The timestamp and signature are new
-    on each attempt.
-  - It retries with backoff for 24 hours. After that, the delivery is marked
-    failed and can be replayed.
-- [ ] **`_shared/safe-fetch.ts`**, tested with a table of addresses:
-  - HTTPS only, with no redirects.
-  - Resolve the name, then refuse private, loopback and link-local addresses,
-    in IPv4 and IPv6.
-  - Connect to the address that was checked. If the runtime can't pin it, send
-    deliveries through an egress proxy that enforces the same rules.
-- [ ] **A reusable signature check.** Export the check in `_shared/self.ts` in
-  a form the SDK can reuse.
+- [x] **A migration**, `20261025000003_webhooks.sql`:
+  - subscriptions, with their secrets in Vault;
+  - nonces;
+  - deliveries, unique per event, block hash and message type;
+  - service-role RPCs, and the cron `remesso-deliver-webhooks`.
+- [x] **`webhooks`**, public:
+  - subscribe, rotate, revoke and replay, each signed by the address (EIP-712,
+    with ERC-1271 for smart accounts);
+  - the order of checks is shape, unspent nonce, signature, then the nonce is
+    spent atomically;
+  - an endpoint must echo a challenge before it receives anything;
+  - at most 5 live subscriptions per address.
+- [x] **`deliver-webhooks`:**
+  - it sends `payment.received`, `payment.finalized` and `payment.removed`,
+    the last only to receivers that heard about the event;
+  - deliveries use Standard Webhooks headers, and the id stays the same across
+    retries;
+  - it backs off at 1m, 5m, 30m, 2h and 6h, then every 6h. After 24 hours a
+    delivery fails and can be replayed;
+  - after a rotation, it signs with both secrets for 24 hours.
+- [x] **`_shared/safe-fetch.ts`:**
+  - HTTPS only, no redirects;
+  - every resolved address must be public: IPv4 and IPv6, including mapped,
+    NAT64, Teredo and 6to4 forms;
+  - it connects to the address it checked, writing HTTP/1.1 over
+    `Deno.connect` and `Deno.startTls`. That's verified in Deno and inside the
+    Supabase Edge Runtime, but not yet on the hosted platform. If `startTls` is
+    missing there, it falls back to `fetch` after the check, which leaves a
+    DNS-rebinding window an egress proxy would close.
+- [x] **A reusable signature check.** `_shared/standard-webhooks.ts` signs and
+  verifies, tested against `svix` and `standardwebhooks`. `self.ts` uses it.
+- [x] **Tests:**
+  - standard-webhooks 8, webhook-actions 5, safe-fetch 9, plan 7;
+  - `scripts/webhooks-local-e2e.ts` passes 24 of 24 on a local Supabase.
 
 ### 3.4 Payee profiles
 
-- [ ] **Document the entry.** The `remesso` entry (step 3d of the design doc)
-  goes in `docs/AGENTS.md`, with the reader's rules.
-- [ ] **`find_agent` reads the profile** in both servers (`mcp/src/server.mjs`,
-  `web/lib/mcp/tools.ts`).
-  - It reads the agent's URI (`data:`, `https:` or `ipfs:`) through
-    `safe-fetch`, and returns the profile.
-  - It parses the raw JSON. agent0-ts would drop the entry's fields.
-  - The address still comes only from `getAgentWallet`.
-- [ ] **Our own registration.** `docs/erc8004/registration.json`:
-  - lists the new services;
-  - adds the spec fields it lacks: `registrations` (both ids), `active: true`
-    and `x402Support: true`. agent0-ts reads the file today as inactive and
-    without x402;
-  - gets no payee entry. #9879's wallet is the executor's hot key (3d).
-
-  `scripts/erc8004-v5.ts` writes it to #9867 and #9879: two mainnet
-  transactions, about two cents each, with your OK.
+- [x] **`docs/AGENTS.md`** gains "Telling payers what you accept": the
+  `remesso` entry, the reader's rules and an example.
+- [x] **`find_agent` reads the profile** in both servers. It parses `data:`,
+  `https:` and `ipfs:` URIs through a Node safe-fetch that connects to the
+  checked address (`web/lib/safe-fetch.ts`, and a copy in `mcp/src/`). The
+  address still comes only from `getAgentWallet`. On mainnet, #9879 reads as
+  "no remesso entry", as intended.
+- [x] **Our registration** (`docs/erc8004/registration.json`) gains
+  `registrations` for both ids, `active`, `x402Support`, and the
+  payment-events and webhooks services. It has no payee entry. Writing it
+  on-chain is a ship step.
 
 ### 3.5 Tell agents what changed
 
-- [ ] `/functions/v1/agent`, `/.well-known/agent.json` and
-  `skills/remesso/SKILL.md` describe requests, events and webhooks.
-  Regenerate the manifests and the plugin.
+- [x] `/functions/v1/agent` describes knowing you were paid, the request
+  actions, and the new services. `/.well-known/agent.json` lists the new
+  endpoints.
+- [x] `skills/remesso/SKILL.md` and the wallet skill cover requests, events,
+  webhooks and the payee entry. The plugin and wallet are 0.5.0.
+- [ ] Regenerate the skill manifests after deploying: they're read from the
+  live `/agent`.
+
+### Tested end to end
+
+- **`scripts/receiving-e2e.ts`**, 19 checks. It runs the real `index-events`,
+  `payment-events` and `request-payment` against a local Supabase and
+  read-only mainnet:
+  - the backfill records V5 schedule #1's 0.9975 USA₮ run exactly;
+  - a request bound to it reads paid;
+  - an older or reused schedule is refused;
+  - a memo binds;
+  - a staged reorg marks a not-final event removed.
+- **`scripts/fork-agent-to-agent.ts`**, 7 checks. On a mainnet fork, with the
+  real wallet:
+  - a request reaches the agent's inbox;
+  - the agent pays it, and declines another under its human's policy;
+  - the indexer binds the payment by its memo;
+  - the requester sees it paid;
+  - a retry pays nothing.
 
 ### Ship Phase 3
 
-1. `supabase db push`, including the pg_cron schedules for `index-events` and
-   `deliver-webhooks`.
-2. `supabase functions deploy index-events payment-events webhooks
-   deliver-webhooks request-payment confirm-schedule agent`.
-3. Merge to `main` for the web app and the hosted connector.
-4. Republish `remesso-wallet` by hand.
-5. Update the ERC-8004 metadata, with your OK.
+After Phases 1 and 2.
+
+1. `supabase db push`, which includes the `index-events` and
+   `deliver-webhooks` crons. Then right away,
+   `supabase functions deploy index-events payment-events webhooks deliver-webhooks request-payment confirm-schedule agent`.
+   The crons call functions that don't exist until then.
+2. The first passes backfill from the deployment blocks, which takes about an
+   hour.
+3. Merge to `main`, for the web app and the hosted connector.
+4. Publish `remesso-wallet` 0.5.0 by hand. It carries Phases 1 and 2 too.
+5. Regenerate the skill manifests from the live `/agent`.
+6. Update the ERC-8004 metadata (`scripts/erc8004-v5.ts --send`): two mainnet
+   transactions, about two cents each, with your OK.
 
 **Done when:** everything under "Done when" in step 3 of the design doc holds.
 
