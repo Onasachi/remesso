@@ -10,6 +10,7 @@
 /// Verification is optional in Remesso and gates nothing. The contract checks
 /// `msg.sender`; nothing here can move, block or redirect a payment.
 import { SELF_API } from "./config.ts";
+import { verify as verifyStandardWebhook } from "./standard-webhooks.ts";
 
 export type SessionStatus = "pending" | "valid" | "invalid" | "error" | "expired";
 
@@ -110,66 +111,15 @@ export function getSession(id: string): Promise<SessionDetail> {
 }
 
 /// Svix signature check ("Standard Webhooks"), which is what Self's SDK
-/// delegates to:
-///
-///   signed    = `${svix-id}.${svix-timestamp}.${rawBody}`
-///   key       = base64-decode(secret without its `whsec_` prefix)
-///   signature = base64(HMAC-SHA256(key, signed)), sent as `v1,<sig>`,
-///               space-separated when the secret is mid-rotation
-///
-/// The timestamp window is what stops a captured delivery being replayed
-/// later. `self.test.ts` checks this against the `svix` library itself.
-export async function verifyWebhook(
+/// delegates to. The scheme lives in `standard-webhooks.ts`, shared with the
+/// webhooks Remesso sends: `${id}.${timestamp}.${rawBody}` under HMAC-SHA256,
+/// `v1,<sig>`, within five minutes. `self.test.ts` checks it against the
+/// `svix` library itself.
+export function verifyWebhook(
   raw: string,
   headers: Headers,
   secret: string,
   nowSeconds = Math.floor(Date.now() / 1000),
 ): Promise<boolean> {
-  const id = headers.get("svix-id") ?? headers.get("webhook-id");
-  const ts = headers.get("svix-timestamp") ?? headers.get("webhook-timestamp");
-  const sigs = headers.get("svix-signature") ?? headers.get("webhook-signature");
-  if (!id || !ts || !sigs || !secret) return false;
-
-  const sent = Number(ts);
-  if (!Number.isFinite(sent) || Math.abs(nowSeconds - sent) > 5 * 60) return false;
-
-  let keyBytes: Uint8Array<ArrayBuffer>;
-  try {
-    keyBytes = base64ToBytes(secret.replace(/^whsec_/, ""));
-  } catch {
-    return false;
-  }
-  const key = await crypto.subtle.importKey(
-    "raw",
-    keyBytes,
-    { name: "HMAC", hash: "SHA-256" },
-    false,
-    ["sign"],
-  );
-  const mac = await crypto.subtle.sign(
-    "HMAC",
-    key,
-    new TextEncoder().encode(`${id}.${ts}.${raw}`),
-  );
-  const expected = bytesToBase64(new Uint8Array(mac));
-
-  return sigs.split(" ").some((part) => {
-    const [version, sig] = part.split(",", 2);
-    return version === "v1" && sig !== undefined && timingSafeEqual(expected, sig);
-  });
-}
-
-function base64ToBytes(b64: string): Uint8Array<ArrayBuffer> {
-  return Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
-}
-
-function bytesToBase64(bytes: Uint8Array): string {
-  return btoa(String.fromCharCode(...bytes));
-}
-
-function timingSafeEqual(a: string, b: string): boolean {
-  if (a.length !== b.length) return false;
-  let diff = 0;
-  for (let i = 0; i < a.length; i++) diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
-  return diff === 0;
+  return verifyStandardWebhook(raw, headers, secret, { nowSeconds });
 }
