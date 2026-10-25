@@ -5,7 +5,7 @@
 /// is the only edit. Extracted from `examples/create-schedule.ts`.
 import { type Address, type Hex, type Log, parseEventLogs, zeroAddress } from "viem";
 import { erc20Abi, executorAbi } from "./abi.js";
-import { type Ctx, write } from "./context.js";
+import { type Ctx, untilVisible, write } from "./context.js";
 import {
   checksum,
   CURRENT_EXECUTOR,
@@ -118,11 +118,11 @@ export function makeSchedules(ctx: Ctx, deps: Deps) {
   const gasTokenOf = async (id: bigint | number | string) => findToken((await get(id)).token) ?? null;
 
   async function get(id: bigint | number | string): Promise<Schedule> {
-    const s = await read<{
+    const s = await untilVisible(() => read<{
       sender: Address; interval: bigint; maxRuns: number; destination: Address; nextRunAt: bigint; runsExecuted: number;
       amountIn: bigint; poolFee: number; expiresAt: bigint; payoutType: number; active: boolean; cancelled: boolean;
       token: Address; feeBps: number; lastRunAt: bigint; triggersLeft: number; trigger: Address;
-    }>("getSchedule", [BigInt(id)]);
+    }>("getSchedule", [BigInt(id)]), (v) => v.sender !== zeroAddress);
     if (s.sender === zeroAddress) throw new RemessoError("not_found", `there is no schedule ${id} on ${EXECUTOR}`);
     return {
       id: BigInt(id),

@@ -571,6 +571,21 @@ spend money on that answer.
 forno can still answer from a block behind. Seen on 2026-09-22 right after a
 cancel. It self-corrects within seconds.
 
+**Anything read right after a write must expect it.** The SDK's first mainnet
+run (2026-10-25) paid correctly and hit stale reads three ways:
+- a request answered seconds after its schedule landed got "hasn't been seen
+  on-chain yet";
+- a policy read a second after it was created came back empty;
+- balances read straight after receipts still showed the money before it
+  moved.
+
+So:
+- `scheduleEvidence` asks the chain four times, about seven seconds, before a
+  schedule counts as unseen, and never takes an empty read as evidence;
+- the SDK retries an answer while the backend says it's unseen, and waits up
+  to six seconds for something it just created to read as non-empty;
+- tests count events and nonces, or read at a receipt's block.
+
 ## Agent identity
 
 Registered with Self Agent ID on 2026-09-22, from a real passport:
@@ -871,6 +886,11 @@ payments are covered too. Neither passes through our functions.
 **Requests have states, and accepted is not paid.**
 - `pending`, `accepted`, `accepted_with_changes`, `declined`, `expired`.
 - A payment is `paid` only with a transaction from `payment_events`.
+- A schedule answers a request only once the backend can see it: in
+  `payment_events`, or on the chain, asked a few times (see "Reads lag").
+  Until 2026-10-25 an answer sent seconds after the schedule landed, as the
+  app's `confirm-schedule` and the SDK both do, could fail with a 409 and
+  leave the request unanswered.
 - Evidence binds only if it's from the wallet asked, pays the address that
   asked, and was made after the request (`_shared/request-binding.ts`).
 - A V5 schedule answers through `request-payment`'s `answer` action or

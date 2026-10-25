@@ -599,8 +599,32 @@ After Phases 1 and 2.
   - The packed tarball, installed in an empty project: it type-checks under
     `NodeNext` and `bundler`, and its live reads work.
   - `scripts/e2e-sdk.ts`, the whole loop on mainnet with the test wallet, is a
-    dry run unless `--send`. Its dry run works; the run itself hasn't
-    happened. It also proves gas paid in USDT, which a fork can't.
+    dry run unless `--send`.
+- [x] **The first mainnet run (2026-10-25) paid correctly.**
+  - **What worked:**
+    - a webhook subscribed through a quick tunnel;
+    - a request whose link carried `req=`;
+    - a schedule that sent 1.002507 USDT so 1 USDT arrived;
+    - its signed `payment.received` 444 seconds after the run started;
+    - a policy created with gas paid in USDT, 0.0055 USDT for two
+      transactions, which a fork can't run;
+    - an agent payment retried with its key and paid once (one `Paid` event
+      on-chain), and its webhook.
+  - **Five checks failed, every one on a stale read straight after a write**
+    (see CLAUDE.md, "Reads lag"):
+    - the request's answer got "hasn't been seen on-chain yet", and so read
+      unpaid. Answered again a few minutes later, it read accepted and paid;
+    - the receiver's revoke read its new policy as empty, so it found no
+      token to pay gas with;
+    - two of the script's checks read balances from a node a block behind.
+  - **Fixed:**
+    - the SDK retries an answer while the backend says it's unseen, and
+      waits for something it just created;
+    - `scheduleEvidence` asks the chain a few times. This also fixes the
+      app's `req=` flow, which binds at the same moment;
+    - the script counts events and nonces.
+  - Covered by two new unit tests and the fork test. A clean re-run needs
+    about 0.8 USDT more in the test wallet.
 - [x] **`web/app/developers/page.tsx`**, next to `/claude`:
   - a six-step quickstart, from `npm install` to a payment and its webhook;
   - getting paid by request, and agent payments;
@@ -618,14 +642,18 @@ After Phases 1 and 2.
 
 ### Ship Phase 4
 
-1. `supabase functions deploy agent request-payment`, with your OK. `/agent`
-   then publishes the limits and the developer links, and the request link
-   carries `req=`.
-2. `build-deployments.ts --check` against what is live: the manifest was built
-   from a local `/agent`. Then `build-sdk.ts --check` and
-   `build-skill-manifest.ts --check`.
-3. Fund the test wallet: it holds 0.27 USDT and the loop needs about 1.03.
-   Then run `scripts/e2e-sdk.ts --send`, with your OK.
+1. `supabase functions deploy agent request-payment`, with your OK. **Done
+   2026-10-25:** `/agent` publishes the limits and the developer links, and
+   the request link carries `req=`.
+2. `build-deployments.ts --check` against what is live. **Done 2026-10-25:**
+   both copies match the deployment, and the skill manifests and the SDK's
+   generated files are current.
+3. Run `scripts/e2e-sdk.ts --send`. **First run 2026-10-25:** it paid
+   correctly, and five checks failed on stale reads (above), now fixed.
+   Then:
+   - `supabase functions deploy request-payment confirm-schedule`, with your
+     OK, for the binding retry;
+   - fund the test wallet and run it again.
 4. Publish `remesso-sdk` 0.1.0 by hand: `cd packages/remesso-sdk && npm publish`.
 5. Merge to `main`, for `/developers`, the agent card and the docs.
 6. Publish `remesso-wallet` 0.5.0 if it isn't out yet: it carries the skill

@@ -104,14 +104,28 @@ export function makeRequests(ctx: Ctx, deps: { pay(input: PayInput): Promise<Pay
     /// Report the schedule that answers a request. It binds only if it is
     /// from the wallet asked, pays the address that asked, was created after
     /// the request, and answers no other request.
-    async answer(id: string, scheduleId: bigint | number | string, contract?: string) {
-      const out = await call<{ ok: boolean; status: RequestState; signed: unknown }>({
-        action: "answer",
-        id: uuid(id),
-        schedule: String(scheduleId),
-        ...(contract ? { contract: checksum(contract) } : {}),
-      });
-      return { status: out.status, signed: out.signed };
+    ///
+    /// Seconds after a schedule lands the backend may not see it yet: its
+    /// indexer runs every minute, and a node behind forno's load balancer can
+    /// answer from an earlier block. It says so and asks to be tried again,
+    /// which this does for up to `waitMs` (default 90s).
+    async answer(id: string, scheduleId: bigint | number | string, contract?: string, opts: { waitMs?: number } = {}) {
+      const until = Date.now() + (opts.waitMs ?? 90_000);
+      for (let wait = 3_000; ; wait = Math.min(wait * 2, 15_000)) {
+        try {
+          const out = await call<{ ok: boolean; status: RequestState; signed: unknown }>({
+            action: "answer",
+            id: uuid(id),
+            schedule: String(scheduleId),
+            ...(contract ? { contract: checksum(contract) } : {}),
+          });
+          return { status: out.status, signed: out.signed };
+        } catch (e) {
+          const unseen = e instanceof RemessoError && e.code === "conflict" && /hasn't been seen on-chain yet/.test(e.message);
+          if (!unseen || Date.now() + wait > until) throw e;
+          await new Promise((res) => setTimeout(res, wait));
+        }
+      }
     },
 
     /// Turn a request down, for everyone: signed by the wallet it was sent

@@ -130,35 +130,51 @@ export async function scheduleEvidence(db: SupabaseClient, contract: string, sch
   }
   if (c !== V5.address) return null; // only the current executor is read live
 
-  const head = await publicClient.getBlockNumber();
-  const logs = await publicClient.getLogs({
-    address: V5.address,
-    event: createdEvent,
-    args: { id: BigInt(scheduleId) },
-    fromBlock: head > 4_999n ? head - 4_999n : 0n,
-    toBlock: head,
-  });
-  const log = logs[0];
-  if (!log) return null;
-  const [s, block] = await Promise.all([
-    getSchedule(BigInt(scheduleId), { contract: V5.address }),
-    publicClient.getBlock({ blockNumber: log.blockNumber }),
-  ]);
-  const received = s.payoutType === 2 ? s.token : s.tokenOut;
-  const net = s.amountIn - (s.amountIn * BigInt(s.feeBps) + 9_999n) / 10_000n;
-  return {
-    kind: "schedule",
-    contract: c,
-    scheduleId,
-    from: s.sender.toLowerCase(),
-    to: s.destination.toLowerCase(),
-    token: received.toLowerCase(),
-    amount: net.toString(),
-    interval: s.interval.toString(),
-    maxRuns: s.maxRuns,
-    at: new Date(Number(block.timestamp) * 1000).toISOString(),
-  };
+  // The app and the SDK both answer a request seconds after the schedule is
+  // mined, before the indexer has it. A node behind forno's load balancer can
+  // then still answer from an earlier block: no log, or an empty schedule
+  // (the SDK's first mainnet run, 2026-10-25, got this 409). So the chain is
+  // asked a few times before the schedule counts as unseen, and an empty read
+  // never becomes evidence: it would refuse the request as not from the payer.
+  for (let attempt = 0; attempt < LIVE_TRIES; attempt++) {
+    if (attempt) await new Promise((r) => setTimeout(r, LIVE_WAIT_MS));
+    const head = await publicClient.getBlockNumber();
+    const logs = await publicClient.getLogs({
+      address: V5.address,
+      event: createdEvent,
+      args: { id: BigInt(scheduleId) },
+      fromBlock: head > 4_999n ? head - 4_999n : 0n,
+      toBlock: head,
+    });
+    const log = logs[0];
+    if (!log) continue;
+    const [s, block] = await Promise.all([
+      getSchedule(BigInt(scheduleId), { contract: V5.address }),
+      publicClient.getBlock({ blockNumber: log.blockNumber }),
+    ]);
+    if (/^0x0{40}$/i.test(s.sender)) continue;
+    const received = s.payoutType === 2 ? s.token : s.tokenOut;
+    const net = s.amountIn - (s.amountIn * BigInt(s.feeBps) + 9_999n) / 10_000n;
+    return {
+      kind: "schedule",
+      contract: c,
+      scheduleId,
+      from: s.sender.toLowerCase(),
+      to: s.destination.toLowerCase(),
+      token: received.toLowerCase(),
+      amount: net.toString(),
+      interval: s.interval.toString(),
+      maxRuns: s.maxRuns,
+      at: new Date(Number(block.timestamp) * 1000).toISOString(),
+    };
+  }
+  return null;
 }
+
+/// How often, and how far apart, the chain is asked about a schedule that
+/// isn't indexed yet: about seven seconds in all.
+const LIVE_TRIES = 4;
+const LIVE_WAIT_MS = 2_500;
 
 const REQUEST_COLUMNS = "id, payer_address, to_address, amount, token_symbol, interval_seconds, max_runs, status, created_at";
 

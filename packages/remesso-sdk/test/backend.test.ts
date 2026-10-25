@@ -77,6 +77,40 @@ Deno.test("requests: create returns the reference; the backend's errors become c
   assertEquals((await assertRejects(() => taken.webhooks.subscribe({ url: "https://me.example/hook" }), RemessoError)).code, "conflict");
 });
 
+Deno.test("answer: retried while the backend hasn't seen the new schedule, as on mainnet", async () => {
+  const id = "339b4d63-feb7-4e20-b96e-4e62f93efa28";
+  let asked = 0;
+  const fetch = (async () => {
+    asked++;
+    return asked === 1
+      ? new Response(JSON.stringify({ error: "that schedule hasn't been seen on-chain yet; try again in a minute" }), { status: 409 })
+      : new Response(JSON.stringify({ ok: true, id, status: "accepted", signed: { changed: [] } }), { status: 200 });
+  }) as typeof globalThis.fetch;
+  const r = createRemesso({ account, functionsUrl: FN, fetch });
+  const out = await r.requests.answer(id, 2n, undefined, { waitMs: 10_000 });
+  assertEquals([out.status, asked], ["accepted", 2]);
+  // Anything else the backend refuses is not retried.
+  const refuse = (async () => new Response(JSON.stringify({ error: "that schedule can't answer this request: not from the payer" }), { status: 409 })) as typeof globalThis.fetch;
+  const e = await assertRejects(() => createRemesso({ account, functionsUrl: FN, fetch: refuse }).requests.answer(id, 2n), RemessoError);
+  assertEquals(e.code, "conflict");
+});
+
+Deno.test("reads of something just created wait for a node that has seen it", async () => {
+  let reads = 0;
+  const empty = { owner: "0x0000000000000000000000000000000000000000", agent: "0x0000000000000000000000000000000000000000", token: "0x0000000000000000000000000000000000000000" };
+  const full = { owner: account.address, agent: account.address, token: "0x48065fbBE25f71C9282ddf5e1cD6D6A887483D5e", expiresAt: 9_999_999_999n, allowlistOnly: false, revoked: false, perPayment: 1n, perDay: 1n, spentInWindow: 0n, windowStart: 0n };
+  const chain = {
+    readContract: async ({ functionName }: { functionName: string }) => {
+      if (functionName === "policy") return ++reads < 3 ? empty : full; // a lagging node, twice
+      if (functionName === "remainingToday") return 1n;
+      return 0n; // balanceOf, allowance
+    },
+  };
+  const r = createRemesso({ publicClient: chain as never });
+  const p = await r.policies.get(7);
+  assertEquals([p.owner, p.symbol, reads >= 3], [account.address, "USDT", true]);
+});
+
 Deno.test("events: the recorded payment-events page, read and paged by seq", async () => {
   const page = JSON.parse(await Deno.readTextFile(new URL("./fixtures/payment-events.json", import.meta.url)));
   const f = fakeFetch((url) => (new URL(url).searchParams.get("after") === "0" ? page : { events: [], next: page.next }));

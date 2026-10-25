@@ -87,6 +87,19 @@ export function makeCtx(parts: Omit<Ctx, "assertChain" | "requireAccount" | "pos
   };
 }
 
+/// Reads until `ready` holds, for a few seconds at most. Right after a
+/// transaction lands, a node behind forno's load balancer can still answer
+/// from an earlier block, so a schedule or policy this client created a
+/// moment ago can read as empty. The mainnet run hit exactly that.
+export async function untilVisible<T>(read: () => Promise<T>, ready: (v: T) => boolean, waitMs = 6_000): Promise<T> {
+  const until = Date.now() + waitMs;
+  for (;;) {
+    const v = await read();
+    if (ready(v) || Date.now() >= until) return v;
+    await new Promise((r) => setTimeout(r, 1_000));
+  }
+}
+
 /// Gas: CELO if the account holds enough, else the token itself through
 /// Celo's fee abstraction, for the tokens that support it. A payer who holds
 /// only USD₮ can still create a schedule.

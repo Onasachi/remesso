@@ -26,12 +26,14 @@ import {
   type Hex,
   http,
   keccak256,
+  parseAbiItem,
   parseEther,
   toHex,
 } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { celo } from "viem/chains";
 import {
+  ALLOWANCE,
   ATTRIBUTION,
   createRemesso,
   FEE_BPS,
@@ -69,10 +71,23 @@ if (chainId !== 42220) {
   Deno.exit(1);
 }
 const usdtOf = (who: `0x${string}`) => chain.readContract({ address: USDT.address, abi: erc20Abi, functionName: "balanceOf", args: [who] });
+/// Whether `read` comes to satisfy `ok` within `ms`. Right after a transaction
+/// lands, forno can answer from a node a block behind, so a balance read once
+/// can show the money before it moved: the first mainnet run failed checks
+/// that way while paying correctly.
+async function settles<T>(read: () => Promise<T>, ok: (v: T) => boolean, ms = 30_000): Promise<boolean> {
+  const until = Date.now() + ms;
+  for (;;) {
+    if (ok(await read())) return true;
+    if (Date.now() > until) return false;
+    await new Promise((r) => setTimeout(r, 2_000));
+  }
+}
 
 // --- the plan, and what it would cost -----------------------------------------
 const scheduleGross = grossFor(1_000_000n, FEE_BPS); // 1 USDT asked: the recipient gets exactly 1
 const policyPayment = 20_000n; // 0.02 USDT
+const PAID = parseAbiItem("event Paid(uint256 indexed id, address indexed to, uint256 amount, bytes32 memo)");
 const gasPrice = await chain.getGasPrice();
 /// The payer's writes (approve + schedule, approve + policy, a CELO transfer,
 /// a revoke) and the agent's payment, in gas, measured on our own
@@ -305,7 +320,14 @@ try {
         `${link(h)}: ${r.status}, gas paid through ${fc ?? "CELO"} (${r.gasUsed} gas)`,
       );
     }
-    const [celoAfter, usdtAfter] = await Promise.all([chain.getBalance({ address: receiverAccount.address }), usdtOf(receiverAccount.address)]);
+    // Read at the last transaction's block or later: a node a block behind
+    // would show less gas spent than was.
+    const lastBlock = hashes.length ? (await chain.getTransactionReceipt({ hash: hashes[hashes.length - 1] })).blockNumber : 0n;
+    await settles(() => chain.getBlockNumber(), (n) => n >= lastBlock);
+    const [celoAfter, usdtAfter] = await Promise.all([
+      chain.getBalance({ address: receiverAccount.address }),
+      chain.readContract({ address: USDT.address, abi: erc20Abi, functionName: "balanceOf", args: [receiverAccount.address], blockNumber: lastBlock > 0n ? lastBlock : undefined }),
+    ]);
     check(celoAfter === 0n, `the receiver still holds no CELO (${formatEther(celoAfter)})`);
     // Approving, creating and revoking move no tokens, so the whole drop is gas.
     const spent = usdtBefore - usdtAfter;
@@ -328,13 +350,26 @@ try {
     // The policy named outright: step 5 may have left the receiver's own policy
     // for this agent live, and paying its owner from it is refused.
     const key = `e2e-${new Date().toISOString()}`;
-    const before = await usdtOf(receiverAccount.address);
+    // Counted, not read off balances: stage 5 just spent the receiver's USDT on
+    // gas, and a balance read straight after a transaction can come from a
+    // node a block behind. The derived agent is reused across runs, so its
+    // nonce is compared with what it was, and the policy is this run's own.
+    const nonceBefore = await chain.getTransactionCount({ address: agentAccount.address });
+    const fromBlock = (await chain.getBlockNumber()) - 100n;
+    const paidEvents = async () =>
+      (await chain.getLogs({ address: ALLOWANCE, event: PAID, args: { id: pol.id, to: receiverAccount.address }, fromBlock, toBlock: "latest" }))
+        .filter((l) => l.args.amount === policyPayment).length;
     const first = await agent.pay({ to: receiverAccount.address, amount: "0.02", token: "USDT", policyId: pol.id, idempotencyKey: key, memo: "sdk e2e" });
     txs.push(link(first.hash));
-    check(first.status === "confirmed" && (await usdtOf(receiverAccount.address)) - before === policyPayment, `the agent paid 0.02 USDT: ${first.hash}`);
-    const mid = await usdtOf(receiverAccount.address);
+    check(first.status === "confirmed", `the agent paid 0.02 USDT: ${first.hash}`);
+    check(await settles(paidEvents, (n) => n === 1), "0.02 USDT arrived: one Paid event for this policy");
     const again = await agent.pay({ to: receiverAccount.address, amount: "0.02", token: "USDT", policyId: pol.id, idempotencyKey: key, memo: "sdk e2e" });
-    check(again.repeat === true && again.hash === first.hash && (await usdtOf(receiverAccount.address)) === mid, "the same key again: the first payment's hash, nothing new sent");
+    check(again.repeat === true && again.hash === first.hash, "the same key again: the first payment's hash, nothing new sent");
+    await new Promise((r) => setTimeout(r, 6_000));
+    check(
+      await settles(() => chain.getTransactionCount({ address: agentAccount.address }), (n) => n === nonceBefore + 1) && (await paidEvents()) === 1,
+      "after the retry: the agent sent one transaction in all, and there is still one payment",
+    );
     return first;
   });
 

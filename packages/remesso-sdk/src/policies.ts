@@ -5,7 +5,7 @@
 /// the policy. No fee: what an agent pays is what arrives.
 import { type Address, type Hex, type Log, parseEventLogs } from "viem";
 import { allowanceAbi, erc20Abi } from "./abi.js";
-import { type Ctx, write } from "./context.js";
+import { type Ctx, untilVisible, write } from "./context.js";
 import { ALLOWANCE, checksum, findToken, token as tokenOf, toUnits } from "./deployment.js";
 import { RemessoError } from "./errors.js";
 
@@ -51,15 +51,23 @@ export type CreatePolicyInput = {
 };
 
 export function makePolicies(ctx: Ctx) {
+  type Raw = {
+    owner: Address; agent: Address; token: Address; expiresAt: bigint; allowlistOnly: boolean; revoked: boolean;
+    perPayment: bigint; perDay: bigint; spentInWindow: bigint; windowStart: bigint;
+  };
   const policyOf = (id: bigint) =>
-    ctx.pub.readContract({ address: ALLOWANCE, abi: allowanceAbi, functionName: "policy", args: [id] }) as Promise<{
-      owner: Address; agent: Address; token: Address; expiresAt: bigint; allowlistOnly: boolean; revoked: boolean;
-      perPayment: bigint; perDay: bigint; spentInWindow: bigint; windowStart: bigint;
-    }>;
+    untilVisible(
+      () => ctx.pub.readContract({ address: ALLOWANCE, abi: allowanceAbi, functionName: "policy", args: [id] }) as Promise<Raw>,
+      (p) => !/^0x0{40}$/i.test(p.owner),
+    );
 
   /// The policy's token, so an owner holding no CELO can pay for managing it
   /// in that token, as they could for creating it.
-  const gasTokenOf = async (id: bigint) => findToken((await policyOf(id)).token) ?? null;
+  const gasTokenOf = async (id: bigint) => {
+    const p = await policyOf(id);
+    if (/^0x0{40}$/i.test(p.owner)) throw new RemessoError("not_found", `there is no policy ${id}`);
+    return findToken(p.token) ?? null;
+  };
 
   async function get(id: bigint | number | string): Promise<Policy> {
     const pid = BigInt(id);
