@@ -37,6 +37,15 @@ https://bitbucket.org/crackedstudios/remesso.git`, then `/plugin install remesso
 `remesso-wallet` MCP server everywhere else: `npx -y remesso-wallet` in
 Codex, Cursor or any MCP host.
 
+## Writing code: the SDK
+
+An agent or app you write in TypeScript can use `remesso-sdk` (`npm install
+remesso-sdk viem`): schedules, agent payments that pay once per idempotency
+key, payment requests, payment events and signed webhooks, with the
+deployment's addresses, tokens, fee and per-payment limits built in.
+`https://remesso.xyz/developers` gets you from install to a small payment
+and its webhook.
+
 ## In the Claude app, on a phone or the web: use the connector's links
 
 The local wallet runs only on a computer. In the Claude app the plugin brings
@@ -180,17 +189,21 @@ wallet. This is the one flow that needs **CELO for gas** — an approval and the
 schedule, submitted by you rather than a facilitator.
 
 ```bash
-TO=0xRecipient AMOUNT=0.05 TOKEN=USDT EVERY=week RUNS=2 TRIGGER=remesso \
+TO=0xRecipient AMOUNT=1 TOKEN=USDT EVERY=week RUNS=2 TRIGGER=remesso \
 PAYER_KEY=... deno run --allow-env --allow-net create-schedule.ts
 ```
+
+Each transfer must be at least a dollar's worth (1 USDT, 1,500 wARS, 1,300
+cNGN; `/agent` lists them under `limits.perRun`). A smaller schedule is valid
+on-chain and the executor never sends it.
 
 `TRIGGER=remesso` grants the `CURRENT_EXECUTOR` sentinel (`0x…0001`), which
 lets Remesso's executor — whichever key that is — bring a payment forward on request —
 worth setting, because a schedule created directly on-chain is discovered by a
 sync that runs every five minutes, and until then only a trigger can move it.
 
-**The fee comes out of the schedule's amount, not on top.** At 25bps a 0.05
-transfer costs the payer exactly 0.05; the recipient receives 0.049875. A
+**The fee comes out of the schedule's amount, not on top.** At 25bps a 1 USDT
+transfer costs the payer exactly 1; the recipient receives 0.9975. A
 payment request names what the recipient receives, so to meet one, schedule the
 gross: the smallest amount whose net is the request (the fee rounds up). 5
 asked is 5.012532 scheduled.

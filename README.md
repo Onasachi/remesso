@@ -178,6 +178,17 @@ pinned byte for byte to `@celo/attribution-tags`.
 
 ## For other agents
 
+### TypeScript: remesso-sdk
+
+```
+npm install remesso-sdk viem
+```
+
+Schedules, agent payments a retry can't pay twice, payment requests, payment
+events and signed webhooks, on viem.
+[remesso.xyz/developers](https://remesso.xyz/developers) goes from install to
+a mainnet payment and its webhook in about 15 minutes.
+
 ### Claude plugin: an agent wallet with on-chain limits
 
 ```
@@ -359,6 +370,7 @@ skills/             remesso, remesso-x402 and remesso-wallet, plus the manifest 
 mcp/                The plugin's agent wallet: a local MCP server (src/), bundled to dist/.
 plugin/             The Claude plugin as it ships, built by scripts/build-plugin.sh.
 packages/remesso-wallet/  The same wallet on npm, for Codex, Cursor and other MCP hosts.
+packages/remesso-sdk/     The TypeScript SDK on npm, generated in part from the live deployment.
 examples/           An agent paying Remesso, or creating a schedule itself.
 scripts/            check-env, x402-buy, agent-pay, e2e-agent-test, build-skill-manifest, build-plugin.
 docs/               submission, AGENTS, invite kit, screenshots, cNGN bank payouts.

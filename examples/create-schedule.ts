@@ -26,12 +26,13 @@
 /// Needs PAYER_KEY (or PRIVATE_KEY), TO, and AMOUNT. Everything else has a
 /// default:
 ///   TO=0x…            who gets paid                        (required)
-///   AMOUNT=0.05       per transfer, in whole tokens        (required)
+///   AMOUNT=1          per transfer, in whole tokens        (required; at
+///                     least $1 worth: Remesso's executor sends nothing smaller)
 ///   TOKEN=USDT        USDT | USDC | USDm | USAT | wARS | wBRL | wCOP  (default USDT)
 ///   EVERY=week        week | fortnight | month | quarter   (default week)
 ///   RUNS=2            how many transfers                   (default 2)
 ///   TRIGGER=remesso   allow early sending                  (default: none)
-///   MAX_TOTAL=1       refuse if AMOUNT × RUNS exceeds this (default 1),
+///   MAX_TOTAL=2       refuse if AMOUNT × RUNS exceeds this (default 2),
 ///                     in TOKEN's own units — 1 wARS is one peso, so a
 ///                     peso schedule needs this raised deliberately
 import { createPublicClient, createWalletClient, http, parseAbi, parseEventLogs, parseUnits } from "npm:viem@2";
@@ -46,18 +47,21 @@ const EXECUTOR = (Deno.env.get("EXECUTOR") ??
 /// fixed 6 is wrong by 10^12 for a third of this table. Addresses are the
 /// identity — several Celo tokens have fee-currency adapters reporting the
 /// same symbol with different decimals.
-const TOKENS: Record<string, { address: `0x${string}`; decimals: number }> = {
-  USDT: { address: "0x48065fbBE25f71C9282ddf5e1cD6D6A887483D5e", decimals: 6 },
-  USDC: { address: "0xcebA9300f2b948710d2653dD7B07f33A8B32118C", decimals: 6 },
+/// `minRun` is the smallest transfer Remesso's executor sends, in whole
+/// tokens: a dollar's worth (`/agent` publishes it as `limits.perRun`). A
+/// schedule below it is valid on-chain and never runs.
+const TOKENS: Record<string, { address: `0x${string}`; decimals: number; minRun: string }> = {
+  USDT: { address: "0x48065fbBE25f71C9282ddf5e1cD6D6A887483D5e", decimals: 6, minRun: "1" },
+  USDC: { address: "0xcebA9300f2b948710d2653dD7B07f33A8B32118C", decimals: 6, minRun: "1" },
   // Mento's dollar, formerly cUSD — still accepted under the old name.
-  USDM: { address: "0x765DE816845861e75A25fCA122bb6898B8B1282a", decimals: 18 },
-  CUSD: { address: "0x765DE816845861e75A25fCA122bb6898B8B1282a", decimals: 18 },
-  USAT: { address: "0xD2ab3C9A02DBBAB236BfEC45D1d755DF4267F771", decimals: 6 },
+  USDM: { address: "0x765DE816845861e75A25fCA122bb6898B8B1282a", decimals: 18, minRun: "1" },
+  CUSD: { address: "0x765DE816845861e75A25fCA122bb6898B8B1282a", decimals: 18, minRun: "1" },
+  USAT: { address: "0xD2ab3C9A02DBBAB236BfEC45D1d755DF4267F771", decimals: 6, minRun: "1" },
   // Ripio's local-currency stablecoins, allowed on V4 2026-10-06. 18dp, and
   // not dollars: amounts are pesos and reais.
-  WARS: { address: "0x0DC4F92879B7670e5f4e4e6e3c801D229129D90D", decimals: 18 },
-  WBRL: { address: "0xD76f5Faf6888e24D9F04Bf92a0c8B921FE4390e0", decimals: 18 },
-  WCOP: { address: "0x8a1D45e102e886510e891d2Ec656a708991e2D76", decimals: 18 },
+  WARS: { address: "0x0DC4F92879B7670e5f4e4e6e3c801D229129D90D", decimals: 18, minRun: "1500" },
+  WBRL: { address: "0xD76f5Faf6888e24D9F04Bf92a0c8B921FE4390e0", decimals: 18, minRun: "5" },
+  WCOP: { address: "0x8a1D45e102e886510e891d2Ec656a708991e2D76", decimals: 18, minRun: "3200" },
 };
 
 const CADENCE: Record<string, number> = {
@@ -113,7 +117,7 @@ if (!interval) {
 const runs = Number(Deno.env.get("RUNS") ?? "2");
 const amountText = (Deno.env.get("AMOUNT") ?? "").trim();
 if (!/^\d{1,12}(\.\d{1,18})?$/.test(amountText) || Number(amountText) <= 0) {
-  console.error("set AMOUNT to a positive decimal, e.g. AMOUNT=0.05");
+  console.error("set AMOUNT to a positive decimal, e.g. AMOUNT=1");
   Deno.exit(2);
 }
 if (!Number.isInteger(runs) || runs < 1 || runs > 4294967295) {
@@ -122,13 +126,18 @@ if (!Number.isInteger(runs) || runs < 1 || runs > 4294967295) {
 }
 
 const amountIn = parseUnits(amountText, token.decimals);
+if (amountIn < parseUnits(token.minRun, token.decimals)) {
+  console.error(`refused: Remesso's executor sends at least ${token.minRun} ${Deno.env.get("TOKEN") ?? "USDT"} a transfer.`);
+  console.error("A schedule below that is valid on-chain and never runs.");
+  Deno.exit(1);
+}
 const total = amountIn * BigInt(runs);
 
 // The whole commitment, checked before anything is signed. A mandate is worth
 // a ceiling more than a single payment is: this one number is what the
 // schedule can cost you in total, and it is the last moment it is cheap to
 // notice it is wrong.
-const maxTotal = parseUnits(Deno.env.get("MAX_TOTAL") ?? "1", token.decimals);
+const maxTotal = parseUnits(Deno.env.get("MAX_TOTAL") ?? "2", token.decimals);
 if (total > maxTotal) {
   console.error(
     `refused: ${amountText} × ${runs} = ${Number(total) / 10 ** token.decimals} ` +

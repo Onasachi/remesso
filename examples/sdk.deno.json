@@ -1,0 +1,10 @@
+{
+  "imports": {
+    "remesso-sdk": "../packages/remesso-sdk/src/index.ts",
+    "remesso-sdk/node": "../packages/remesso-sdk/src/node.ts",
+    "viem": "npm:viem@2.57.7",
+    "viem/": "npm:/viem@2.57.7/"
+  },
+  "nodeModulesDir": "none",
+  "lock": false
+}
