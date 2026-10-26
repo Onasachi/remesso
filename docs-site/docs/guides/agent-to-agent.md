@@ -1,127 +1,132 @@
 ---
 title: Build an agent-to-agent app
-description: Discover a receiving agent, settle a fixed invoice from a wallet or a policy, and verify the payment before delivering a service.
+description: "One agent asks another to pay, gets paid from a wallet or a spending policy, and checks the payment on the chain before it delivers."
 ---
 
-Remesso is payment infrastructure your agents can build on. Your application decides what to buy and when to fulfill it. The SDK handles recipient discovery, remittances, request tracking and payment evidence. It works with any agent framework that can call TypeScript.
+One agent sells a service and another buys it. The seller asks to be paid, the buyer pays from its own wallet or from a spending policy a person gave it, and the seller checks the payment on the chain before it delivers. This guide builds both sides.
 
-The APIs on this page are **unreleased 0.3.0-rc.1 source changes**. The published npm package remains 0.2.0 until the next release. Use a local build to evaluate them. For Postgres coordination, signed invoices, lifecycle recovery, quotes, managed signers and local development, follow [the production SDK guide](./production-sdk.md).
+The APIs on this page need `remesso-sdk` 0.3.0 or later.
 
-## Choose the funding source
+## Two ways to fund a payment
 
-| Funding | Whose funds move | Setup | Remesso fee |
+| Funding | Whose money moves | Setup | Remesso's fee |
 |---|---|---|---|
-| `wallet` | The paying agent's own wallet | Fund the agent with a supported token and gas | The V5 schedule fee, currently 0.25%, included in the gross debit |
-| `policy` | A treasury or person's wallet | The owner creates a policy naming the agent's separate key | No protocol fee on policy payments |
+| `wallet` | The buying agent's own wallet | The agent holds the token and a little CELO for gas | 0.25%, added to what the buyer pays, so the seller receives the exact amount |
+| `policy` | A person's or a treasury's wallet | Its owner creates a [spending policy](./agent-payments.md) that names the agent | None |
 
-Both use an explicit recipient amount: `amount: "1"` asks for 1 token to arrive. Wallet funding uses a one-payment V5 mandate and the sender executes it immediately with `runNow`. The mandate's `maxRuns: 1` caps it even if Remesso's regular executor wins the race. It remains visible to the existing indexer, invoice binding and signed webhooks.
+In both, `amount` is what the seller receives: `amount: "1"` with `token: "USDT"` delivers exactly 1 USDT.
 
-Wallet sends currently need three transactions: mandate creation, approval and execution. The SDK checks the pinned terms before approving. The default regular due time is an hour ahead while the sender's authorized early execution runs immediately. An explicit intent deadline shortens the mandate's lifetime and, when needed, its first regular slot. They follow the V5 token/run limits. Policy payments follow their policy's caps instead. Both payer agents need local signing accounts, including supported sign-only managed accounts. The recipient needs no gas to receive tokens.
+A wallet payment is a [schedule](./schedules.md) with a single payment. The SDK creates it, approves the token and runs it at once: three transactions, about 370,000 gas together. A policy payment is one transaction, about 90,000 gas. Remesso indexes both, so requests, events and webhooks treat them the same way.
 
 ## Create the clients
-
-Keep the payment journals across process restarts. The file adapters below support one process per signer and file. Multiple workers should use the [Postgres journals and signer coordinator](./production-sdk.md#share-journals-and-signer-coordination).
 
 ```ts
 import { createRemesso } from "remesso-sdk";
 import { fileRemittanceStore, fileStore, safeFetchText } from "remesso-sdk/node";
 import { privateKeyToAccount } from "viem/accounts";
 
+// The buying agent. Its journals record each payment before it is sent, so a
+// retry after a crash or a timeout never pays twice.
 const buyer = createRemesso({
   account: privateKeyToAccount(process.env.BUYER_KEY as `0x${string}`),
   store: fileStore("./state/policy-payments.json"),
-  remittanceStore: fileRemittanceStore("./state/wallet-remittances.json"),
+  remittanceStore: fileRemittanceStore("./state/wallet-payments.json"),
   fetchText: safeFetchText,
 });
+
+// The selling agent.
 const seller = createRemesso({
   account: privateKeyToAccount(process.env.SELLER_KEY as `0x${string}`),
 });
 ```
 
-The default stores are memory only. Deleting a journal removes its retry protection. Neither store is a business-order database.
+Keep the journal files. Without them the SDK keeps its records in memory, and a retry after a restart could pay a second time. Each file serves one process. For several workers, see [sharing journals across workers](./production-sdk.md#share-journals-across-workers).
 
-## Request one exact payment
+## 1. The seller asks to be paid
 
-The seller asks the wallet that will fund the payment. For `wallet`, that is the buyer agent's address. For `policy`, it is the policy owner's address, which differs from the agent signing the transaction.
+The seller asks the wallet whose money will move: the buyer's own address for wallet funding, or the policy owner's address for policy funding.
 
 ```ts
-const invoice = await receiver.requests.create({
-  payer: "0x1111111111111111111111111111111111111111",
+const invoice = await seller.requests.create({
+  payer: buyer.address,
   amount: "1",
   token: "USDT",
   runs: 1,
   from: "Translation agent",
   note: "Translate order 1042",
 });
-console.log(invoice.id, invoice.reference);
+const requestId = invoice.id;
 ```
 
-This backend request moves no money and does not authenticate the seller. Use [signed invoices](./production-sdk.md#sign-an-invoice-and-verify-settlement) when the payer needs proof of the recipient's signature. Your application must approve the order and recipient. This one-off API requires fixed amount/token terms and rejects recurring invoices. Use [schedules](./schedules.md) for subscriptions and recurring remittances.
+A request moves no money, and anyone can create one. When the buyer needs proof that the seller asked, use a [signed invoice](./production-sdk.md#sign-an-invoice) instead. Recurring requests are for [schedules](./schedules.md); `remittances.send` pays one-off requests only.
 
-## Pay from the agent's own wallet
+## 2. The buyer pays from its own wallet
 
 ```ts
-const sent = await agent.remittances.send({
+const sent = await buyer.remittances.send({
   funding: "wallet",
-  to: "0x2222222222222222222222222222222222222222",
+  to: seller.address,
   amount: "1",
   token: "USDT",
   requestId,
   idempotencyKey: `request:${requestId}`,
 });
-console.log(sent.status, sent.hash);
+console.log(sent.status, sent.stage, sent.hash);
 ```
 
-The invoice must name this paying wallet and these exact recipient/amount/token terms. A pending result can include approval or creation hashes before a payment hash exists. A creation hash is never evidence that the recipient was paid. Retry with the same funding model, signer, key and terms; the wallet journal keeps the same one-payment mandate.
+The request must name this wallet as the payer and these exact terms. A `confirmed` result carries `hash`, the transaction that paid.
 
-V5 pins its fee when the mandate is created. The SDK checks the pinned terms before approving or executing and attempts a durably recorded cancellation on a mismatch. Repeating the same key resumes that cancellation. Inspect `cancellationConfirmed` and the reported cancellation hash on a conflict: a pending cancellation is uncertain. The contract does not take an expected-fee parameter, so fee changes during creation cannot be atomically excluded by an SDK quote, especially if a payer already has sufficient allowance and cancellation cannot be confirmed. Check the returned evidence rather than assuming a quote settled an invoice.
+A `pending` result may still be paid. Call `send` again with the same key and terms, at any time: the SDK continues the same payment from its journal and never creates a second one. Don't retry a pending payment under a new key; that is a second payment. `stage` says where it stands: `creation`, `approval`, `execution` or `cancellation`.
 
-## Pay from a delegated policy
+If the payment can't be completed, for instance because the wallet's balance dropped, the SDK cancels its schedule, so that it can't be paid later either. Only once the cancellation has landed does it report that nothing was paid: a `refused` error whose `details.cancelled` is `true`. Until then the result is `pending`, with a `cancellationHash`.
 
-The treasury or person creates a policy once using [agent payments](./agent-payments.md). Then the worker agent can settle the invoice:
+## 3. Or the buyer pays from a spending policy
+
+The person or treasury creates a policy once, as in [agent payments](./agent-payments.md), and the request names that owner as the payer:
 
 ```ts
-const sent = await agent.remittances.send({
+const sent = await buyer.remittances.send({
   funding: "policy",
   policyId,
-  to: "0x2222222222222222222222222222222222222222",
+  to: seller.address,
   amount: "1",
   token: "USDT",
   requestId,
   idempotencyKey: `request:${requestId}`,
 });
-console.log(sent.status, sent.payer);
+console.log(sent.status, sent.payer); // payer is the policy's owner
 ```
 
-The SDK checks the invoice against the policy owner's address. It refuses a second policy payment when the invoice already has a schedule. The allowance contract enforces per-payment and fixed-window daily caps, recipients and expiry. Its token approval is shared across the owner's policies; there is no per-policy lifetime cap.
+The payment carries the request's reference in its memo, which is how Remesso knows it answers this request. The contract enforces the policy's caps per payment and per day, its recipient list and its expiry.
 
 ## Pay a registered agent
 
-Use `agents.pay` when the seller publishes an ERC-8004 identity and a supported [Remesso payee profile](./find-agents.md). The wallet comes from the registry. The SDK checks the accepted Celo token, required invoice reference, invoice recipient and a fresh wallet read immediately before sending. It does not use addresses embedded in profile JSON.
+When the seller has an ERC-8004 identity with a Remesso payee profile (see [finding agents](./find-agents.md)), `agents.pay` takes the wallet to pay from the registry:
 
 ```ts
-const paid = await agent.agents.pay(9867n, {
+declare const sellerAgentId: bigint; // the seller's ERC-8004 id
+const paid = await buyer.agents.pay(sellerAgentId, {
   funding: "wallet",
   requestId,
-  expectedWallet: "0x2222222222222222222222222222222222222222",
+  expectedWallet: seller.address,
 });
 console.log(paid.counterparty, paid.status, paid.hash);
 ```
 
-For delegated funding, choose `funding: "policy"` and optionally `policyId`. An invoice supplies the amount/token and defaults the key to `request:<id>`. Without an invoice, supply `amount`, `token` and `idempotencyKey`; the profile must permit payments without a request reference. `expectedWallet` pins the counterparty your application approved. Identity resolution is a point-in-time read, not an atomic registry lock.
+The SDK checks the token the profile accepts, the request reference it requires and that the request pays the registered wallet, then reads the registry again just before it sends. With `expectedWallet`, it refuses if the registered wallet isn't the one your application approved. It never takes a wallet from the profile's JSON.
 
-## Verify before fulfilling
+Without a request, pass `amount`, `token` and an `idempotencyKey` instead; the profile must accept payments without a reference. For a policy, set `funding: "policy"` and optionally `policyId`.
 
-A seller can verify without a private key, webhook subscription or Remesso's indexer:
+## 4. The seller checks the payment before it delivers
+
+Checking a payment needs no key, no webhook and nothing from Remesso's indexer:
 
 ```ts
-import { createRemesso } from "remesso-sdk";
-
-const reader = createRemesso();
+declare const txHash: `0x${string}`;
 const proof = await reader.receipts.verify({
-  txHash: "0x1111111111111111111111111111111111111111111111111111111111111111",
-  from: "0x1111111111111111111111111111111111111111",
-  to: "0x2222222222222222222222222222222222222222",
+  txHash,
+  from: buyer.address,
+  to: seller.address,
   token: "USDT",
   amount: "1",
   scheduleId,
@@ -130,15 +135,17 @@ const proof = await reader.receipts.verify({
 console.log(proof.eventId, proof.amount, proof.finality);
 ```
 
-For a policy payment, use `policyId` and `memo: invoice.reference` instead of `scheduleId`. The verifier checks the original successful receipt, canonical block, matching event, immutable payer/recipient/token terms and requested finality. Schedule amounts are net after fees. Historical checks need an RPC that serves state at the receipt block. Finalized verification fails closed when the RPC cannot report finality.
+`verify` reads the transaction's receipt and checks that it holds a payment of exactly this token and amount, from this payer to this recipient, made by Remesso's contracts, in a block that is still on the chain. A schedule's amounts are what arrived, after the fee. For a policy payment, pass `policyId` and `memo` instead of `scheduleId`.
 
-Persist `proof.eventId` as a unique value in the same database transaction that records fulfillment. Invoice authentication and one-time fulfillment remain your application's responsibility. A valid payment event must not fulfill two orders. `included` evidence can be reorganized; `finalized` waits for stronger chain evidence by refusing until the block is finalized.
+With `finality: "finalized"` it also refuses until Celo has finalized the block, about 25 minutes after the payment. `included` answers at once, but a payment that is only included can still be undone by a reorganization.
 
-Use [events](./payment-events.md) or [webhooks](./webhooks.md) to wake the receiver, then verify the exact expected terms. `requests.waitUntilPaid` reports indexed payment evidence; it is not a substitute for checking the exact amount and identity yourself.
+Before delivering, store `proof.eventId` under a unique constraint, in the same database transaction that marks the order fulfilled, so one payment can never fulfil two orders.
 
-## Run the buyer/seller example
+[Payment events](./payment-events.md) and [webhooks](./webhooks.md) tell you when to check: something arrived. `verify` tells you it is the payment you expect.
 
-The repository includes `examples/agent-to-agent.ts`, using the same public SDK APIs. Run it from the repository root:
+## Run the example
+
+The repository's `examples/agent-to-agent.ts` runs both sides from the command line:
 
 ```bash
 deno run --allow-all --config examples/sdk.deno.json --unstable-sloppy-imports examples/agent-to-agent.ts request
@@ -146,8 +153,8 @@ deno run --allow-all --config examples/sdk.deno.json --unstable-sloppy-imports e
 deno run --allow-all --config examples/sdk.deno.json --unstable-sloppy-imports examples/agent-to-agent.ts verify
 ```
 
-- `request`: set `SELLER_KEY`, `PAYER_ADDRESS`, `AMOUNT`, optionally `TOKEN`. It creates an invoice and prints `REQUEST_ID`.
-- `pay`: set `BUYER_KEY`, `FUNDING=wallet|policy`, `REQUEST_ID`, `SELLER_ADDRESS`, `AMOUNT`, optionally `TOKEN` and `SELLER_AGENT_ID`. Policy funding also needs `POLICY_ID`. It previews by default; add `--send` to sign and broadcast. Optional `POLICY_STORE`/`WALLET_STORE` paths locate persistent journals.
-- `verify`: set `TX_HASH`, `PAYER_ADDRESS`, `SELLER_ADDRESS`, `AMOUNT`, `TOKEN`, and `SCHEDULE_ID` or `POLICY_ID`. Policy verification also uses `REQUEST_ID` for its memo. It requires finality unless `FINALITY=included` is explicit.
+- `request`, as the seller: set `SELLER_KEY`, `PAYER_ADDRESS` and `AMOUNT`, and optionally `TOKEN`. It prints the `REQUEST_ID`.
+- `pay`, as the buyer: set `BUYER_KEY`, `FUNDING` (`wallet` or `policy`), `REQUEST_ID`, `SELLER_ADDRESS` and `AMOUNT`, and optionally `TOKEN` and `SELLER_AGENT_ID`. Policy funding also needs `POLICY_ID`. It shows what it would do; add `--send` to pay. `POLICY_STORE` and `WALLET_STORE` set where the journals live.
+- `verify`, as the seller: set `TX_HASH`, `PAYER_ADDRESS`, `SELLER_ADDRESS`, `AMOUNT`, `TOKEN`, and `SCHEDULE_ID` or `POLICY_ID` (with `REQUEST_ID` for the memo). It waits for finality unless you set `FINALITY=included`.
 
-These commands use Celo mainnet unless `RPC_URL` points to a local fork. Keep keys out of source control.
+The example pays on Celo mainnet unless `RPC_URL` points at a local fork.

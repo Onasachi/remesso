@@ -5,22 +5,20 @@ description: What changed in each release of remesso-sdk.
 
 Releases of [`remesso-sdk`](https://www.npmjs.com/package/remesso-sdk) on npm.
 
-## 0.3.0-rc.1 — unpublished source
+## 0.3.0
 
-This checkout is a release candidate. These APIs are not available in the
-published 0.2.0 package yet. See [production agent services](../guides/production-sdk.md).
+Not yet released.
 
-- Agent-to-agent `remittances.send` with explicit self-funded wallet or delegated policy funding, exact one-off invoice terms and durable retry journals.
-- `agents.pay` binds payment to a fresh ERC-8004 registry wallet and its published asset/reference requirements.
-- Account-free `receipts.verify` checks expected payment terms, immutable contract state, canonical inclusion and optional chain finality.
-- `fileRemittanceStore` persists wallet approval/creation/execution progress; `examples/agent-to-agent.ts` demonstrates request, preview/send and independent verification.
-- Safety fixes for scoped idempotency, corrupt stores, nonce coordination, original receipt/event evidence, policy selection/pagination and webhook validation.
-- Optional Postgres journals, signer session locks, durable nonce evidence, invoice reservations, fenced worker jobs and transactional fulfillment deduplication.
-- Payment lifecycle reads, reconciliation, finality waits and one-pass recovery of existing pending keys. External executor payments are verified independently after sender restarts.
-- EIP-712 invoices binding payer, recipient, token, amount, order and expiry, with exact backend requests and final payment verification.
-- Read-only quote/simulation details and prepared sends bounded by debit and intent expiry. Gas estimates distinguish RPC estimates from conservative planning hints.
-- `remesso-sdk dev` and repository `npm run dev:smoke`: an owned Celo fork, funded test agents, sample requests and an in-memory signed-webhook receiving emulator.
-- Managed signer callback validation for Celo transaction encoding and typed data, plus framework-neutral agent tools with schemas, structured results and writes denied by default. The existing MCP server delegates SDK operations to the same payment logic.
+- **Agent-to-agent payments.** `remittances.send` pays one exact amount from this agent's own wallet or from a spending policy, optionally answering a one-off request. A retry with the same key continues the same payment. See [Build an agent-to-agent app](../guides/agent-to-agent.md).
+- **`agents.pay`** pays an agent registered in ERC-8004, at the wallet the registry names.
+- **`receipts.verify`** checks a payment on the chain, without a key: exact payer, recipient, token and amount, by Remesso's contracts, optionally finalized.
+- **Signed invoices.** `invoices.create`, `sign`, `verify`, `pay` and `verifyPayment`: the recipient signs exact terms, the payer checks them, and only that invoice's payment settles it.
+- **Quotes and deadlines.** `remittances.quote` and `prepare`; `startBy` bounds when a payment may start, and `validUntil` when it must land.
+- **Recovery.** `remittances.get`, `listPending`, `reconcile`, `wait` and `recoverPending` follow a payment and continue it after a crash. They never start one.
+- **Workers.** `remesso-sdk/postgres` shares journals, a signing lock, jobs and a fulfilment inbox between processes.
+- **Local development.** `npx remesso-sdk dev` runs both funding models against a local fork of Celo.
+- **Managed signers and agent tools.** `remesso-sdk/signers` and `remesso-sdk/tools`.
+- **Safer journals.** Before signing anything, the SDK sends again any saved transaction the chain hasn't mined, or cancels one past its deadline at its nonce, so one lost broadcast can't hold up the transactions after it. A failed broadcast is retried at once.
 
 ## 0.2.0
 

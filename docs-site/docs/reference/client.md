@@ -23,9 +23,9 @@ const remesso = createRemesso({
 | `rpcUrl` | `string` | `https://forno.celo.org` | A Celo mainnet RPC. Checked to answer chain `42220` before anything is signed. |
 | `publicClient` | viem `PublicClient` | created from `rpcUrl` | Your own public client. Agent payments require `chain: celo` so Celo transactions use the right serializer. |
 | `store` | `PaymentStore` | `memoryStore()` | Where agent payments are recorded so a retry pays once. Use `fileStore()` from `remesso-sdk/node` to keep records across restarts. |
-| `remittanceStore` | `RemittanceStore` | `memoryRemittanceStore()` | Wallet-funded one-off progress, including the original signed creation and execution transactions. Use `fileRemittanceStore()` from `remesso-sdk/node` across restarts. |
-| `invoiceStore` | `InvoiceStore` | `memoryInvoiceStore()` | Atomic reservations binding signed invoices to one funding route, signer, payer and payment key. Share it across worker processes and restarts. |
-| `coordinator` | `SignerCoordinator` | process-local queue | Shared signer lock and nonce floor. Use the Postgres adapter together with both journals and its invoice store for multiple workers. |
+| `remittanceStore` | `RemittanceStore` | `memoryRemittanceStore()` | Where wallet payments are recorded, each transaction before it is sent, so a retry continues the same payment. Use `fileRemittanceStore()` from `remesso-sdk/node` to keep records across restarts. |
+| `invoiceStore` | `InvoiceStore` | `memoryInvoiceStore()` | Which payment route, signer and key each signed invoice is reserved for, so it is paid only one way. Share it between workers. |
+| `coordinator` | `SignerCoordinator` | one queue per process | A lock and nonce record shared by every worker that signs with this key. Requires `store`, `remittanceStore` and `invoiceStore` shared the same way; `createPostgresStorage` gives all four. |
 | `fetchText` | `(url) => Promise<string>` | none | Reads an https or ipfs agent registration file for `agents.find`. Pass `safeFetchText` from `remesso-sdk/node`. |
 | `attribution` | `boolean` | `true` | Tag transactions with Remesso's ERC-8021 codes. |
 | `builderCodes` | `string[]` | none | Your own ERC-8021 codes, up to three, on every transaction this client sends and on every payment of the schedules it creates. Throws on a code outside Celo's charset (1 to 32 of `a-z`, `0-9` and `_`), one of Remesso's own, a repeat, or more than three. |
@@ -40,121 +40,91 @@ With an `account`, or a `walletClient` that has one, the returned client's `addr
 | `publicClient` | viem `PublicClient` | The client used for reads, for anything the SDK doesn't wrap. |
 | `deployment` | object | Celo mainnet as Remesso runs it: chain, contracts, tokens, endpoints. See [contracts and endpoints](./contracts.md). |
 
-## Agent-to-agent remittances (0.3.0-rc.1 source)
+## Agent-to-agent payments
 
-These methods are in the current source and are not yet published to npm. See the complete [agent-to-agent guide](../guides/agent-to-agent.md) and [production service guide](../guides/production-sdk.md).
+One-off payments funded from this client's wallet or from a spending policy. These need `remesso-sdk` 0.3.0 or later; the guides are [agent-to-agent](../guides/agent-to-agent.md) and [production](../guides/production-sdk.md).
 
 ### `remittances.send(input)`
 
 | Field | Type | Description |
 |---|---|---|
-| `funding` | `"wallet" \| "policy"` | Required explicit funding source. Wallet mode spends this local account; policy mode spends its policy owner's funds. |
-| `to`, `amount`, `token` | `string` | Exact recipient, decimal amount received and supported token symbol/address. |
-| `idempotencyKey` | `string` | Required stable intended-payment key. Retry with identical terms and the same journal. |
-| `requestId` | `string` | Optional exact one-off invoice. Recipient, amount, token and payer must match. Recurrence is refused. |
-| `policyId`, `payer` | id, `string` | Policy mode only: select a policy and/or restrict its owner. |
-| `waitMs` | `number` | From 1 to 120,000 ms. Default 45 seconds. Pending progress is recoverable with the same call. |
-| `maxDebit` | `string` | Maximum decimal token debit including protocol fees; excludes network gas. |
-| `validUntil` | `number` | Last Unix second when the SDK may start/resume the send. Wallet schedule expiry is capped by it. It cannot invalidate policy transaction bytes already broadcast. |
+| `funding` | `"wallet" \| "policy"` | Required. `wallet` spends this account's own tokens; `policy` spends a policy owner's, within the policy. |
+| `to`, `amount`, `token` | `string` | The recipient, the exact decimal amount it receives, and the token by symbol or address. |
+| `idempotencyKey` | `string` | Required. One per payment you intend. A retry with the same key and terms continues that payment and never pays twice. |
+| `requestId` | `string` | Optional one-off request this pays. Its payer, recipient, amount and token must match; a recurring request is refused. |
+| `policyId`, `payer` | id, `string` | Policy funding only: the policy to use, or the owner whose policy to use. |
+| `memo` | `string` | Policy funding only: up to 32 bytes recorded with the payment. A request's reference fills it when `requestId` is set. |
+| `waitMs` | `number` | How long to wait for receipts before answering `pending`: 1 to 120,000 ms, default 45 seconds. |
+| `maxDebit` | `string` | The most the payer's balance may lose, fee included. Network gas is separate. |
+| `startBy` | `number` | Unix seconds. Don't start the payment at or after this time; `prepare` sets it to the quote's expiry. A started payment continues regardless. |
+| `validUntil` | `number` | Unix seconds. The payment must land before this. A wallet payment's schedule expires a second earlier; a policy payment still unsent near it is cancelled at its nonce. A retry can't change it. |
 
-Returns `Promise<RemittanceResult>`, discriminated by `funding`. Both modes include `status`, `payer`, `to`, `token`, recipient `amount` in base units, and `fee`. Policy mode also has the existing `PaymentResult` fields. Wallet mode adds `amountIn`, `feeBps`, optional `scheduleId`, `approvalHash`, `createHash`, `executionHash`, `repeat`, and invoice binding progress in `request`. Its `hash` is present once an exact `RunExecuted` payment exists; a pending call may have no payment hash yet.
+Returns `Promise<RemittanceResult>`. Both kinds have `funding`, `status` (`confirmed` or `pending`), `payer` (whose money moved), `to`, `token`, `amount` in base units and `fee`. A policy payment also has the [`pay`](#payinput) result's fields, including `cancellation` when its deadline passed before it was sent. A wallet payment also has `stage`, `amountIn`, `feeBps`, `scheduleId`, the hash of each transaction it sent (`createHash`, `approvalHash`, `executionHash`, `cancellationHash`), `repeat`, and `request` for the request's binding. Its `hash` is the transaction that paid, once there is one.
 
-Wallet mode uses one immutable V5 schedule with `maxRuns: 1` and immediate sender execution. Signed progress is saved before broadcast. A key never creates another schedule, and the regular executor winning a race cannot create a second run. Fees and executor token/run limits apply. A replaced or missing original receipt is not proof of success. Fee-drift and cancellation conflicts must be reconciled using their reported transaction/schedule details.
+`pending` may still be paid: retry the same key, never a new one. A wallet payment is one schedule with a single payment, created, approved and run by the SDK; Remesso's executor may run it first, and either way it pays once. If it can't be completed, its schedule is cancelled, and only after that lands is it reported as not paid: a `refused` error with `details.cancelled`. One that expired unpaid has `details.expired`.
 
 ### `remittances.quote(input, options?)`
 
-Reads readiness without signing or broadcasting. Input has `funding`, `to`,
-`amount`, `token`, optional `requestId`, `idempotencyKey`, and policy-only
-`payer`/`policyId`. `options.ttlSeconds` is 1–300, default 60.
+Signs nothing. Takes `funding`, `to`, `amount`, `token`, and optionally `requestId`, `idempotencyKey`, and for a policy `payer` or `policyId`. `options.ttlSeconds` is 1 to 300, default 60.
 
-Returns `RemittanceQuote`: exact recipient `amount`, `grossDebit`,
-`protocolFee`, `feeBps`, `selectedPolicyId`, approval targets, balance,
-`canSend`, issues, step simulations, gas estimates, reference block and
-`checkedAt`/`expiresAt`. Amounts are base-unit bigints. Gas steps identify
-`rpc_estimate` or `conservative_hint`; wallet execution remains a hint until its
-schedule and allowance exist. CELO estimates exclude fee-currency conversion.
-Discovery and HTTP reads are not an atomic snapshot; a quote reserves nothing.
+Returns `RemittanceQuote`: the recipient's `amount`, `grossDebit`, `protocolFee`, `feeBps`, `selectedPolicyId`, the approval needed (none when the allowance is already unlimited), the balance, `canSend` and `issues`, a simulation of each step, gas estimates marked `rpc_estimate` or `conservative_hint`, and the block, `checkedAt` and `expiresAt` it describes. Amounts are base units, as `bigint`. A quote reserves nothing.
 
 ### `remittances.prepare(input, options?)`
 
-Takes `send` input and quote options. Returns `{ quote, input }`, refusing an
-unready quote or debit above `maxDebit`. Returned input pins the token, selected
-policy, debit ceiling and expiry. Send `prepared.input` promptly. Bounds are
-checked again during send; a prepared input does not guarantee later execution.
+Quotes, refuses a payment that can't be sent or that costs more than `maxDebit`, and returns `{ quote, input }`. The input fixes the token, the policy and `maxDebit`, and sets `startBy` to the quote's expiry. Send checks everything again.
 
-### Payment lifecycle
+### Following a payment
 
-| Method | Behavior |
+| Method | What it does |
 |---|---|
-| `remittances.get(key, { funding? }?)` | Read saved terms and current canonical evidence without signing, broadcasting or mutating journals. |
-| `remittances.listPending({ funding? }?)` | Read retained operations except finalized, failed, cancelled and expired ones. Includes paused operations requiring attention. |
-| `remittances.reconcile(key, { funding?, waitMs? }?)` | Resume an existing key with its original terms and deadline. Unknown keys never create payments; consumed-nonce uncertainty requires investigation. |
-| `remittances.wait(key, options?)` | Observe inclusion/finality; never sends. `finality` is included by default. `timeoutMs`: 1–86,400,000, default 20 minutes; `intervalMs`: 1–60,000, default 1,500; optional `signal` and `funding`. |
-| `remittances.recoverPending(options?)` | One sequential recovery pass over existing pending keys. Optional `funding`, `waitMs`, `signal`, and `limit`: 1–1,000, default 25. Signal stops between operations. No recurring task is scheduled. |
+| `remittances.get(key, { funding? }?)` | Reads a saved payment and what the chain says about it. Signs and sends nothing. |
+| `remittances.listPending({ funding? }?)` | The saved payments not yet final, failed, cancelled or expired, paused ones included. |
+| `remittances.reconcile(key, { funding?, waitMs? }?)` | Continues a payment that has started: sends its saved transactions, or a wallet payment's remaining steps. Never starts a payment. |
+| `remittances.wait(key, options?)` | Waits for `included` (the default) or `finalized`. Sends nothing. `timeoutMs` 1 to 86,400,000, default 20 minutes; `intervalMs` 1 to 60,000, default 1,500; `signal`; `funding`. |
+| `remittances.recoverPending(options?)` | One pass of `reconcile` over started payments, oldest first. `limit` 1 to 1,000, default 25, bounds the work; `funding`, `waitMs` and `signal` as above. |
 
-Returns `PaymentOperation` with `key`, `funding`, `status`, `stage`, payer,
-recipient, token, base-unit amount, creation time, available transaction and
-policy/schedule IDs, optional verified `proof` and structured `error`. Stages
-are creation, approval, execution, payment and cancellation. Statuses are
-`prepared`, `awaiting_approval`, `signed`, `broadcast`, `included`, `finalized`,
-`failed`, `cancelled`, `paused`, `expired`, `needs_reconciliation`.
+Each returns a `PaymentOperation`: `key`, `funding`, `status`, `stage`, `payer`, `to`, `token`, `amount`, `createdAt`, the hash and ids it has, a verified `proof` once included, and an `error` when something needs attention. The statuses are `prepared`, `awaiting_approval`, `signed`, `broadcast`, `included`, `finalized`, `failed`, `cancelled`, `paused`, `expired` and `needs_reconciliation`.
 
-An included state requires exact independent payment evidence. A finalized
-verification conflict is never downgraded to included. Reads can discover a
-regular executor's payment after a sender restart. If the same key exists in
-both funding journals, specify `funding`. `wait()` throws on timeout, abort,
-failed payments or cancelled/paused/expired schedules.
+A wallet payment whose step reverted while its schedule is live is `needs_reconciliation`: it could still be paid, and reconciling cancels it. So is a transaction whose nonce was used with no receipt to show by what: look at its hash; the SDK never pays it again. `wait()` throws on a timeout, an abort, or a payment that failed, was cancelled, paused or expired. If a key is in both journals, pass `funding`.
 
 ### `invoices`
 
-| Method | Behavior |
+| Method | What it does |
 |---|---|
-| `invoices.sign(input)` | Sign exact invoice terms, optionally bound to an existing backend `requestId`. |
-| `invoices.create(input)` | Create an exact one-off backend request, then sign its terms; an existing `requestId` is reused. |
-| `invoices.verify(invoice, { allowExpired? }?)` | Validate schema, EIP-712 domain, identity, terms and expiry; returns `VerifiedInvoice` with terms-derived `id` and stable `idempotencyKey`. Does not pay. |
-| `invoices.pay(invoice, options)` | Verify, atomically reserve funding identity, then remit exact signed terms. Requires `funding`; accepts policy-only `policyId`, plus `maxDebit` and `waitMs`. Returns the remittance result and `invoiceId`. |
-| `invoices.verifyPayment(invoice, input)` | Check a transaction against signed invoice terms and any bound request; finalized by default. Returns `{ invoiceId, orderId, payment: PaymentProof }`. |
+| `invoices.sign(input)` | Signs an invoice's exact terms as its recipient, optionally for an existing one-off request. |
+| `invoices.create(input)` | Creates a one-off request with the same terms, then signs them. |
+| `invoices.verify(invoice, { allowExpired? }?)` | Checks the invoice's form, signature and expiry. Returns its terms, an `id` derived from them, and the `idempotencyKey` that pays it. Pays nothing. |
+| `invoices.pay(invoice, options)` | Verifies it, quotes the payment and refuses one that can't be made now, reserves the invoice for this route, then pays its exact terms. `funding` is required; `policyId` for a policy, `maxDebit`, `waitMs`. Returns the payment and `invoiceId`. |
+| `invoices.verifyPayment(invoice, input)` | Checks a transaction is this invoice's payment, on its terms and in its validity window. Finalized by default. Returns `{ invoiceId, orderId, payment }`. |
 
-Signing takes `payer`, exact decimal `amount`, supported `token`, `orderId` and
-Unix-second `expiresAt`. Optional `recipient` defaults to the signing account;
-V1 requires the recipient to be its issuer. `nonce` defaults to 32 random bytes;
-`issuedAt` defaults to now. Preserve both when reconstructing an invoice.
-`requestId` binds an existing exact one-off request.
+`sign` and `create` take `payer`, a decimal `amount`, `token`, `orderId` and `expiresAt` in Unix seconds. `recipient` defaults to, and must be, the signing account. `nonce` (32 random bytes) and `issuedAt` (now) are defaults: keep them to rebuild the same invoice.
 
-Payment verification takes `txHash`, optional `policyId` or `scheduleId`, and
-`finality`. Expired invoices remain verifiable if payment inclusion fell within
-their signed validity window. Persist invoice ID, payment event ID and
-issuer/order atomically with fulfillment; signature verification alone prevents
-neither repeated business effects nor cross-worker replay.
+An invoice without a request is tied to its payment by the memo `invoiceReference(id)`, so it is paid from a policy; a wallet payment's schedule can't carry a memo. `verifyPayment` takes `txHash`, `policyId` or `scheduleId`, and `finality`, and accepts only the invoice's own payment: the request's, or the one carrying its reference. A payment that landed while the invoice was valid still verifies after it expires. Store the invoice id, the payment's `eventId` and the order uniquely when you fulfil it.
 
-### Optional server and framework adapters
+### Server and framework adapters
 
-| Entry | API |
+| Import | API |
 |---|---|
-| `remesso-sdk/postgres` | `createPostgresStorage(postgresClient, { namespace?, jobLeaseMs?, heartbeatMs? })` returns initialization, both journals, invoice store, signer coordinator, fenced jobs and transactional fulfillment inbox. Requires direct/session PostgreSQL connections and a trusted server role. |
-| `remesso-sdk/dev` | `startDev(options?)` starts an owned local Celo fork and receiving emulator, returning clients, settings, sample invoice, smoke test and cleanup. Requires `anvil`; public test keys stay local. |
-| `remesso-sdk/signers` | `managedSigner({ address, signTransaction, signTypedData, signMessage? })` returns a viem local account. Callbacks sign only; exact Celo transaction fields and returned signatures are validated. |
-| `remesso-sdk/tools` | `createAgentTools(client, { authorizeWrite?, enableWrites? }?)` returns tool definitions, schemas, `list()` and `call(name, input)`. Writes are denied by default; the trusted host must authorize exact inputs. |
-
-Postgres signed transaction evidence protects nonce coordination for generic
-contract writes; it does not add application idempotency to a new policy or
-schedule creation. See the [production guide](../guides/production-sdk.md) for
-working configuration and fulfillment examples. Managed signer testing covers
-the callback boundary, rather than a certified named custody provider.
+| `remesso-sdk/postgres` | `createPostgresStorage(postgresClient, { namespace?, jobLeaseMs?, heartbeatMs? })`: `initialize()`, both journals, the invoice store, the shared lock, jobs (a claim lasts five minutes by default) and a fulfilment inbox. Needs direct or session-pooled connections. |
+| `remesso-sdk/dev` | `startDev(options?)`: a local Celo fork with funded public test accounts, a stand-in for Remesso's backend, clients, a sample invoice, `smoke()` and `close()`. Needs Foundry's `anvil`. The command line is `npx remesso-sdk dev`. |
+| `remesso-sdk/signers` | `managedSigner({ address, signTransaction, signTypedData, signMessage? })`: a viem account whose callbacks only sign. The SDK checks every field of what comes back, the signer, and that each signature is low-s. |
+| `remesso-sdk/tools` | `createAgentTools(client, { authorizeWrite?, enableWrites? }?)`: tool definitions with schemas, `list()` and `call(name, input)`. Tools that pay are refused unless the host allows them. |
 
 ### `agents.pay(agentId, input)`
 
-Uses `remittances.send` after verifying the agent's registry wallet and supported payment profile. Requires `funding`; with `requestId`, amount/token come from that invoice and the key defaults to `request:<id>`. Without a request, require `amount`, `token` and `idempotencyKey`. Optional `expectedWallet` pins the approved counterparty; `policyId`/`payer` apply only to policy funding. Returns the remittance result plus `counterparty: { agentId, wallet }`.
+Pays an agent registered in ERC-8004 through `remittances.send`, after checking its wallet in the registry and its payee profile. `funding` is required. With `requestId`, the request gives the amount and token, and the key defaults to `request:<id>`; without one, pass `amount`, `token` and `idempotencyKey`. `expectedWallet` makes it refuse any other wallet. `policyId` and `payer` apply to policy funding. Returns the payment and `counterparty: { agentId, wallet }`.
 
-It refuses missing/unreadable profiles, unsupported Celo assets, missing required references, invoices addressed to another recipient and a wallet that changes during preparation. It never follows a profile URL as an alternative payment backend.
+It refuses a profile it can't read, a token not on Celo, a missing required reference, a request addressed to someone else, and a wallet that changes before it sends. It never sends a payment anywhere a profile names.
 
 ### `receipts.verify(input)`
 
-Requires `txHash`, `from` (the actual funds owner), `to`, supported `token` and exact decimal `amount` received. Optional `policyId` or `scheduleId` identifies the payment; they cannot be combined. Optional UTF-8 `memo` matches a policy payment's invoice reference. `finality` is `"included"` by default or `"finalized"`.
+Takes `txHash`, `from` (whose money moved), `to`, `token` and the exact decimal `amount` received. `policyId` or `scheduleId`, not both, says which payment; `memo` must match a policy payment's. `finality` is `"included"` by default, or `"finalized"`.
 
-Returns `Promise<PaymentProof>` with stable `eventId`, `chainId`, known `contract`, `txHash`, `logIndex`, `blockNumber`, `blockHash`, funds owner, recipient, token, base-unit amount and checked finality. Policy proofs have `kind: "policy_payment"`, `policyId`, `agent`, `memo`, `callerVerified`; run proofs have `kind: "run"`, `scheduleId`, `amountIn`, `runNumber`. It checks historical contract state, original successful receipt and canonical block identity before and after reads. Ambiguous matches and wrong terms fail. Finalized checks fail closed when the RPC lacks the finalized tag. Historical reads require a suitable RPC. Ordinary receipts do not expose internal smart-contract callers; those policy proofs report `callerVerified: false`.
+Returns a `PaymentProof`: `eventId`, `chainId`, `contract`, `txHash`, `logIndex`, `blockNumber`, `blockHash`, `from`, `to`, `token`, `amount` in base units, and the `finality` checked. A policy payment's proof has `kind: "policy_payment"`, `policyId`, `agent`, `memo` and `callerVerified`; a schedule's has `kind: "run"`, `scheduleId`, `amountIn` and `runNumber`.
 
-Persist `eventId` uniquely with fulfillment. Verification does not itself authenticate an invoice or deduplicate your business effects.
+It refuses a reverted or replaced transaction, a block no longer on the chain, a payment by another contract, the wrong token, amount, payer or recipient, and more than one match. `finalized` refuses until the block is final, and when the RPC can't say. A receipt some of forno's nodes have lost is read from its block instead. `callerVerified` is `false` when a contract called the policy, since receipts don't show internal calls.
+
+Store `eventId` uniquely when you fulfil an order: verifying proves a payment, not that you haven't already delivered for it.
 
 ## `schedules`
 
@@ -234,10 +204,12 @@ As an agent, pays through a policy a person granted. It signs, records the payme
 | `idempotencyKey` | `string` | One per payment you intend. A retry with the same key reports the first attempt and never pays twice. |
 | `allowRepeat` | `boolean` | Pay even though an identical payment went out in the last ten minutes. |
 | `waitMs` | `number` | How long to wait for the receipt before answering `"pending"`: 1 to 120,000 milliseconds. Default 45 seconds. |
+| `startBy` | `number` | Optional, Unix seconds: don't start the payment at or after this time. Ignored once the key has a saved payment. |
+| `validUntil` | `number` | Optional, Unix seconds: the payment must land before this. It isn't started within a minute of it, nor broadcast within 30 seconds of it, and if it's still unsent then, a no-op is signed at its nonce so it can never land late. A retry can't change it. |
 
-Returns `Promise<PaymentResult>`: `status` (`"confirmed"` or `"pending"`), `hash`, `policyId`, `to`, `amount` (base units), `token`, `sent` (for example `"1.5 USDT"`), `explorer` (a Celoscan link) and `repeat` (true when this key had already paid and nothing new was sent). On `"pending"`, call again with the same key.
+Returns `Promise<PaymentResult>`: `status` (`"confirmed"` or `"pending"`), `hash`, `policyId`, `to`, `amount` (base units), `token`, `sent` (for example `"1.5 USDT"`), `explorer` (a Celoscan link), `repeat` (true when this key had already paid and nothing new was sent), and `cancellation`, the no-op's hash, when the deadline passed before it went out. On `"pending"`, call again with the same key: whatever happened, the answer is about that one payment.
 
-Errors: `refused` (outside the policy, revoked or expired), `key_reused`, `repeat`, `no_account` (no local account), `no_gas`, `reverted`.
+Errors: `refused` (outside the policy, revoked or expired, or cancelled after its deadline with `details.expired`), `key_reused`, `repeat`, `no_account` (no local account), `no_gas`, `reverted`.
 
 ## `policies`
 

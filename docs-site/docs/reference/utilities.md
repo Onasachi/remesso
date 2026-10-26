@@ -62,6 +62,8 @@ memo32("invoice-42"); // 0x696e766f6963652d3432 followed by zeros: 32 bytes
 
 `memo32(memo?)` encodes a memo as the `bytes32` an agent payment records on-chain, padded on the right. It throws `invalid` over 32 bytes rather than cutting it. A plain letter is one byte, an accented letter two and an emoji four.
 
+`invoiceReference(invoiceId)` is the memo that settles a signed invoice made without a request: the first 32 hex characters of its id. `invoices.pay` sets it for you; pass it as `memo` to pay such an invoice another way.
+
 ## Pay links
 
 ```ts
@@ -106,23 +108,15 @@ Agent payments are recorded before they are broadcast, so a retry with the same 
 | `memoryStore()` | The default: records in memory, lost when the process exits. |
 | `fileStore(path?)` | From `remesso-sdk/node`. Records in a JSON file with `0600` permissions, by default `~/.remesso-sdk/payments.json`. Use one process per file. |
 | `PaymentStore` | The interface, to keep records in your own database: `byKey(key, deployment)`, `since(ms)` and `save(record)`. |
-| `memoryRemittanceStore()` | Unreleased wallet-funded progress in memory. Keys and signed steps are retained for the process lifetime. |
-| `fileRemittanceStore(path?)` | Unreleased Node helper. Durable wallet-funded progress in `~/.remesso-sdk/remittances.json`, or your path, with `0600` permissions. |
-| `RemittanceStore` | Unreleased wallet journal interface: `get(key, scope)`, `list(scope)` and `save(record)`. `list` must return all retained records for that signer scope; `save` must be durable before resolving. |
+| `memoryRemittanceStore()` | Wallet payments in memory, lost when the process exits. |
+| `fileRemittanceStore(path?)` | From `remesso-sdk/node`. Wallet payments in a JSON file with `0600` permissions, by default `~/.remesso-sdk/remittances.json`. Use one process per file. |
+| `RemittanceStore` | The interface: `get(key, scope)`, `list(scope)` and `save(record)`. `list` returns every record for the signer; `save` resolves only once the record is durable. |
 
-Payment keys are scoped to chain, contract and signing agent. Keys and unresolved
-transactions are retained; the 30-day/1,000-record retention applies only to
-completed payments without keys. Keep the store across restarts and back it up.
-An unreadable or corrupt file refuses new payments instead of losing history.
+Keys belong to one chain, contract and signing key. A key, and a transaction not yet settled, are kept for good; only settled payments without a key are dropped, after 30 days or past 1,000 of them. Keep the stores across restarts and back them up. An unreadable or corrupt file refuses new payments rather than forgetting the old ones.
 
-Clients sharing a signer in one process share a transaction queue. Multiple
-processes need external coordination for the signer and payment keys as well as
-durable storage. A consumed nonce with no retrievable receipt is a `conflict`,
-not permission to send the invoice again.
+Before signing anything, the SDK reads every journal for transactions the chain hasn't mined yet. It sends them again, lowest nonce first, or cancels at its nonce one that must no longer land, and signs the new one above them. So a lost broadcast never holds up the transactions after it, and a lagging RPC never lets a new payment replace a saved one. Keep both stores with the key.
 
-The signer nonce floor is recovered from both journals, including other keys,
-so restarting or switching funding models cannot replace a previously saved
-transaction when an RPC's pending nonce lags. Keep both stores with the signer.
+Clients that share a key in one process share one queue. Workers in several processes need the shared journals and lock of `remesso-sdk/postgres`. A nonce used with no receipt to show by what is a `conflict` to investigate, never a reason to pay again.
 
 ## Node helpers
 
@@ -131,7 +125,7 @@ From `remesso-sdk/node`:
 | Export | Description |
 |---|---|
 | `fileStore(path?)` | Agent payment records on disk, above. |
-| `fileRemittanceStore(path?)` | Unreleased wallet-remittance journal on disk, above. |
+| `fileRemittanceStore(path?)` | Wallet payment records on disk, above. |
 | `toNodeListener(handler)` | Runs a fetch-style handler, such as `webhookHandler`'s, under `http.createServer` or Express. Mount it before any JSON body parser: the signature covers the raw body. |
 | `safeFetchText(url)` | Fetches an agent's registration file only from public addresses, connecting to the address it checked. Pass it as the client's `fetchText`. |
 

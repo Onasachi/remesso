@@ -16,6 +16,8 @@ const CONTEXT: Record<string, string> = {
   payer: "__Remesso & { address: __Address }",
   receiver: "__Remesso & { address: __Address }",
   agent: "__Remesso & { address: __Address }",
+  buyer: "__Remesso & { address: __Address }",
+  seller: "__Remesso & { address: __Address }",
   person: "__Remesso & { address: __Address }",
   reader: "__Remesso",
   requestId: "string",

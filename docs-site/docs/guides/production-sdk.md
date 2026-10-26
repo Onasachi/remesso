@@ -1,32 +1,23 @@
 ---
-title: Build a production agent service
-description: Shared Postgres coordination, signed invoices, bounded quotes, recovery, local development and agent tools.
+title: Run an agent service in production
+description: "Workers that share one key, quotes, deadlines, signed invoices, recovery after a crash, local development, managed signers and agent tools."
 ---
 
-This guide covers **0.3.0-rc.1 in the current checkout**. It is unpublished;
-the npm release remains 0.2.0. Build the SDK locally while evaluating these APIs.
-Start with the [agent-to-agent guide](./agent-to-agent.md) for the two funding
-models: the agent's own wallet, or a person's or treasury's spending policy.
+The [agent-to-agent guide](./agent-to-agent.md) covers one buyer and one seller. This page covers what a service needs around them: several workers sharing a key, quotes and deadlines, signed invoices, recovery after a crash, and local development.
+
+The APIs on this page need `remesso-sdk` 0.3.0 or later.
 
 ## Try both funding models locally
 
-Install Foundry's `anvil` and Node 20 or later, then run from the repository:
+With Foundry's `anvil` installed and Node 20 or later:
 
 ```bash
-cd packages/remesso-sdk
-npm install
-npm run dev:smoke
+npx remesso-sdk dev --smoke
 ```
 
-This starts an owned Celo fork with funded public test accounts, a sample invoice
-and a signed webhook receiver, exercises both payment routes, then cleans up.
-`npm run dev` keeps it running and prints the SDK RPC/backend settings and test
-keys. All transactions go to the local fork; the upstream RPC supplies reads.
-The receiving backend is an in-memory development emulator. Production cron,
-public webhook networking and real finality timing need separate integration
-checks. Never fund these public test keys on a live network.
+This forks Celo mainnet into a local Anvil, funds public test accounts on it, starts an in-memory stand-in for Remesso's backend with a webhook receiver, pays once from a wallet and once from a policy, checks both, and cleans up. Without `--smoke` it keeps running and prints the settings and test keys to use. Every transaction goes to the local fork; Celo mainnet only supplies the state it starts from. Never fund the public test keys on a real network.
 
-For a test suite, the optional Node entry point provides the same environment:
+The stand-in backend isn't Remesso's: its timing, cron and finality are not production's. The same environment is available to a test suite:
 
 ```ts
 import { startDev } from "remesso-sdk/dev";
@@ -40,10 +31,9 @@ try {
 }
 ```
 
-## Share journals and signer coordination
+## Share journals across workers
 
-For multiple worker processes, install `postgres@3.4.5` and configure all four
-storage/coordinator options together:
+Every process that signs with the same key must use the same journals and the same lock, or two workers could each pay the same order. With PostgreSQL (`postgres@3.4.5`), one call gives all four:
 
 ```ts
 import postgres from "postgres";
@@ -56,7 +46,7 @@ const sql = postgres(process.env.DATABASE_URL!, {
   connection: { synchronous_commit: "on" },
 });
 const storage = createPostgresStorage(sql, { namespace: "my-agent-service" });
-await storage.initialize(); // Initialize once before starting workers.
+await storage.initialize(); // Once, before the workers start.
 
 const agent = createRemesso({
   account: privateKeyToAccount(process.env.AGENT_KEY as `0x${string}`),
@@ -67,27 +57,19 @@ const agent = createRemesso({
 });
 ```
 
-Every process using the same signing wallet must use the same database,
-namespace and journals. A session advisory lock covers lookup, signing,
-recording and broadcast across both funding routes. Use direct PostgreSQL or
-session pooling; transaction pooling cannot preserve this lock. The SDK checks
-the held session before writing and broadcasting and fails closed on loss.
-Coordinated writes require a sign-only local or `managedSigner` account and a
-public client configured with `chain: celo`. A wallet that broadcasts internally
-cannot provide the durable pre-broadcast transaction bytes this protocol needs.
+`createRemesso` refuses a `coordinator` without the three stores: with journals in memory, each worker would keep its own record of keys, and a retry on another worker would pay again.
 
-`initialize()` creates SDK-owned tables, enables row level security and requires
-durable database settings. Use a trusted server role owning those tables, or
-deliberately configure server policies. Keep signed bytes private and preserve
-the driver's installed connection hooks. The SDK package includes `POSTGRES.md`
-with complete storage, job and fulfillment examples.
+A session lock is held from reading the journal to broadcasting, so connect directly or through session pooling; transaction pooling can't hold it. If the connection is lost, the SDK stops before signing or sending anything more.
 
-Keys and signed bytes are retained indefinitely. Generic policy/schedule writes
-also retain nonce evidence before coordinated broadcast. This preserves nonce
-safety; it does not make a newly requested policy creation idempotent. Retain
-its original transaction details rather than creating another policy on retry.
+`initialize()` creates the SDK's own tables and turns on row-level security; signed transactions are stored in them, so keep them readable only by the server role that owns them. The package's `POSTGRES.md` has complete examples.
 
-## Review a quote and bound the send
+### When a transaction isn't sent
+
+Every transaction is saved before it is broadcast. If a broadcast fails, the SDK retries it at once, and before signing anything new it sends again any saved transaction the network still doesn't have, lowest nonce first. So one lost broadcast can't hold up every transaction after it.
+
+A saved transaction that must no longer land is cancelled instead of sent: the SDK signs a transaction that does nothing at the same nonce, and only one of the two can ever be mined. This happens to a policy payment still unsent close to its `validUntil`, and to a contract write (a schedule or a policy) whose caller was told it couldn't be broadcast.
+
+## Quote and bound a payment
 
 ```ts
 const prepared = await payer.remittances.prepare({
@@ -96,7 +78,7 @@ const prepared = await payer.remittances.prepare({
   amount: "1",
   token: "USDT",
   idempotencyKey: "order-123",
-  maxDebit: "1.01", // Token debit including protocol fees; network gas is separate.
+  maxDebit: "1.01", // The most the payer's balance may lose, fee included; gas is separate.
 }, { ttlSeconds: 60 });
 
 console.log(prepared.quote.protocolFee, prepared.quote.approval);
@@ -105,26 +87,25 @@ const sent = await payer.remittances.send(prepared.input);
 console.log(sent.status, sent.hash);
 ```
 
-`quote()` is read-only and returns `canSend`, issues, available policy funds,
-approval requirements, simulations and gas estimates. `prepare()` refuses an
-unready quote and returns send input pinned to its token, selected policy,
-maximum debit and expiry. Send that input promptly. A quote reserves no balance,
-daily budget, allowance or gas price. Wallet execution cannot be simulated until
-its schedule and approval exist; `conservative_hint` gas entries are planning
-hints rather than measured fees or upper bounds. Fee-currency conversion costs
-are not quoted. Inspect the returned notes.
+`quote()` signs nothing. It reports whether the payment can be sent now, why not if it can't, the fee, the approval needed, and simulations and gas estimates for each step. It reserves nothing: another payment can still use the balance, the daily budget or the allowance. A wallet payment's last step can't be simulated before its schedule and approval exist, so its gas is an estimate, not a measurement.
 
-`validUntil` controls when the SDK may start or resume a payment. Wallet mandates
-are capped by it on-chain. Policy transactions do not carry this deadline in the
-contract call: the SDK refuses late broadcast, but cannot invalidate bytes
-already broadcast. Preserve the same key and journal when investigating a
-pending or uncertain send. A fresh quote does not authorize a second payment.
+`prepare()` refuses a payment that can't be sent, and returns input with the token, the policy and `maxDebit` fixed, and `startBy` set to when the quote expires.
 
-## Sign an invoice and verify settlement
+## Deadlines
 
-The recipient signs an exact payer, recipient, token, amount, order ID, nonce and
-validity window. `create()` also creates an exact one-off backend request; `sign()`
-signs an existing request or a standalone invoice.
+- `startBy`: the payment must start before this time. Once it has started, a retry continues it at any time: a payment that went through is reported as paid, never as expired.
+- `validUntil`: the payment must land before this time.
+  - From a wallet, the schedule expires a second earlier, so the contract refuses a late payment.
+  - From a policy, nothing is broadcast in the last 30 seconds; a payment still unsent then is cancelled at its nonce, as above.
+  - Neither starts within minutes of the deadline. A retry can't change it.
+
+A payment cancelled or expired this way is reported as not paid only once that is certain, as a `refused` error with `details.expired` or `details.cancelled`. Then, and only then, a new key may pay again.
+
+## Sign an invoice
+
+A signed invoice is the recipient's EIP-712 signature over the exact payer, recipient, token, amount, order id, a random nonce, and when it was issued and expires. The payer can check it was signed by the recipient before paying.
+
+`create()` also creates a backend request with the same terms and signs it. `sign()` signs without one.
 
 ```ts
 const invoice = await receiver.invoices.create({
@@ -143,13 +124,13 @@ const sent = await payer.invoices.pay(invoice, {
 console.log(terms.id, sent.status, sent.hash);
 ```
 
-For policy funding, the invoice names the **policy owner's** wallet as payer;
-the agent calls `invoices.pay(invoice, { funding: "policy", policyId })`.
-Invoice IDs derive from signed terms, and the shared invoice store atomically
-pins each invoice to a signer, funding route and payment key. Keep that
-reservation after an uncertain send. Default invoice storage is process memory.
+For policy funding the invoice names the policy owner as the payer, and the agent pays with `invoices.pay(invoice, { funding: "policy", policyId })`.
 
-The seller verifies the final payment before fulfillment:
+`pay` quotes the payment before anything else, and refuses one that can't be made now. It then reserves the invoice for this payment route, signer and key, so no other route can pay it as well. Keep that reservation after a payment whose outcome is uncertain. The default reservation store is memory; workers share the Postgres one.
+
+An invoice made with `sign()` and no request is tied to its payment only by the payment's memo, which carries `invoiceReference(invoice id)`. A schedule's payment has no memo, so such an invoice is paid from a policy; to pay from a wallet, make the invoice with `create()`.
+
+### Verify the payment
 
 ```ts
 import type { SignedInvoice } from "remesso-sdk";
@@ -165,14 +146,15 @@ const evidence = await receiver.invoices.verifyPayment(invoice, {
 console.log(evidence.invoiceId, evidence.orderId, evidence.payment.eventId);
 ```
 
-Supply `policyId` instead of `scheduleId` for a policy payment. Verification
-checks exact funds ownership, recipient, token, amount, canonical receipt,
-invoice validity at inclusion and any bound backend request. It can verify an
-invoice after its expiry when the actual payment was included in time.
-Finalized verification fails closed if the RPC cannot provide finality evidence.
+Pass `policyId` instead of `scheduleId` for a policy payment. `verifyPayment` checks the payment against the invoice's exact terms, and that it is this invoice's payment:
+- with a request, the policy payment carries the request's reference, or the schedule is the one the request was answered with;
+- without one, the policy payment carries `invoiceReference`. A subscription's payment of the same amount doesn't count.
 
-Commit fulfillment and deduplication together. The Postgres inbox rejects
-conflicting event, invoice and issuer/order identities:
+It also checks that the payment landed while the invoice was valid; it can confirm an expired invoice that was paid in time. It is finalized by default and refuses while the RPC can't say whether the block is final.
+
+### Fulfil each order once
+
+Commit the fulfilment and its deduplication together. The Postgres inbox refuses a payment, an invoice or an order that was already fulfilled:
 
 ```ts
 import type { SignedInvoice } from "remesso-sdk";
@@ -196,16 +178,13 @@ await storage.inbox.processOnce({
     "update orders set paid_at = clock_timestamp() where issuer = $1 and id = $2",
     [terms.issuer.toLowerCase(), terms.orderId],
   );
-  // Insert an application outbox row for email, shipping or HTTP work here.
+  // Insert an outbox row here for emails, shipping or calls to other services.
 });
 ```
 
-Use `tx` for every business database write. An exception rolls back both the
-claim and business changes. External effects cannot roll back with PostgreSQL;
-queue them in an outbox in the same transaction. The inbox coordinates delivery;
-the preceding invoice/payment verification supplies the evidence.
+Make every business write through `tx`: if the callback throws, the claim and the writes roll back together. An email or an HTTP call can't roll back, so queue those in an outbox in the same transaction.
 
-## Observe and recover saved payments
+## Recover payments after a crash
 
 ```ts
 const operation = await agent.remittances.get("order-123", { funding: "wallet" });
@@ -217,18 +196,11 @@ const recovered = await agent.remittances.recoverPending({ limit: 25, waitMs: 5_
 console.log(pending.length, recovered.length);
 ```
 
-`get()` and `listPending()` read saved intent and current chain evidence without
-signing or changing journals. States include preparation, approval, signed,
-broadcast, included, finalized, failed, cancelled, paused, expired and
-`needs_reconciliation`. A consumed nonce without its original receipt requires
-investigation; it never becomes a new payment. An executor's matching payment
-can be discovered even if the sender crashed before saving its hash.
+`get()` and `listPending()` only read: the saved payment and what the chain says about it. `reconcile()` and `recoverPending()` continue payments that have started: they send saved transactions, and finish a wallet payment's remaining steps. They never start a payment, and never start a new one under an old key. A payment saved but never signed, for example because signing failed, is left for its own caller to retry.
 
-`reconcile()` resumes only an existing key with its original funding terms and
-deadline. `recoverPending()` makes one sequential pass, with a default limit of
-25; it does not schedule future work or run arbitrary jobs. Its signal stops
-between payments. Use your application's worker scheduler for repeated passes.
-If a key exists in both journals, specify `funding`.
+The statuses are `prepared`, `awaiting_approval`, `signed`, `broadcast`, `included`, `finalized`, `failed`, `cancelled`, `paused`, `expired` and `needs_reconciliation`. A wallet payment whose step reverted while its schedule is still live is `needs_reconciliation`, not `failed`: it could still be paid, and reconciling cancels it. A transaction whose nonce was used by something else, with no receipt to show what, also needs a person to look at its hash; the SDK never pays it again.
+
+`recoverPending()` makes one pass, over 25 payments by default; run it from your own scheduler. If a key exists in both journals, pass `funding`.
 
 ```ts
 const settled = await agent.remittances.wait("order-123", {
@@ -240,17 +212,15 @@ const settled = await agent.remittances.wait("order-123", {
 console.log(settled.proof?.eventId);
 ```
 
-`wait()` observes; it does not send. It honors abort and timeout during reads,
-and refuses failed, cancelled, paused or expired operations.
+`wait()` only watches. It throws for a payment that failed, was cancelled, paused or expired.
 
-For application jobs, `storage.jobs` supplies immutable-key enqueue, claims with
-`SKIP LOCKED`, renewable leases and fenced `ack`/`nack`. Jobs are delivered at
-least once: reuse the job's stable key as the payment key. A new claim token
-prevents a restarted worker's old acknowledgement from completing newer work.
+### Jobs
 
-## Adapt a managed signer and agent framework
+`storage.jobs` is a queue for your own work: enqueue under a key that never changes, claim with `SKIP LOCKED`, and acknowledge with the claim's token. A job is delivered at least once, so use its key as the payment's idempotency key. A claim lasts five minutes by default, longer than a payment's wait; renew it with `extend` for longer work. Payment keys belong to one signing key, so the workers that take payment jobs must all sign with the same key.
 
-Managed-signing integrations provide callbacks that **sign without broadcasting**:
+## Managed signers
+
+A key held by a custody service plugs in through callbacks that sign and never broadcast:
 
 ```ts
 import { createRemesso } from "remesso-sdk";
@@ -271,17 +241,14 @@ const account = managedSigner({
   signTransaction: (request) => provider.signTransaction(request),
   signTypedData: (request) => provider.signTypedData(request),
 });
-const agent = createRemesso({ account }); // Add the shared stores above in production.
+const agent = createRemesso({ account }); // In production, add the shared journals above.
 ```
 
-The callback contract supplies exact Celo transaction fields, serialization and
-hash. The adapter checks returned bytes, fields and recovered signer, including
-CIP-64 fee currency. Typed-data signatures are checked too. These are tested
-callback adapters; no named custody provider integration is certified here.
-The SDK retains simulation, journaling, nonce coordination and broadcast.
+The SDK passes the exact transaction, its Celo encoding and its hash, including a fee currency. It refuses anything back that differs: other fields, another signer, or a high-s signature, which Celo nodes reject. The SDK keeps simulation, journaling, nonces and broadcasting. No custody provider has been tested with it yet.
 
-Framework tools expose JSON schemas and structured results without wallet
-objects. Writes are denied by default:
+## Agent tools
+
+`remesso-sdk/tools` gives an agent framework tools with JSON schemas and structured results. They return no wallet objects or signed bytes, and a URL in an error keeps only its host. Tools that pay are off by default:
 
 ```ts
 import { createAgentTools } from "remesso-sdk/tools";
@@ -294,24 +261,12 @@ const result = await tools.call("remesso_quote", {
 console.log(result);
 ```
 
-Authorize writes from the host's trusted order ledger, with exact approved
-terms. Model text and tool descriptions do not grant spending authority. The
-`authorizeWrite({ name, input })` callback permits specific operations;
-`enableWrites: true` is reserved for hosts already enforcing that authorization.
-Success reports possible write effects. An uncertain write error reports unknown
-effects: inspect/reconcile its original key rather than constructing a new one.
-Big integers become decimal strings, dates become ISO strings and sensitive
-wallet/signed-byte fields are removed from tool results.
+Allow a payment from your own records of what was ordered and approved, with `authorizeWrite({ name, input })`; text from a model or a tool description is never permission to spend. `enableWrites: true` is for hosts that already check this themselves. When a payment's outcome is uncertain, the tool says so: reconcile its key rather than making a new one.
 
-The repository's MCP stdio server uses these SDK tools and journals. Build it
-before starting it; the generic write tools remain disabled unless the host
-explicitly sets `REMESSO_ENABLE_AGENT_TOOLS_WRITES=1`:
+The repository's MCP server uses these tools and the same journals. Its tools that pay stay off unless the host sets `REMESSO_ENABLE_AGENT_TOOLS_WRITES=1`:
 
 ```bash
 npm --prefix mcp install
 npm --prefix mcp run build
 npm --prefix mcp start
 ```
-
-Keep the MCP server's wallet and storage configuration on the trusted host. The
-existing policy wallet tools still enforce their contract spending envelope.
