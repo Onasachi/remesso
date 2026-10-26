@@ -4,9 +4,10 @@
 ///
 ///   anvil --fork-url https://forno.celo.org --port 8546    # the fork
 ///   anvil --chain-id 1337 --port 8547                      # some other chain
+///   npm --prefix mcp run build
 ///   deno run --allow-all scripts/fork-wallet-pay.ts
 ///
-/// It drives the real server (`mcp/src/server.mjs`) over stdio, as an agent's
+/// It drives the real server (`mcp/dist/server.mjs`) over stdio, as an agent's
 /// host does, with a fresh agent key in a temporary home. On the fork it
 /// impersonates V5 schedule #1's sender, who still holds 0.287 USA₮, to give
 /// that agent a policy. Nothing here touches mainnet: the RPCs are checked to
@@ -20,9 +21,9 @@ import {
   keccak256,
   parseAbi,
   toHex,
-} from "npm:viem@2";
-import { generatePrivateKey, privateKeyToAccount } from "npm:viem@2/accounts";
-import { celo } from "npm:viem@2/chains";
+} from "npm:viem@2.57.7";
+import { generatePrivateKey, privateKeyToAccount } from "npm:viem@2.57.7/accounts";
+import { celo } from "npm:viem@2.57.7/chains";
 
 const FORK = "http://127.0.0.1:8546";
 const OTHER = "http://127.0.0.1:8547";
@@ -59,7 +60,9 @@ const chain = createPublicClient({ chain: celo, transport: http(FORK) });
 const balance = () => chain.readContract({ address: USAT, abi, functionName: "balanceOf", args: [DEST] });
 
 let failures = 0;
+let checks = 0;
 const check = (ok: boolean, what: string) => {
+  checks++;
   console.log(`${ok ? "  ok  " : "  FAIL"} ${what}`);
   if (!ok) failures++;
 };
@@ -101,10 +104,12 @@ const policyId = (await chain.readContract({ address: ALLOWANCE, abi, functionNa
 console.log(`fork: agent ${agent.address}, policy #${policyId}: 0.05 USA₮ a payment, 0.2 a day`);
 
 // --- the server, as an agent's host runs it ------------------------------
-function server(rpcUrl: string, dir: string) {
+const running: { stop(): void }[] = [];
+const homes = [home];
+function server(rpcUrl: string, dir: string, extraEnv: Record<string, string> = {}) {
   const p = new Deno.Command("node", {
-    args: ["mcp/src/server.mjs"],
-    env: { REMESSO_RPC_URL: rpcUrl, REMESSO_AGENT_HOME: dir },
+    args: ["mcp/dist/server.mjs"],
+    env: { REMESSO_RPC_URL: rpcUrl, REMESSO_AGENT_HOME: dir, REMESSO_FUNCTIONS_URL: "http://127.0.0.1:1", ...extraEnv },
     stdin: "piped",
     stdout: "piped",
     stderr: "null",
@@ -133,10 +138,13 @@ function server(rpcUrl: string, dir: string) {
       waiting.set(++id, resolve as (v: unknown) => void);
       send({ jsonrpc: "2.0", id, method, params });
     });
-  return {
+  const connection = {
     async init() {
       await call("initialize", { protocolVersion: "2025-06-18", capabilities: {}, clientInfo: { name: "fork-test", version: "1" } });
       await send({ jsonrpc: "2.0", method: "notifications/initialized" });
+    },
+    async list() {
+      return await call("tools/list", {});
     },
     async tool(name: string, args: Record<string, unknown> = {}) {
       const r = await call("tools/call", { name, arguments: args });
@@ -148,11 +156,18 @@ function server(rpcUrl: string, dir: string) {
       } catch { /* gone */ }
     },
   };
+  running.push(connection);
+  return connection;
 }
 
-const s = server(FORK, home);
+try {
+let s = server(FORK, home);
 await s.init();
-const payments = async () => JSON.parse(await Deno.readTextFile(`${home}/payments.json`)).payments as Record<string, unknown>[];
+const payments = async () => JSON.parse(await Deno.readTextFile(`${home}/sdk-payments.json`)).payments as Record<string, unknown>[];
+const legacy = async () => {
+  try { return JSON.parse(await Deno.readTextFile(`${home}/payments.json`)).payments as Record<string, unknown>[]; }
+  catch (error) { if (error instanceof Deno.errors.NotFound) return []; throw error; }
+};
 
 // --- 1. the old state file moves under its deployment ----------------------
 console.log("\n1. state keyed by chain and contract");
@@ -202,7 +217,7 @@ async function handSigned(amount: bigint, nonce: number) {
 }
 async function plantRecord(key: string, amount: bigint, nonce: number) {
   const { raw, hash } = await handSigned(amount, nonce);
-  const list = await payments();
+  const list = await legacy();
   list.push({
     key, deployment: `42220:${ALLOWANCE.toLowerCase()}`, policyId: Number(policyId), to: DEST, units: amount.toString(),
     token: "USAT", memo: `0x${"0".repeat(64)}`, hash, nonce, raw, status: "sent", at: new Date().toISOString(),
@@ -215,27 +230,71 @@ const pendingNonce = async () => chain.getTransactionCount({ address: agent.addr
 // --- 9. signed and recorded, never sent ------------------------------------
 console.log("\n9. a payment recorded but never broadcast (the process died)");
 before = await balance();
-await plantRecord("invoice-3", 12_000n, await pendingNonce());
+const recoveredHash = await plantRecord("invoice-3", 12_000n, await pendingNonce());
+const legacyBefore = await Deno.readTextFile(`${home}/payments.json`);
 const resumed = await s.tool("pay", { to: DEST, amount: "0.012", token: "USAT", idempotency_key: "invoice-3" });
-check(!resumed.error && /never reached the network/.test(resumed.text) && (await balance()) - before === 12_000n, "the retry sends the recorded bytes: paid once");
+check(!resumed.error && resumed.text.includes(recoveredHash) && (await balance()) - before === 12_000n, "the legacy key broadcasts its original signed bytes: paid once");
+check(await Deno.readTextFile(`${home}/payments.json`) === legacyBefore, "the legacy journal remains byte-for-byte intact");
+const adopted = (await payments()).find((r) => r.key === "invoice-3");
+check(adopted?.hash === recoveredHash && adopted?.token === USAT && adopted?.deployment === `42220:${ALLOWANCE.toLowerCase()}:${agent.address.toLowerCase()}`, "the SDK journal adopts legacy token symbols and signer scope after policy proof");
+s.stop();
+s = server(FORK, home);
+await s.init();
+const restarted = await s.tool("pay", { to: DEST, amount: "0.012", token: "USAT", idempotency_key: "invoice-3" });
+check(!restarted.error && /already paid/.test(restarted.text) && (await balance()) - before === 12_000n, "a process restart keeps the migrated payment key and does not pay again");
 
-// --- 10. never sent, and its nonce went to another payment --------------------
-console.log("\n10. a recorded payment whose nonce another payment took");
+// --- 10. a legacy nonce consumed outside the SDK ----------------------------
+console.log("\n10. an unavailable legacy payment whose nonce was consumed");
 before = await balance();
-await plantRecord("invoice-4", 13_000n, await pendingNonce());
+const consumedNonce = await pendingNonce();
+const uncertainHash = await plantRecord("invoice-4", 13_000n, consumedNonce);
+const replacement = await agent.signTransaction({ chainId: 42220, to: agent.address, nonce: consumedNonce, gas: 21_000n, gasPrice: await chain.getGasPrice(), value: 0n });
+await chain.sendRawTransaction({ serializedTransaction: replacement });
+const uncertain = await s.tool("pay", { to: DEST, amount: "0.013", token: "USAT", idempotency_key: "invoice-4" });
+check(uncertain.error && /nonce was consumed/.test(uncertain.text) && (await balance()) === before, "consumed legacy nonce fails closed; no fresh payment is signed under its key");
+check((await legacy()).find((r) => r.key === "invoice-4")?.hash === uncertainHash, "the original uncertain transaction hash is retained");
 const other = await s.tool("pay", { to: DEST, amount: "0.014", token: "USAT", idempotency_key: "invoice-5" });
-check(!other.error && (await balance()) - before === 14_000n, "another payment takes that nonce");
-const fresh = await s.tool("pay", { to: DEST, amount: "0.013", token: "USAT", idempotency_key: "invoice-4" });
-check(!fresh.error && (await balance()) - before === 27_000n, "the first can never land, so the retry pays it once, fresh");
+check(!other.error && (await balance()) - before === 14_000n, "another intended payment uses the next nonce without replacing saved bytes");
+
+console.log("\n11. SDK tool schemas, authorization and shared journal");
+const listing = await s.list() as unknown as { result: { tools: { name: string; annotations?: { readOnlyHint?: boolean }; outputSchema?: { type?: string } }[] } };
+const definitions = listing.result.tools;
+check(definitions.some((t) => t.name === "remesso_send" && t.outputSchema?.type === "object" && t.annotations?.readOnlyHint === false), "tools/list exposes structured schemas and write annotations");
+const denied = await s.tool("remesso_send", { funding: "policy", to: DEST, amount: "0.001", token: "USAT", idempotencyKey: "host-denied" });
+check(denied.error && /not authorized/.test(denied.text), "generic SDK write tools require explicit host opt-in");
+s.stop();
+s = server(FORK, home, { REMESSO_ENABLE_AGENT_TOOLS_WRITES: "1" });
+await s.init();
+before = await balance();
+const genericInput = { funding: "policy", to: DEST, amount: "0.001", token: "USAT", idempotencyKey: "generic-sdk-key", policyId: String(policyId) };
+const generic = await s.tool("remesso_send", genericInput);
+check(!generic.error && (await balance()) - before === 1000n, "an authorized generic SDK policy payment reaches its recipient");
+const genericAgain = await s.tool("remesso_send", genericInput);
+check(!genericAgain.error && (await balance()) - before === 1000n, "generic SDK replay uses the same durable journal and pays once");
+const legacyRetry = await s.tool("pay", { to: DEST, amount: "0.001", token: "USAT", idempotency_key: "generic-sdk-key" });
+check(!legacyRetry.error && /already paid/.test(legacyRetry.text) && (await balance()) - before === 1000n, "the established MCP pay tool sees the generic SDK tool's key");
+
+const corruptBefore = await Deno.readTextFile(`${home}/payments.json`);
+await Deno.writeTextFile(`${home}/payments.json`, "{interrupted");
+const corrupt = await s.tool("pay", { to: DEST, amount: "0.001", token: "USAT", idempotency_key: "corrupt-history" });
+check(corrupt.error && /history cannot be read/.test(corrupt.text) && (await balance()) - before === 1000n, "corrupt legacy history blocks fresh spending instead of forgetting keys");
+await Deno.writeTextFile(`${home}/payments.json`, corruptBefore);
 s.stop();
 
 // --- 11. the wrong chain ----------------------------------------------------
-console.log("\n11. a wallet pointed at another chain");
-const elsewhere = server(OTHER, await Deno.makeTempDir({ prefix: "remesso-agent-" }));
+console.log("\n12. a wallet pointed at another chain");
+const elsewhereHome = await Deno.makeTempDir({ prefix: "remesso-agent-" });
+homes.push(elsewhereHome);
+const elsewhere = server(OTHER, elsewhereHome);
 await elsewhere.init();
 const refused = await elsewhere.tool("pay", { to: DEST, amount: "0.01", token: "USAT", idempotency_key: "x" });
 check(refused.error && /not Celo mainnet/.test(refused.text), "it refuses to sign");
 elsewhere.stop();
 
-console.log(failures ? `\n${failures} check(s) failed` : "\nall checks passed");
+console.log(failures ? `\n${failures}/${checks} check(s) failed` : `\n${checks}/${checks} checks passed`);
+} finally {
+  for (const instance of running) instance.stop();
+  await fork("evm_setAutomine", [true]).catch(() => {});
+  for (const path of homes) await Deno.remove(path, { recursive: true }).catch(() => {});
+}
 Deno.exit(failures ? 1 : 0);

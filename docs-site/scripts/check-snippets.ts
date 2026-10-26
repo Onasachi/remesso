@@ -79,6 +79,11 @@ await Deno.writeTextFile(`${tmp}/deno.json`, JSON.stringify({
   imports: {
     "remesso-sdk": `${ROOT}/packages/remesso-sdk/src/index.ts`,
     "remesso-sdk/node": `${ROOT}/packages/remesso-sdk/src/node.ts`,
+    "remesso-sdk/postgres": `${ROOT}/packages/remesso-sdk/src/postgres.ts`,
+    "remesso-sdk/dev": `${ROOT}/packages/remesso-sdk/src/dev.ts`,
+    "remesso-sdk/tools": `${ROOT}/packages/remesso-sdk/src/tools.ts`,
+    "remesso-sdk/signers": `${ROOT}/packages/remesso-sdk/src/signers.ts`,
+    "postgres": "npm:postgres@3.4.5",
     "viem": "npm:viem@2.57.7",
     "viem/": "npm:/viem@2.57.7/",
     "@celo/attribution-tags": "npm:@celo/attribution-tags@0.5.0",

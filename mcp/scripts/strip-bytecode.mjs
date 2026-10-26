@@ -4,8 +4,9 @@
 // Why: the Claude plugin directory's security scan treats bytecode as code it
 // cannot read and holds the plugin. The constants are only used to verify
 // smart-contract-wallet signatures (verifyHash, ERC-6492, ERC-8010) and to run
-// deploy-less calls or a multicall with no deployed address. This server does
-// none of those: it signs, it never verifies, and Celo has a deployed multicall3.
+// deploy-less calls or a multicall with no deployed address. The SDK verifies EOA signatures locally and deployed ERC-1271 wallets by
+// calling isValidSignature directly; it does not use these deploy-less paths.
+// Celo has a deployed multicall3.
 // If one of those paths were ever reached, the call would carry "0x" as code
 // and fail at the RPC rather than run anything.
 //
@@ -22,5 +23,5 @@ const out = src.replace(/"0x(?:[0-9a-fA-F]{2}){200,}"/g, () => {
   return '"0x" /* EVM bytecode removed by scripts/strip-bytecode.mjs */';
 });
 
-writeFileSync(file, out);
+writeFileSync(file, out.replace(/[ \t]+$/gm, ""));
 console.error(`strip-bytecode: ${n} bytecode constant(s) removed from ${file}`);

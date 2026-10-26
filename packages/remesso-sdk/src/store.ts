@@ -15,8 +15,12 @@ import type { Address, Hex } from "viem";
 export type PaymentRecord = {
   /// The caller's idempotency key; null when none was given.
   key: string | null;
-  /// `chainId:contract`, so a record never answers for another deployment.
+  /// `chainId:contract:agent`, so another agent never inherits this payment's key.
   deployment: string;
+  /// Whose policy funded it. Optional only for records written by older SDKs.
+  owner?: Address;
+  /** Optional application deadline for initiating/rebroadcasting this signed intent. */
+  validUntil?: number;
   policyId: string;
   to: Address;
   units: string;
@@ -41,7 +45,9 @@ export interface PaymentStore {
   save(rec: PaymentRecord): Promise<void>;
 }
 
-/// How long records are kept, and how many.
+/// Retention applies only to completed payments without an idempotency key.
+/// Keys and unresolved signed transactions must survive every later save:
+/// forgetting either would let a retry become another payment.
 export const KEEP_MS = 30 * 86_400_000;
 export const KEEP_COUNT = 1000;
 
@@ -49,9 +55,12 @@ export const KEEP_COUNT = 1000;
 export function upsert(list: PaymentRecord[], rec: PaymentRecord, now = Date.now()): PaymentRecord[] {
   const cutoff = now - KEEP_MS;
   const rest = list.filter((p) =>
-    p.hash !== rec.hash && !(rec.key && p.key === rec.key && p.deployment === rec.deployment) && Date.parse(p.at) > cutoff
+    p.hash !== rec.hash && !(rec.key && p.key === rec.key && p.deployment === rec.deployment)
   );
-  return [...rest, rec].slice(-KEEP_COUNT);
+  const all = [...rest, rec];
+  const protectedRecord = (p: PaymentRecord) => p.key != null || !["confirmed", "reverted"].includes(p.status);
+  const recent = new Set(all.filter((p) => !protectedRecord(p) && Date.parse(p.at) > cutoff).slice(-KEEP_COUNT));
+  return all.filter((p) => protectedRecord(p) || recent.has(p));
 }
 
 export function memoryStore(): PaymentStore {

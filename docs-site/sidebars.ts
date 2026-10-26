@@ -15,6 +15,8 @@ const sidebars: SidebarsConfig = {
       label: "Guides",
       collapsed: false,
       items: [
+        "guides/agent-to-agent",
+        "guides/production-sdk",
         "guides/schedules",
         "guides/agent-payments",
         "guides/payment-requests",

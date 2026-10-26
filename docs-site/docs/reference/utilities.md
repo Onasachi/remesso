@@ -91,7 +91,7 @@ The client's own `payLink` method defaults `to` to the client's address.
 
 | Export | Signature | Description |
 |---|---|---|
-| `webhookHandler` | `(options: WebhookHandlerOptions) => (req: Request) => Promise<Response>` | A fetch-style handler: answers the subscription challenge for your address, verifies every delivery and calls `onPayment` once per message. |
+| `webhookHandler` | `(options: WebhookHandlerOptions) => (req: Request) => Promise<Response>` | A fetch-style handler: answers the subscription challenge for your address, verifies the signature, payment shape and recipient, and calls `onPayment` per delivery attempt. Deduplicate `message.id` with your business action. |
 | `verifyWebhook` | `(raw, headers, secrets) => Promise<boolean>` | Whether a raw body was signed with one of your secrets in the last five minutes. |
 | `parseWebhook` | `(raw, headers, secrets) => Promise<WebhookMessage>` | A verified delivery, parsed. Throws for a bad signature or a body that isn't a Remesso payment message. |
 
@@ -106,6 +106,23 @@ Agent payments are recorded before they are broadcast, so a retry with the same 
 | `memoryStore()` | The default: records in memory, lost when the process exits. |
 | `fileStore(path?)` | From `remesso-sdk/node`. Records in a JSON file with `0600` permissions, by default `~/.remesso-sdk/payments.json`. Use one process per file. |
 | `PaymentStore` | The interface, to keep records in your own database: `byKey(key, deployment)`, `since(ms)` and `save(record)`. |
+| `memoryRemittanceStore()` | Unreleased wallet-funded progress in memory. Keys and signed steps are retained for the process lifetime. |
+| `fileRemittanceStore(path?)` | Unreleased Node helper. Durable wallet-funded progress in `~/.remesso-sdk/remittances.json`, or your path, with `0600` permissions. |
+| `RemittanceStore` | Unreleased wallet journal interface: `get(key, scope)`, `list(scope)` and `save(record)`. `list` must return all retained records for that signer scope; `save` must be durable before resolving. |
+
+Payment keys are scoped to chain, contract and signing agent. Keys and unresolved
+transactions are retained; the 30-day/1,000-record retention applies only to
+completed payments without keys. Keep the store across restarts and back it up.
+An unreadable or corrupt file refuses new payments instead of losing history.
+
+Clients sharing a signer in one process share a transaction queue. Multiple
+processes need external coordination for the signer and payment keys as well as
+durable storage. A consumed nonce with no retrievable receipt is a `conflict`,
+not permission to send the invoice again.
+
+The signer nonce floor is recovered from both journals, including other keys,
+so restarting or switching funding models cannot replace a previously saved
+transaction when an RPC's pending nonce lags. Keep both stores with the signer.
 
 ## Node helpers
 
@@ -114,6 +131,7 @@ From `remesso-sdk/node`:
 | Export | Description |
 |---|---|
 | `fileStore(path?)` | Agent payment records on disk, above. |
+| `fileRemittanceStore(path?)` | Unreleased wallet-remittance journal on disk, above. |
 | `toNodeListener(handler)` | Runs a fetch-style handler, such as `webhookHandler`'s, under `http.createServer` or Express. Mount it before any JSON body parser: the signature covers the raw body. |
 | `safeFetchText(url)` | Fetches an agent's registration file only from public addresses, connecting to the address it checked. Pass it as the client's `fetchText`. |
 

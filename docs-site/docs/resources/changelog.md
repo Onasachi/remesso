@@ -5,6 +5,23 @@ description: What changed in each release of remesso-sdk.
 
 Releases of [`remesso-sdk`](https://www.npmjs.com/package/remesso-sdk) on npm.
 
+## 0.3.0-rc.1 — unpublished source
+
+This checkout is a release candidate. These APIs are not available in the
+published 0.2.0 package yet. See [production agent services](../guides/production-sdk.md).
+
+- Agent-to-agent `remittances.send` with explicit self-funded wallet or delegated policy funding, exact one-off invoice terms and durable retry journals.
+- `agents.pay` binds payment to a fresh ERC-8004 registry wallet and its published asset/reference requirements.
+- Account-free `receipts.verify` checks expected payment terms, immutable contract state, canonical inclusion and optional chain finality.
+- `fileRemittanceStore` persists wallet approval/creation/execution progress; `examples/agent-to-agent.ts` demonstrates request, preview/send and independent verification.
+- Safety fixes for scoped idempotency, corrupt stores, nonce coordination, original receipt/event evidence, policy selection/pagination and webhook validation.
+- Optional Postgres journals, signer session locks, durable nonce evidence, invoice reservations, fenced worker jobs and transactional fulfillment deduplication.
+- Payment lifecycle reads, reconciliation, finality waits and one-pass recovery of existing pending keys. External executor payments are verified independently after sender restarts.
+- EIP-712 invoices binding payer, recipient, token, amount, order and expiry, with exact backend requests and final payment verification.
+- Read-only quote/simulation details and prepared sends bounded by debit and intent expiry. Gas estimates distinguish RPC estimates from conservative planning hints.
+- `remesso-sdk dev` and repository `npm run dev:smoke`: an owned Celo fork, funded test agents, sample requests and an in-memory signed-webhook receiving emulator.
+- Managed signer callback validation for Celo transaction encoding and typed data, plus framework-neutral agent tools with schemas, structured results and writes denied by default. The existing MCP server delegates SDK operations to the same payment logic.
+
 ## 0.2.0
 
 Released 25 October 2026.

@@ -5,7 +5,7 @@
 /// is the only edit. Extracted from `examples/create-schedule.ts`.
 import { type Address, type Hex, type Log, parseEventLogs, zeroAddress } from "viem";
 import { erc20Abi, executorAbi } from "./abi.js";
-import { type Ctx, untilVisible, write } from "./context.js";
+import { type Ctx, refusal, untilVisible, write } from "./context.js";
 import {
   checksum,
   CURRENT_EXECUTOR,
@@ -175,6 +175,7 @@ export function makeSchedules(ctx: Ctx, deps: Deps) {
 
     if (!to) throw new RemessoError("invalid", "to is required: who gets paid");
     const dest = checksum(to);
+    if (BigInt(dest) < 0x10000n || dest.toLowerCase() === EXECUTOR.toLowerCase()) throw new RemessoError("invalid", "to isn't a valid schedule destination");
     if (dest.toLowerCase() === me) throw new RemessoError("invalid", "to is this wallet: a schedule paying itself only loses the fee");
     const t = tokenOf(tokenIn ?? "USDT");
     const interval = intervalOf(every ?? "week");
@@ -206,6 +207,7 @@ export function makeSchedules(ctx: Ctx, deps: Deps) {
 
     const now = Math.floor(Date.now() / 1000);
     const first = input.firstRunAt ? Math.floor(input.firstRunAt.getTime() / 1000) : now;
+    if (!Number.isSafeInteger(first)) throw new RemessoError("invalid", "firstRunAt must be a valid date");
     if (first < now - 60) throw new RemessoError("invalid", "firstRunAt is in the past");
     // An interval and an hour past the first payment's slot, as the example
     // and the app do, so a run sent late still lands inside the schedule's
@@ -218,15 +220,26 @@ export function makeSchedules(ctx: Ctx, deps: Deps) {
     let trigger: Address = zeroAddress;
     if (input.trigger === "remesso") trigger = CURRENT_EXECUTOR;
     else if (input.trigger) trigger = checksum(input.trigger);
+    if (input.triggers != null && (!Number.isInteger(input.triggers) || input.triggers < 0 || input.triggers > 65_535)) {
+      throw new RemessoError("invalid", "triggers must be a whole number from 0 to 65535");
+    }
     const triggersLeft = trigger === zeroAddress ? 0 : Math.min(input.triggers ?? runs, 65_535);
 
     const total = amountIn * BigInt(runs);
     if (balance < amountIn) warnings.push(`the balance (${formatAmount(balance, t)}) is below one payment: payments fail until it's funded`);
+    const args = [dest, amountIn, BigInt(interval), 0n, runs, BigInt(expiresAt), BigInt(input.firstRunAt ? first : 0), DIRECT, t.address, zeroAddress, trigger, triggersLeft] as const;
+    // Creating a mandate doesn't spend tokens or need approval. Check its
+    // complete contract rules before increasing the owner's allowance.
+    try {
+      await ctx.pub.simulateContract({ address: EXECUTOR, abi: executorAbi, functionName: "createSchedule", args, account });
+    } catch (e) {
+      throw new RemessoError("refused", `the contract would refuse createSchedule: ${refusal(e)}`);
+    }
 
     // The allowance is the real ceiling on what can ever be taken. Approve
     // this schedule's total ON TOP of what is approved already: `approve`
     // replaces rather than adds, and another schedule may rely on it.
-    let nonce = await ctx.pub.getTransactionCount({ address: account.address, blockTag: "pending" });
+    let nonce = await ctx.nextNonce();
     let approveHash: Hex | null = null;
     if (input.approve !== false) {
       ({ hash: approveHash } = await write(ctx, {
@@ -239,7 +252,7 @@ export function makeSchedules(ctx: Ctx, deps: Deps) {
       address: EXECUTOR,
       abi: executorAbi,
       functionName: "createSchedule",
-      args: [dest, amountIn, BigInt(interval), 0n, runs, BigInt(expiresAt), BigInt(input.firstRunAt ? first : 0), DIRECT, t.address, zeroAddress, trigger, triggersLeft],
+      args,
       gasToken: t,
       nonce,
     });
@@ -275,7 +288,7 @@ export function makeSchedules(ctx: Ctx, deps: Deps) {
   }
 
   return {
-    create,
+    create: (input: CreateScheduleInput) => ctx.serial(() => create(input)),
     get,
     /// Whether a payment is due now, and whether it can go: funded and approved.
     async status(id: bigint | number | string) {
@@ -289,23 +302,23 @@ export function makeSchedules(ctx: Ctx, deps: Deps) {
     },
     /// Stops it for good. The approval stays: lower it if nothing else needs it.
     async cancel(id: bigint | number | string): Promise<Hex> {
-      return (await write(ctx, {
+      return await ctx.serial(async () => (await write(ctx, {
         address: EXECUTOR, abi: executorAbi, functionName: "cancelSchedule", args: [BigInt(id)], gasToken: await gasTokenOf(id),
-      })).hash;
+      })).hash);
     },
     /// Pauses (false) or resumes (true) the payments.
     async setActive(id: bigint | number | string, active: boolean): Promise<Hex> {
-      return (await write(ctx, {
+      return await ctx.serial(async () => (await write(ctx, {
         address: EXECUTOR, abi: executorAbi, functionName: "setScheduleActive", args: [BigInt(id), active], gasToken: await gasTokenOf(id),
-      })).hash;
+      })).hash);
     },
     /// Changes who may bring a payment forward; `null` revokes.
     async setTrigger(id: bigint | number | string, trigger: "remesso" | string | null, triggers = 0): Promise<Hex> {
       const who = trigger === "remesso" ? CURRENT_EXECUTOR : trigger ? checksum(trigger) : zeroAddress;
-      return (await write(ctx, {
+      return await ctx.serial(async () => (await write(ctx, {
         address: EXECUTOR, abi: executorAbi, functionName: "setTrigger", args: [BigInt(id), who, who === zeroAddress ? 0 : triggers],
         gasToken: await gasTokenOf(id),
-      })).hash;
+      })).hash);
     },
   };
 }

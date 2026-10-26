@@ -94,9 +94,21 @@ deno run --allow-read --allow-write scripts/build-sdk.ts --check
 deno test --config packages/remesso-sdk/deno.json --unstable-sloppy-imports --allow-read --allow-write \
   --allow-env --allow-net=127.0.0.1 packages/remesso-sdk/test/
 (cd packages/remesso-sdk && npx tsc -p tsconfig.json --noEmit)
+# Real Postgres isolation/worker/session-loss checks; SDK-owned test namespaces only:
+REMESSO_POSTGRES_TEST=1 deno test --config packages/remesso-sdk/deno.json --unstable-sloppy-imports \
+  --allow-read --allow-env --allow-run --allow-net=127.0.0.1 packages/remesso-sdk/test/postgres.test.ts
+# Own local fork/emulator with funded public test agents; requires Anvil on PATH:
+npm --prefix packages/remesso-sdk run dev:smoke
+# Separate SDK worker processes sharing Postgres + an owned fork (ports 18546/18547):
+deno run --allow-all --config packages/remesso-sdk/deno.json --unstable-sloppy-imports scripts/sdk-production-e2e.ts
 deno test --allow-env supabase/functions/_shared/config.test.ts   # the limits /agent publishes are the executor's
 # its money paths on a mainnet fork (both anvils, as for fork-wallet-pay.ts):
 deno run --allow-all --config packages/remesso-sdk/deno.json --unstable-sloppy-imports scripts/fork-sdk.ts
+# SDK + actual request/event handlers + webhook worker, against an idle local
+# Supabase and the same fork. Fresh rows only; restores existing cursors.
+deno run --allow-all --config packages/remesso-sdk/deno.json --unstable-sloppy-imports scripts/fork-sdk-agent-to-agent.ts
+# buyer/seller developer example; `pay` previews, --send signs on mainnet (ask first)
+deno check --config examples/sdk.deno.json --unstable-sloppy-imports examples/agent-to-agent.ts
 # the whole loop on mainnet with the test wallet: a dry run unless --send (ask first)
 deno run --allow-all --config packages/remesso-sdk/deno.json --unstable-sloppy-imports scripts/e2e-sdk.ts
 # Publishing remesso-sdk to npm is done by hand: cd packages/remesso-sdk && npm publish
@@ -1026,6 +1038,122 @@ reconcile.
 - `fileStore` in `remesso-sdk/node` holds across restarts.
 - `scripts/fork-sdk.ts` covers a broadcast lost on the way: it goes out later
   with its own bytes, paid once.
+
+**SDK safety audit (2026-10-26, source changes not yet published):**
+- Keys are scoped to chain, allowance contract and signing agent. Legacy
+  records migrate only after reading their policy's immutable agent.
+- A retry must keep its token, policy, payer and payment terms. Keys and
+  unresolved signed transactions are not evicted by retention.
+- `fileStore` refuses unreadable/corrupt files and flushes signed records
+  before broadcasting. One process per file; multiple processes need external
+  signer/key coordination. The default memory store does not survive restarts.
+- Confirmation needs the original hash's matching `Paid` event. Retries
+  recheck receipts for reorgs. A consumed nonce with an unavailable receipt
+  refuses another signature instead of guessing the payment was dropped.
+- All writes share a signer queue and nonce floor within the process. Both
+  public and wallet RPCs are checked before writes; custom public clients
+  used for agent signing must be configured with `chain: celo`.
+  A replaced transaction cannot be reported as a completed cancellation,
+  revocation or other contract write.
+- Policy discovery reads every page, falling back to a full chain scan if
+  any page fails. Requests select a funded policy from the requested payer.
+- Webhook deliveries are shape checked and bound to configured recipients;
+  consumer business effects must still deduplicate delivery IDs.
+- `requests.waitUntilPaid(id, { final: true })` waits for a finalized payment.
+- SDK regression tests: 36 passed, including durable retries, replacement
+  receipts, legacy records, pagination, payer selection and webhook validation.
+- `scripts/fork-sdk-agent-to-agent.ts` passed 33 checks with actual backend
+  handlers, indexer and webhook worker: policy payment, process restart,
+  net-fee scheduled payment, retry/rotation/revocation and request decline.
+  It blocks nonlocal fetches and restores existing local database state.
+
+**Agent-to-agent developer platform (2026-10-26, unreleased source):**
+- `remittances.send` requires explicit `funding: "wallet" | "policy"`, an
+  idempotency key and exact recipient amount/token. Its optional one-off
+  invoice must match every term; recurring/open invoices use other flows.
+- Wallet mode uses existing V5: one immutable Direct schedule capped at one
+  run, then sender `runNow`. It creates before approval, checks pinned terms,
+  and persists each signed step before broadcasting. The due time is an hour
+  ahead; early execution is immediate. A retry keeps the same schedule.
+- Fee mismatches trigger durable same-schedule cancellation. A pending
+  cancellation is explicitly uncertain: V5 does not atomically take an
+  expected fee, and an existing approval can still fund the mandate.
+- `remittanceStore` / Node `fileRemittanceStore` hold wallet progress; policy
+  mode still uses `store` / `fileStore`. One coordinator per signer and file.
+- `agents.pay` resolves ERC-8004 wallets, checks the published Celo asset and
+  required invoice reference, pins `expectedWallet` when supplied and rechecks
+  the registry before sending. Profile JSON never supplies the wallet.
+- `receipts.verify` works without an account: original successful receipt,
+  canonical block, exact event terms, historical policy/schedule state and
+  optional finalized tag. Its stable `eventId` belongs in the application's
+  unique fulfillment transaction. It does not authenticate invoices or create
+  exactly-once business effects for the developer.
+- `examples/agent-to-agent.ts` demonstrates seller request, buyer preview/pay
+  (explicit `--send`) and independent verification. The guide is
+  `docs-site/docs/guides/agent-to-agent.md`; all TS snippets type-check.
+- The expanded SDK suite has 80 passing tests, including both funding paths,
+  profile requirements, exact invoices, on-chain proof, cancellation and
+  cross-key/cross-funding nonce recovery from both durable journals.
+- The final fork integration passed 59/59 checks: real registry identities,
+  wallet and policy sends, independent proofs, indexed invoices, webhooks,
+  fresh-process retries and lost creation/payment broadcast recovery. Existing
+  local event rows and both cursor timestamps were preserved exactly.
+- No npm publication, deployment or mainnet transaction was performed for
+  these source changes. Published 0.2.0 does not contain the new platform APIs.
+
+**Developer SDK extension (2026-10-26, local `0.3.0-rc.1`):**
+- All six approved additions are implemented. The guide is
+  `docs-site/docs/guides/production-sdk.md`; the packaged database reference
+  is `packages/remesso-sdk/POSTGRES.md`.
+- `remesso-sdk/postgres` supplies durable policy/wallet journals, immutable
+  invoice reservations, transactional fulfillment and fenced worker jobs.
+  Every process for a signer must share the same database and namespace.
+  Use direct/session connections, not transaction pooling. A reserved session
+  lock spans lookup/sign/journal/broadcast, and SDK lease checks fence a
+  delayed signer after connection loss. Preserve installed driver hooks.
+- Coordinated generic policy/schedule writes save immutable raw transaction
+  bytes and the nonce floor atomically before broadcast. This is nonce
+  evidence, not application retry idempotency for generic creations. An
+  uncertain generic action needs its original hash investigated, not a new
+  create call. Payment retries retain their existing stable-key journals.
+- `remittances.get/listPending` observe canonical progress;
+  `reconcile/wait/recoverPending` recover or observe existing keys without
+  inventing new payment intents. A consumed nonce lacking its original
+  receipt remains `needs_reconciliation`.
+- `remittances.quote` is read-only. `prepare` returns send input pinned to
+  a maximum token debit, token, policy and expiry. Gas estimates are planning
+  hints, not fee caps; `maxDebit` excludes network gas. Wallet deadlines cap
+  the on-chain mandate. Policy expiry is an SDK broadcast guard and cannot
+  revoke bytes already broadcast. V5's existing fee-creation race still
+  cannot be made atomic without a contract change.
+- `invoices.create/sign/verify/pay/verifyPayment` bind EIP-712 payer, issuer,
+  recipient, asset, amount, order, nonce, request and validity window. Default
+  invoice memory storage is not durable replay protection; use the shared
+  invoice store and journals. No on-chain invoice verifier was deployed.
+  Finalized proof defaults fail closed; commit unique event/invoice/order
+  identities with business writes through the Postgres inbox transaction.
+- `remesso-sdk/signers` adapts sign-only providers and validates returned
+  exact bytes/signatures, including Celo CIP-64. Named custody vendors were
+  not tested. `remesso-sdk/tools` has schemas, JSON-safe results, redaction
+  and host-authorized writes. Generic MCP writes default to disabled unless
+  `REMESSO_ENABLE_AGENT_TOOLS_WRITES=1`. Existing MCP payments use the SDK;
+  legacy `payments.json` stays intact and new journals live separately.
+- `npm --prefix packages/remesso-sdk run dev:smoke` starts only owned local
+  Anvil/emulator listeners (18546/18547), public funded test accounts,
+  invoices and a signed webhook receiver, then cleans up. Requires Anvil and
+  read access to an upstream Celo RPC. The receiving emulator does not test
+  production cron, public webhook routing or real finality timing.
+- Validation: 156 SDK tests plus 8 real Postgres integration tests passed;
+  19 development smoke checks, 17 separate-process SDK/Postgres/fork checks,
+  25 built-MCP fork checks and 59 actual-backend fork checks passed.
+  Concurrent workers sharing a key produced one wallet payment and one
+  signed-invoice policy payment.
+  Local test namespaces and owned listeners were cleaned up.
+- SDK build, installed-package runtime exports and its 19-check development
+  CLI, 105 TypeScript documentation blocks
+  across 23 pages, and the Docusaurus production build passed. Release
+  candidate remains unpublished; no production migration, deployment or
+  mainnet transaction was performed for these changes.
 
 **The webhook handler** (`webhookHandler`, fetch-style):
 - It answers a challenge only for the addresses it was given.

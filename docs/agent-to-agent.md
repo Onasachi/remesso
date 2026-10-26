@@ -1,12 +1,34 @@
 # Agent-to-agent remittance: letting developers build on Remesso
 
-**Status: steps 1 to 3 built and tested (2026-10-24 and 25), not deployed
-yet; the rest is planned.** Written 2026-10-23. Revised the same day after an audit of this
-plan against the contracts, the Supabase functions and migrations, both MCP
-servers and the web app. Every finding below was checked in the code before it
-went in. The open questions were decided on 2026-10-24 (see Decisions at the
-end). The phases, files and shipping steps are in
-[`agent-to-agent-implementation.md`](agent-to-agent-implementation.md).
+**Status (2026-10-26):** the implementation record marks phases 1 to 4 and 6
+as shipped, including `remesso-sdk` 0.2.0. Phase 5, agent-created standing
+orders spending a person's funds under a policy, is not implemented or
+planned. Existing schedules still require the funding wallet's signature.
+The SDK safety fixes and new developer APIs from today's work are local
+source changes, not yet published: wallet/policy `remittances.send`,
+registry-aware `agents.pay` and independent `receipts.verify`. Wallet-funded
+one-off sends reuse V5's one-run mandate and sender execution. See the
+[developer guide](../docs-site/docs/guides/agent-to-agent.md),
+the SDK safety audit record in [`CLAUDE.md`](../CLAUDE.md)
+and the executable checks in
+[`fork-sdk-agent-to-agent.ts`](../scripts/fork-sdk-agent-to-agent.ts).
+
+The approved SDK additions are implemented in local **0.3.0-rc.1** source:
+Postgres storage and signer/job coordination; payment lifecycle and recovery;
+EIP-712 invoices and atomic fulfillment helpers; read-only quotes and bounded
+payment preparation; a one-command local fork; and managed signer/agent-tool
+adapters with existing MCP payments delegated to the SDK. See the
+[production SDK guide](../docs-site/docs/guides/production-sdk.md) and
+[Postgres reference](../packages/remesso-sdk/POSTGRES.md). This release candidate
+has not been published or deployed; it does not introduce a new invoice
+settlement contract or delegated recurring-payment authority.
+
+**Historical design below.** Written 2026-10-23 after an audit of the contracts,
+Supabase functions and migrations, both MCP servers and the web app. Its
+"today" descriptions and missing pieces describe that original baseline;
+they are not a current defect list. The open questions were decided on
+2026-10-24 (see Decisions at the end). Current phase status, files and shipping
+steps are in [`agent-to-agent-implementation.md`](agent-to-agent-implementation.md).
 
 This is the plan for the next feature. It lets developers build agents that pay
 each other through Remesso, and it lets Remesso tell an agent when it has been

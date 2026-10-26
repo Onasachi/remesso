@@ -10,6 +10,15 @@
 - The SDK's documentation site, `docs-site/`, is built for
   `docs.remesso.xyz`.
 
+**SDK extension (2026-10-26, local source):** the approved six improvements
+are implemented as `0.3.0-rc.1`: shared Postgres journals, signer coordination
+and fenced jobs; lifecycle/recovery; signed invoices; bounded preparation and
+quotes; local fork tooling; managed signers and SDK-backed MCP tools. Read
+the [integration guide](../docs-site/docs/guides/production-sdk.md) for exact
+APIs and guarantees. This is an unpublished release candidate; the deployed
+phase status above still describes 0.2.0. No new contract or production
+migration is included.
+
 This turns
 [`agent-to-agent.md`](agent-to-agent.md) into phases of work.
 

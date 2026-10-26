@@ -2,6 +2,11 @@
   "imports": {
     "remesso-sdk": "../packages/remesso-sdk/src/index.ts",
     "remesso-sdk/node": "../packages/remesso-sdk/src/node.ts",
+    "remesso-sdk/postgres": "../packages/remesso-sdk/src/postgres.ts",
+    "remesso-sdk/dev": "../packages/remesso-sdk/src/dev.ts",
+    "remesso-sdk/tools": "../packages/remesso-sdk/src/tools.ts",
+    "remesso-sdk/signers": "../packages/remesso-sdk/src/signers.ts",
+    "postgres": "npm:postgres@3.4.5",
     "viem": "npm:viem@2.57.7",
     "viem/": "npm:/viem@2.57.7/"
   },

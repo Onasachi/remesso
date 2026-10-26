@@ -9,7 +9,7 @@
 /// delivery is retried with the same `webhook-id` for 24 hours.
 import { type Address, bytesToHex } from "viem";
 import type { Ctx } from "./context.js";
-import { checksum } from "./deployment.js";
+import { ALLOWANCE, CHAIN_ID, checksum, EXECUTOR } from "./deployment.js";
 import { RemessoError } from "./errors.js";
 import { verify } from "./vendor/standard-webhooks.js";
 import { WEBHOOK_DOMAIN, type WebhookActionName, webhookTypedData } from "./vendor/webhook-actions.js";
@@ -61,7 +61,7 @@ export type WebhookHandlerOptions = {
   secret?: Secrets | (() => Secrets | Promise<Secrets>);
   /** The address or addresses you subscribe. Challenges for any other are refused. */
   recipient: string | string[];
-  /** Called once per verified delivery. Throw to have Remesso retry it. */
+  /** Called per verified attempt. Deduplicate `message.id` with your business action. Throw to retry. */
   onPayment(message: WebhookMessage): void | Promise<void>;
 };
 
@@ -69,7 +69,8 @@ const TYPES: WebhookType[] = ["payment.received", "payment.finalized", "payment.
 
 /// Whether `raw` was signed with any of `secrets` within five minutes.
 export async function verifyWebhook(raw: string, headers: Headers | Record<string, string>, secrets: string | string[]): Promise<boolean> {
-  for (const s of [secrets].flat()) if (s && await verify(raw, headers, s)) return true;
+  const h = headers instanceof Headers ? headers : new Headers(headers);
+  for (const s of [secrets].flat()) if (s && await verify(raw, h, s)) return true;
   return false;
 }
 
@@ -77,10 +78,27 @@ export async function verifyWebhook(raw: string, headers: Headers | Record<strin
 /// isn't a Remesso payment message.
 export async function parseWebhook(raw: string, headers: Headers | Record<string, string>, secrets: string | string[]): Promise<WebhookMessage> {
   if (!(await verifyWebhook(raw, headers, secrets))) throw new RemessoError("refused", "the webhook signature doesn't verify");
-  const body = JSON.parse(raw) as Omit<WebhookMessage, "id">;
-  if (!TYPES.includes(body.type)) throw new RemessoError("invalid", `not a payment message: ${String(body.type)}`);
-  const id = headers instanceof Headers ? headers.get("webhook-id") : headers["webhook-id"];
-  return { id: id ?? "", type: body.type, timestamp: body.timestamp, data: body.data };
+  let body: Omit<WebhookMessage, "id">;
+  try { body = JSON.parse(raw); } catch { throw new RemessoError("invalid", "the signed webhook isn't JSON"); }
+  const data = body?.data;
+  const address = (v: unknown) => typeof v === "string" && /^0x[0-9a-f]{40}$/i.test(v);
+  const hash = (v: unknown) => typeof v === "string" && /^0x[0-9a-f]{64}$/i.test(v);
+  const uint = (v: unknown) => typeof v === "number" && Number.isSafeInteger(v) && v >= 0;
+  const ref = (v: unknown) => typeof v === "string" && /^\d+$/.test(v);
+  if (!body || !TYPES.includes(body.type) || typeof body.timestamp !== "string" || !Number.isFinite(Date.parse(body.timestamp)) ||
+      !data || data.chainId !== CHAIN_ID || !address(data.contract) || !address(data.from) || !address(data.to) || !address(data.token) ||
+      !ref(data.amount) || !hash(data.txHash) || !hash(data.blockHash) || !uint(data.logIndex) || !uint(data.blockNumber) ||
+      typeof data.blockTime !== "string" || !Number.isFinite(Date.parse(data.blockTime)) || typeof data.final !== "boolean" || typeof data.removed !== "boolean" ||
+      !(ref(data.schedule) && data.policy == null && data.contract.toLowerCase() === EXECUTOR.toLowerCase() ||
+        ref(data.policy) && data.schedule == null && data.contract.toLowerCase() === ALLOWANCE.toLowerCase()) ||
+      (body.type === "payment.finalized" && (!data.final || data.removed)) ||
+      (body.type === "payment.removed" ? !data.removed : data.removed)) {
+    throw new RemessoError("invalid", "the signed body isn't a valid Remesso payment message");
+  }
+  const h = headers instanceof Headers ? headers : new Headers(headers);
+  const id = h.get("webhook-id");
+  if (!id) throw new RemessoError("invalid", "the webhook has no event id");
+  return { id, type: body.type, timestamp: body.timestamp, data };
 }
 
 /// A fetch-style handler, `(Request) => Promise<Response>`, for a Next.js
@@ -98,6 +116,7 @@ export function webhookHandler(opts: WebhookHandlerOptions): (req: Request) => P
     let body: { type?: string; data?: { challenge?: string; recipient?: string } };
     try {
       body = JSON.parse(raw);
+      if (!body || typeof body !== "object") return reply(400, { error: "not a webhook message" });
     } catch {
       return reply(400, { error: "not JSON" });
     }
@@ -119,6 +138,7 @@ export function webhookHandler(opts: WebhookHandlerOptions): (req: Request) => P
     } catch (e) {
       return reply((e as RemessoError).code === "invalid" ? 400 : 401, { error: (e as Error).message });
     }
+    if (!recipients.has(message.data.to.toLowerCase())) return reply(403, { error: "not an address this endpoint receives for" });
     try {
       await opts.onPayment(message);
     } catch (e) {

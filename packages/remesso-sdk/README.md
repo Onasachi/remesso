@@ -1,6 +1,12 @@
 # remesso-sdk
 
-Recurring and agent payments on Celo, in TypeScript, on viem.
+Agent-to-agent remittances on Celo, in TypeScript, on viem. Build agents that
+request payments, pay other agents and verify settlement before fulfilling an
+order, using either the agent's own wallet or a delegated treasury policy.
+
+**This checkout is 0.3.0-rc.1, unpublished.** The published package is still
+0.2.0. The agent-to-agent, production storage, invoice, lifecycle, quote,
+development and adapter APIs below require a local build until release.
 
 - **Schedules:** a payer signs once, on-chain, a fixed amount to a fixed
   address on a fixed cadence. Remesso's executor sends each payment when it is
@@ -14,13 +20,177 @@ Recurring and agent payments on Celo, in TypeScript, on viem.
 - **Payment events and signed webhooks:** know you were paid without running a
   node.
 
-> **The contracts are live and have not been audited by a person.** There is no
-> testnet: everything here moves real money on Celo mainnet. Start with small
-> amounts, a dollar rather than a payroll.
+> **The default client uses live Celo mainnet contracts, which have not been
+> audited by a person.** The local development fork below provides a place to
+> test without spending real money.
 
 The developer page walks through the same steps: https://remesso.xyz/developers
 
-## Quickstart: a payment and its webhook
+## Build an agent-to-agent application
+
+The seller creates a fixed, one-off invoice addressed to the funding wallet.
+Your application approves the order; the SDK moves the funds and produces
+evidence your receiver can independently check.
+
+```ts
+import { createRemesso } from "remesso-sdk";
+import { fileRemittanceStore, fileStore, safeFetchText } from "remesso-sdk/node";
+import { privateKeyToAccount } from "viem/accounts";
+
+const buyer = createRemesso({
+  account: privateKeyToAccount(process.env.BUYER_KEY as `0x${string}`),
+  store: fileStore("./state/policy-payments.json"),
+  remittanceStore: fileRemittanceStore("./state/wallet-remittances.json"),
+  fetchText: safeFetchText,
+});
+
+// Pay from this agent's own wallet. amount is what the recipient receives.
+const sent = await buyer.remittances.send({
+  funding: "wallet",
+  to: process.env.SELLER_ADDRESS!,
+  amount: "1",
+  token: "USDT",
+  requestId: process.env.REQUEST_ID!,
+  idempotencyKey: `request:${process.env.REQUEST_ID!}`,
+});
+console.log(sent.status, sent.hash);
+```
+
+Choose `funding: "policy"` and optionally `policyId` to spend a treasury's or
+person's funds under an existing policy. The invoice's payer must be that
+policy owner. Policy payments have no protocol fee. Wallet payments use one
+V5 mandate capped at one run and sender `runNow`; the gross debit includes
+the pinned V5 fee. They use the existing token/run limits and event indexer.
+
+For a registered counterparty, `buyer.agents.pay(agentId, { funding: "wallet",
+requestId, expectedWallet })` resolves the wallet from ERC-8004, enforces the
+published Celo token and reference requirements, and defaults the retry key
+to the request id. Use policy funding the same way with `funding: "policy"`.
+
+The receiver calls `reader.receipts.verify({ txHash, from, to, token, amount,
+scheduleId, finality: "finalized" })`, or supplies `policyId` and the request
+reference as `memo` for a policy payment. This checks the actual event and
+immutable funding terms on-chain. Persist the returned `eventId` atomically
+with fulfillment so a replay cannot deliver an order twice.
+
+An invoice amount is exact; the one-off path rejects recurring or unspecified
+terms. Retry pending sends with the same funding model, signer, key and
+terms. Both journals default to memory unless configured above. File stores
+need one coordinating process per signer; use shared Postgres coordination
+for multiple workers. Wallet creation and execution hashes are
+separate: only a verified `RunExecuted` transaction proves payment.
+
+See the full [agent-to-agent guide](../../docs-site/docs/guides/agent-to-agent.md)
+and runnable [buyer/seller example](../../examples/agent-to-agent.ts).
+
+## Build and test locally
+
+From this repository, with Node 20+ and Foundry's `anvil` installed:
+
+```bash
+cd packages/remesso-sdk
+npm install
+npm run dev:smoke
+```
+
+This builds the candidate, starts its own Celo fork, funds public test accounts,
+creates a sample invoice and exercises wallet/policy payments and a signed
+webhook receiver. It stops its environment afterward. `npm run dev` keeps it
+running and prints connection settings. The backend is an in-memory development
+emulator; production cron and public webhook networking need separate tests.
+Never fund its public test keys on a real network.
+
+## Run multiple agent workers
+
+Install `postgres@3.4.5` and share the same database, namespace and all four
+options across processes using a signing wallet:
+
+```ts
+import postgres from "postgres";
+import { createRemesso } from "remesso-sdk";
+import { createPostgresStorage } from "remesso-sdk/postgres";
+import { privateKeyToAccount } from "viem/accounts";
+
+const sql = postgres(process.env.DATABASE_URL!, {
+  max: 8,
+  connection: { synchronous_commit: "on" },
+});
+const storage = createPostgresStorage(sql, { namespace: "my-agent-service" });
+await storage.initialize();
+const agent = createRemesso({
+  account: privateKeyToAccount(process.env.AGENT_KEY as `0x${string}`),
+  store: storage.paymentStore,
+  remittanceStore: storage.remittanceStore,
+  invoiceStore: storage.invoiceStore,
+  coordinator: storage.coordinator,
+});
+```
+
+Use direct PostgreSQL or session pooling. The advisory lock covers signing and
+broadcast, and connection loss fails closed. Keys and signed bytes are retained;
+keep the SDK tables private. Generic writes also retain nonce evidence, which
+does not make a new policy creation idempotent. [POSTGRES.md](./POSTGRES.md)
+covers leased jobs, fenced acknowledgements and atomic invoice fulfillment.
+
+## Prepare, observe and recover
+
+```ts
+const prepared = await agent.remittances.prepare({
+  funding: "wallet", to: receiverAddress, amount: "1", token: "USDT",
+  idempotencyKey: "order-123", maxDebit: "1.01",
+}, { ttlSeconds: 60 });
+const sent = await agent.remittances.send(prepared.input);
+const operation = await agent.remittances.get("order-123", { funding: "wallet" });
+const recovered = await agent.remittances.recoverPending({ limit: 25, waitMs: 5000 });
+```
+
+`quote()` reads approval, fee, budget, simulation and gas details. `prepare()`
+pins send input to a maximum token debit and deadline. Neither reserves funds.
+Network gas is separate; conservative gas hints and fee-currency conversion
+are not exact costs. `get`/`listPending` never broadcast; `reconcile` resumes only
+an existing saved key; `wait(key, options)` observes requested finality. Recovery
+makes one sequential pass and never constructs a new payment for an unknown key.
+
+Signed invoices add authenticated order terms:
+
+```ts
+const invoice = await seller.invoices.create({
+  payer: buyer.address, amount: "1", token: "USDT", orderId: "order-123",
+  expiresAt: Math.floor(Date.now() / 1000) + 3600,
+});
+const paid = await buyer.invoices.pay(invoice, { funding: "wallet", maxDebit: "1.01" });
+if (paid.status === "confirmed" && paid.hash) {
+  const proof = await seller.invoices.verifyPayment(invoice, {
+    txHash: paid.hash,
+    ...(paid.funding === "wallet" ? { scheduleId: paid.scheduleId } : { policyId: paid.policyId }),
+    finality: "finalized",
+  });
+  console.log(proof.invoiceId, proof.payment.eventId);
+}
+```
+
+Finalized verification may need a later retry. Atomically dedupe the invoice ID,
+payment event ID and issuer/order with your business writes before fulfillment.
+The shared invoice store pins funding route and key across worker restarts.
+
+Optional adapters stay separate from the root browser entry:
+
+| Entry | Purpose |
+|---|---|
+| `remesso-sdk/postgres` | Shared journals, signer locks, nonce evidence, jobs and fulfillment inbox. |
+| `remesso-sdk/dev` | Programmatic owned local fork and receiving emulator. |
+| `remesso-sdk/signers` | `managedSigner` sign-only callbacks, checking exact Celo transaction fields and recovered signatures. |
+| `remesso-sdk/tools` | `createAgentTools` JSON schemas and structured results; writes denied unless the trusted host authorizes them. |
+
+Managed signer support is tested at the callback boundary; no named custody
+provider integration is certified. Callbacks must never broadcast. Build the
+repository MCP stdio server with `npm --prefix mcp run build` before starting
+it; its generic SDK write tools need explicit host authorization.
+
+See the [production service guide](../../docs-site/docs/guides/production-sdk.md)
+for complete invoice verification, database fulfillment, signer and tool examples.
+
+## Scheduled payment and webhook quickstart
 
 About 15 minutes, most of it waiting. Node 20 or later.
 
@@ -185,6 +355,11 @@ await person.policies.create({
 });
 ```
 
+`budget` increases the owner's token approval, shared by all their policies
+for that token. The contract has no lifetime cap per policy. Its daily cap
+uses fixed 24-hour windows; payments across a boundary can total up to twice
+`perDay` in a short period. Size the approval, caps and expiry together.
+
 ```ts
 import { createRemesso } from "remesso-sdk";
 import { fileStore } from "remesso-sdk/node";
@@ -204,6 +379,19 @@ await agent.requests.pay(requestId); // its reference goes in the memo, so the r
 - A retry with the same idempotency key pays once, even when the first attempt
   timed out after it was sent. `fileStore` keeps that record on disk, so it
   holds across restarts; the default store is memory.
+- Keys are scoped to the signing agent, chain and contract. Reusing a key
+  with another token, policy, payer, recipient, amount or memo is refused.
+  Keys and unresolved signed payments are retained until you explicitly
+  archive the store; deleting history removes the retry protection.
+- Use one process per `fileStore` file. Clients for the same signer within
+  that process share a transaction queue. Multiple worker processes need
+  durable storage and external coordination for the signer and payment keys.
+- If a nonce was consumed and the original receipt cannot be found, the SDK
+  refuses to sign another payment. Reconcile the reported hash before retrying
+  with a new key. An unreadable or corrupt store also refuses new payments.
+- `confirmed` means a successful receipt with the matching `Paid` event,
+  not finality. Retries recheck that receipt. For fulfillment that needs
+  finality, use `payment.finalized`, or `requests.waitUntilPaid(id, { final: true })`.
 - Without a key, an identical payment within ten minutes is refused unless you
   pass `allowRepeat`.
 - Agent payments are signed before they are sent, so they need a local account
@@ -271,7 +459,7 @@ console.log(events.find((e) => e.refId === s.id.toString())?.details?.builderCod
 | `account` | The key that pays, signs and receives: `privateKeyToAccount(...)`. Leave it out to read only. |
 | `walletClient` | A wallet client instead of an account, such as a browser wallet on Celo. |
 | `rpcUrl` | Default `https://forno.celo.org`. |
-| `publicClient` | Your own viem public client. |
+| `publicClient` | Your own viem public client. For agent payments configure it with `chain: celo`. |
 | `store` | Where agent payments are recorded so a retry pays once. Default: memory. |
 | `fetchText` | Reads an https or ipfs registration file for `agents.find`: pass `safeFetchText`. |
 | `attribution` | Tag transactions for ERC-8021 attribution. Default true. |
@@ -289,7 +477,7 @@ The client:
 | `schedules.cancel(id)` | Stop it for good. |
 | `schedules.setActive(id, active)` | Pause or resume. |
 | `schedules.setTrigger(id, trigger, count)` | Change who may bring a payment forward; `"remesso"` grants Remesso's executor. |
-| `pay(input)` | As an agent, pay through a policy: `to`, `amount`, `token`, `policyId`, `memo`, `idempotencyKey`, `allowRepeat`, `waitMs`. |
+| `pay(input)` | As an agent, pay through a policy: `to`, `amount`, `token`, `policyId`, optional `payer`, `memo`, `idempotencyKey`, `allowRepeat`, `waitMs` (1–120,000 ms). |
 | `policies.find(agent?)` | Every policy naming an agent, newest first. |
 | `policies.get(id)` | A policy, with what it can spend right now. |
 | `policies.create(input)` | As the owner: approve a budget and create a policy. |
@@ -301,7 +489,7 @@ The client:
 | `requests.answer(id, scheduleId)` | Report the schedule that answers a request. |
 | `requests.decline(id, { policyId? })` | Turn a request down, signed by the payer or by its agent under a policy. |
 | `requests.pay(id)` | As an agent, pay a request through a policy, its reference as the memo. |
-| `requests.waitUntilPaid(id)` | Wait for a payment with a transaction. |
+| `requests.waitUntilPaid(id, options?)` | Wait for a payment with a transaction. Pass `{ final: true }` to wait for a finalized payment. |
 | `events.list(query)` | Payment events by address, role and kind, paged by `seq`. |
 | `events.watch(query)` | Every event from `after` on, then each new one or change. |
 | `events.waitFor(match, query)` | The first event that matches. |

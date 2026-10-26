@@ -98,11 +98,14 @@ export function makeEvents(ctx: Ctx) {
 export type Events = ReturnType<typeof makeEvents>;
 
 function sleep(ms: number, signal?: AbortSignal): Promise<void> {
+  if (signal?.aborted) return Promise.resolve();
   return new Promise((resolve) => {
-    const t = setTimeout(resolve, ms);
-    signal?.addEventListener("abort", () => {
+    const done = () => {
       clearTimeout(t);
+      signal?.removeEventListener("abort", done);
       resolve();
-    }, { once: true });
+    };
+    const t = setTimeout(done, ms);
+    signal?.addEventListener("abort", done, { once: true });
   });
 }
