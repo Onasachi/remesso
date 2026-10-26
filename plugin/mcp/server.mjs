@@ -1585,11 +1585,20 @@ function hexToNumber(hex, opts = {}) {
     });
   return number;
 }
+function hexToString(hex, opts = {}) {
+  let bytes = hexToBytes(hex);
+  if (opts.size) {
+    assertSize(bytes, { size: opts.size });
+    bytes = trim(bytes, { dir: "right" });
+  }
+  return new TextDecoder().decode(bytes);
+}
 var init_fromHex = __esm({
   "node_modules/viem/_esm/utils/encoding/fromHex.js"() {
     init_encoding();
     init_size();
     init_trim();
+    init_toBytes();
   }
 });
 
@@ -2205,8 +2214,8 @@ var init_address = __esm({
   "node_modules/viem/_esm/errors/address.js"() {
     init_base();
     InvalidAddressError = class extends BaseError2 {
-      constructor({ address }) {
-        super(`Address "${address}" is invalid.`, {
+      constructor({ address: address3 }) {
+        super(`Address "${address3}" is invalid.`, {
           metaMessages: [
             "- Address must be a hex value of 20 bytes (40 hex characters).",
             "- Address must match its checksum counterpart."
@@ -2261,24 +2270,24 @@ function checksumAddress(address_, chainId) {
   if (checksumAddressCache.has(`${address_}.${chainId}`))
     return checksumAddressCache.get(`${address_}.${chainId}`);
   const hexAddress = chainId ? `${chainId}${address_.toLowerCase()}` : address_.substring(2).toLowerCase();
-  const hash3 = keccak256(stringToBytes(hexAddress), "bytes");
-  const address = (chainId ? hexAddress.substring(`${chainId}0x`.length) : hexAddress).split("");
+  const hash4 = keccak256(stringToBytes(hexAddress), "bytes");
+  const address3 = (chainId ? hexAddress.substring(`${chainId}0x`.length) : hexAddress).split("");
   for (let i = 0; i < 40; i += 2) {
-    if (hash3[i >> 1] >> 4 >= 8 && address[i]) {
-      address[i] = address[i].toUpperCase();
+    if (hash4[i >> 1] >> 4 >= 8 && address3[i]) {
+      address3[i] = address3[i].toUpperCase();
     }
-    if ((hash3[i >> 1] & 15) >= 8 && address[i + 1]) {
-      address[i + 1] = address[i + 1].toUpperCase();
+    if ((hash4[i >> 1] & 15) >= 8 && address3[i + 1]) {
+      address3[i + 1] = address3[i + 1].toUpperCase();
     }
   }
-  const result = `0x${address.join("")}`;
+  const result = `0x${address3.join("")}`;
   checksumAddressCache.set(`${address_}.${chainId}`, result);
   return result;
 }
-function getAddress(address, chainId) {
-  if (!isAddress(address, { strict: false }))
-    throw new InvalidAddressError({ address });
-  return checksumAddress(address, chainId);
+function getAddress(address3, chainId) {
+  if (!isAddress(address3, { strict: false }))
+    throw new InvalidAddressError({ address: address3 });
+  return checksumAddress(address3, chainId);
 }
 var checksumAddressCache;
 var init_getAddress = __esm({
@@ -2293,18 +2302,18 @@ var init_getAddress = __esm({
 });
 
 // node_modules/viem/_esm/utils/address/isAddress.js
-function isAddress(address, options) {
+function isAddress(address3, options) {
   const { strict = true } = options ?? {};
-  const cacheKey2 = `${address}.${strict}`;
+  const cacheKey2 = `${address3}.${strict}`;
   if (isAddressCache.has(cacheKey2))
     return isAddressCache.get(cacheKey2);
   const result = (() => {
-    if (!addressRegex.test(address))
+    if (!addressRegex.test(address3))
       return false;
-    if (address.toLowerCase() === address)
+    if (address3.toLowerCase() === address3)
       return true;
     if (strict)
-      return checksumAddress(address) === address;
+      return checksumAddress(address3) === address3;
     return true;
   })();
   isAddressCache.set(cacheKey2, result);
@@ -2849,7 +2858,7 @@ var init_createFilterRequestScope = __esm({
 
 // node_modules/viem/_esm/actions/public/createContractEventFilter.js
 async function createContractEventFilter(client2, parameters) {
-  const { address, abi: abi2, args, eventName, fromBlock, strict, toBlock } = parameters;
+  const { address: address3, abi: abi2, args, eventName, fromBlock, strict, toBlock } = parameters;
   const getRequest = createFilterRequestScope(client2, {
     method: "eth_newFilter"
   });
@@ -2862,7 +2871,7 @@ async function createContractEventFilter(client2, parameters) {
     method: "eth_newFilter",
     params: [
       {
-        address,
+        address: address3,
         fromBlock: typeof fromBlock === "bigint" ? numberToHex(fromBlock) : fromBlock,
         toBlock: typeof toBlock === "bigint" ? numberToHex(toBlock) : toBlock,
         topics
@@ -3505,12 +3514,12 @@ function format(value, decimals = 0) {
   if (negative)
     display = display.slice(1);
   display = display.padStart(decimals, "0");
-  let [integer, fraction] = [
+  let [integer2, fraction] = [
     display.slice(0, display.length - decimals),
     display.slice(display.length - decimals)
   ];
   fraction = fraction.replace(/(0+)$/, "");
-  return `${negative ? "-" : ""}${integer || "0"}${fraction ? `.${fraction}` : ""}`;
+  return `${negative ? "-" : ""}${integer2 || "0"}${fraction ? `.${fraction}` : ""}`;
 }
 function formatEther(wei, unit = "wei") {
   return format(wei, exponents.ether - exponents[unit]);
@@ -3523,16 +3532,16 @@ function from(value, decimals = 0) {
     throw new InvalidDecimalsError({ decimals });
   if (!/^-?(?:[0-9]+(?:\.[0-9]*)?|\.[0-9]+)$/.test(value))
     throw new InvalidDecimalNumberError({ value });
-  let [integer = "", fraction = "0"] = value.split(".");
-  const negative = integer.startsWith("-");
+  let [integer2 = "", fraction = "0"] = value.split(".");
+  const negative = integer2.startsWith("-");
   if (negative)
-    integer = integer.slice(1);
-  if (integer === "")
-    integer = "0";
+    integer2 = integer2.slice(1);
+  if (integer2 === "")
+    integer2 = "0";
   fraction = fraction.replace(/(0+)$/, "");
   if (decimals === 0) {
     if (fraction.length > 0 && Number.parseInt(fraction[0], 10) >= 5)
-      integer = `${BigInt(integer) + 1n}`;
+      integer2 = `${BigInt(integer2) + 1n}`;
     fraction = "";
   } else if (fraction.length > decimals) {
     const left = fraction.slice(0, decimals);
@@ -3541,7 +3550,7 @@ function from(value, decimals = 0) {
       const carried = carry(left);
       if (carried.length > decimals) {
         fraction = carried.slice(1);
-        integer = `${BigInt(integer) + 1n}`;
+        integer2 = `${BigInt(integer2) + 1n}`;
       } else {
         fraction = carried;
       }
@@ -3551,7 +3560,7 @@ function from(value, decimals = 0) {
   } else {
     fraction = fraction.padEnd(decimals, "0");
   }
-  return BigInt(`${negative ? "-" : ""}${integer}${fraction}`);
+  return BigInt(`${negative ? "-" : ""}${integer2}${fraction}`);
 }
 function carry(digits) {
   const out = digits.split("");
@@ -3630,8 +3639,8 @@ function prettyStateMapping(stateMapping) {
   }, "");
 }
 function prettyStateOverride(stateOverride) {
-  return stateOverride.reduce((pretty, { address, ...state }) => {
-    let val = `${pretty}    ${address}:
+  return stateOverride.reduce((pretty, { address: address3, ...state }) => {
+    let val = `${pretty}    ${address3}:
 `;
     if (state.nonce)
       val += `      nonce: ${state.nonce}
@@ -3658,8 +3667,8 @@ var init_stateOverride = __esm({
   "node_modules/viem/_esm/errors/stateOverride.js"() {
     init_base();
     AccountStateConflictError = class extends BaseError2 {
-      constructor({ address }) {
-        super(`State for account "${address}" is set multiple times.`, {
+      constructor({ address: address3 }) {
+        super(`State for account "${address3}" is set multiple times.`, {
           name: "AccountStateConflictError"
         });
       }
@@ -3768,7 +3777,7 @@ var init_transaction = __esm({
       }
     };
     TransactionNotFoundError = class extends BaseError2 {
-      constructor({ blockHash, blockNumber, blockTag, hash: hash3, index: index2 }) {
+      constructor({ blockHash, blockNumber, blockTag, hash: hash4, index: index2 }) {
         let identifier = "Transaction";
         if (blockTag && index2 !== void 0)
           identifier = `Transaction at block time "${blockTag}" at index "${index2}"`;
@@ -3776,16 +3785,16 @@ var init_transaction = __esm({
           identifier = `Transaction at block hash "${blockHash}" at index "${index2}"`;
         if (blockNumber && index2 !== void 0)
           identifier = `Transaction at block number "${blockNumber}" at index "${index2}"`;
-        if (hash3)
-          identifier = `Transaction with hash "${hash3}"`;
+        if (hash4)
+          identifier = `Transaction with hash "${hash4}"`;
         super(`${identifier} could not be found.`, {
           name: "TransactionNotFoundError"
         });
       }
     };
     TransactionReceiptNotFoundError = class extends BaseError2 {
-      constructor({ hash: hash3 }) {
-        super(`Transaction receipt with hash "${hash3}" could not be found. The Transaction may not be processed on a block yet.`, {
+      constructor({ hash: hash4 }) {
+        super(`Transaction receipt with hash "${hash4}" could not be found. The Transaction may not be processed on a block yet.`, {
           name: "TransactionReceiptNotFoundError"
         });
       }
@@ -3812,8 +3821,8 @@ var init_transaction = __esm({
       }
     };
     WaitForTransactionReceiptTimeoutError = class extends BaseError2 {
-      constructor({ hash: hash3 }) {
-        super(`Timed out while waiting for transaction with hash "${hash3}" to be confirmed.`, { name: "WaitForTransactionReceiptTimeoutError" });
+      constructor({ hash: hash4 }) {
+        super(`Timed out while waiting for transaction with hash "${hash4}" to be confirmed.`, { name: "WaitForTransactionReceiptTimeoutError" });
       }
     };
   }
@@ -3835,7 +3844,7 @@ function isAbortError(error) {
 var getContractAddress, getUrl;
 var init_utils3 = __esm({
   "node_modules/viem/_esm/errors/utils.js"() {
-    getContractAddress = (address) => address;
+    getContractAddress = (address3) => address3;
     getUrl = (url) => {
       try {
         const parsed = new URL(url);
@@ -4680,7 +4689,7 @@ var init_rpc = __esm({
 });
 
 // node_modules/viem/_esm/utils/errors/getContractError.js
-function getContractError(err, { abi: abi2, address, args, docsPath: docsPath8, functionName, sender }) {
+function getContractError(err, { abi: abi2, address: address3, args, docsPath: docsPath8, functionName, sender }) {
   const error = err instanceof RawContractError ? err : err instanceof BaseError2 ? err.walk((err2) => typeof err2 === "object" && err2 !== null && "data" in err2) || err.walk() : {};
   const { code, data, details, message, shortMessage } = error;
   const cause = (() => {
@@ -4700,7 +4709,7 @@ function getContractError(err, { abi: abi2, address, args, docsPath: docsPath8, 
   return new ContractFunctionExecutionError(cause, {
     abi: abi2,
     args,
-    contractAddress: address,
+    contractAddress: address3,
     docsPath: docsPath8,
     functionName,
     sender
@@ -4720,8 +4729,8 @@ var init_getContractError = __esm({
 
 // node_modules/viem/_esm/accounts/utils/publicKeyToAddress.js
 function publicKeyToAddress(publicKey) {
-  const address = keccak256(`0x${publicKey.substring(4)}`).substring(26);
-  return checksumAddress(`0x${address}`);
+  const address3 = keccak256(`0x${publicKey.substring(4)}`).substring(26);
+  return checksumAddress(`0x${address3}`);
 }
 var init_publicKeyToAddress = __esm({
   "node_modules/viem/_esm/accounts/utils/publicKeyToAddress.js"() {
@@ -5009,24 +5018,24 @@ var init_hmac = __esm({
   "node_modules/@noble/hashes/esm/hmac.js"() {
     init_utils2();
     HMAC = class extends Hash {
-      constructor(hash3, _key) {
+      constructor(hash4, _key) {
         super();
         this.finished = false;
         this.destroyed = false;
-        ahash(hash3);
+        ahash(hash4);
         const key = toBytes2(_key);
-        this.iHash = hash3.create();
+        this.iHash = hash4.create();
         if (typeof this.iHash.update !== "function")
           throw new Error("Expected instance of class which extends utils.Hash");
         this.blockLen = this.iHash.blockLen;
         this.outputLen = this.iHash.outputLen;
         const blockLen = this.blockLen;
         const pad4 = new Uint8Array(blockLen);
-        pad4.set(key.length > blockLen ? hash3.create().update(key).digest() : key);
+        pad4.set(key.length > blockLen ? hash4.create().update(key).digest() : key);
         for (let i = 0; i < pad4.length; i++)
           pad4[i] ^= 54;
         this.iHash.update(pad4);
-        this.oHash = hash3.create();
+        this.oHash = hash4.create();
         for (let i = 0; i < pad4.length; i++)
           pad4[i] ^= 54 ^ 92;
         this.oHash.update(pad4);
@@ -5072,8 +5081,8 @@ var init_hmac = __esm({
         this.iHash.destroy();
       }
     };
-    hmac = (hash3, key, message) => new HMAC(hash3, key).update(message).digest();
-    hmac.create = (hash3, key) => new HMAC(hash3, key);
+    hmac = (hash4, key, message) => new HMAC(hash4, key).update(message).digest();
+    hmac.create = (hash4, key) => new HMAC(hash4, key);
   }
 });
 
@@ -5250,15 +5259,15 @@ function createHmacDrbg(hashLen, qByteLen, hmacFn) {
   };
   return genUntil;
 }
-function validateObject(object, validators, optValidators = {}) {
+function validateObject(object2, validators, optValidators = {}) {
   const checkField = (fieldName, type, isOptional) => {
     const checkVal = validatorFns[type];
     if (typeof checkVal !== "function")
       throw new Error("invalid validator function");
-    const val = object[fieldName];
+    const val = object2[fieldName];
     if (isOptional && val === void 0)
       return;
-    if (!checkVal(val, object)) {
+    if (!checkVal(val, object2)) {
       throw new Error("param " + String(fieldName) + " is invalid. Expected " + type + ", got " + val);
     }
   };
@@ -5266,7 +5275,7 @@ function validateObject(object, validators, optValidators = {}) {
     checkField(fieldName, type, false);
   for (const [fieldName, type] of Object.entries(optValidators))
     checkField(fieldName, type, true);
-  return object;
+  return object2;
 }
 function memoized(fn) {
   const map = /* @__PURE__ */ new WeakMap();
@@ -5300,7 +5309,7 @@ var init_utils4 = __esm({
       stringOrUint8Array: (val) => typeof val === "string" || isBytes2(val),
       isSafeInteger: (val) => Number.isSafeInteger(val),
       array: (val) => Array.isArray(val),
-      field: (val, object) => object.Fp.isValid(val),
+      field: (val, object2) => object2.Fp.isValid(val),
       hash: (val) => typeof val === "function" && Number.isSafeInteger(val.outputLen)
     };
   }
@@ -6493,14 +6502,14 @@ function weierstrass(curveDef) {
   function prepSig(msgHash, privateKey, opts = defaultSigOpts) {
     if (["recovered", "canonical"].some((k) => k in opts))
       throw new Error("sign() legacy options not supported");
-    const { hash: hash3, randomBytes: randomBytes2 } = CURVE;
+    const { hash: hash4, randomBytes: randomBytes2 } = CURVE;
     let { lowS, prehash, extraEntropy: ent } = opts;
     if (lowS == null)
       lowS = true;
     msgHash = ensureBytes("msgHash", msgHash);
     validateSigVerOpts(opts);
     if (prehash)
-      msgHash = ensureBytes("prehashed msgHash", hash3(msgHash));
+      msgHash = ensureBytes("prehashed msgHash", hash4(msgHash));
     const h1int = bits2int_modN(msgHash);
     const d = normPrivateKeyToScalar(privateKey);
     const seedArgs = [int2octets(d), int2octets(h1int)];
@@ -6823,15 +6832,15 @@ var init_weierstrass = __esm({
 });
 
 // node_modules/@noble/curves/esm/_shortw_utils.js
-function getHash(hash3) {
+function getHash(hash4) {
   return {
-    hash: hash3,
-    hmac: (key, ...msgs) => hmac(hash3, key, concatBytes(...msgs)),
+    hash: hash4,
+    hmac: (key, ...msgs) => hmac(hash4, key, concatBytes(...msgs)),
     randomBytes
   };
 }
 function createCurve(curveDef, defHash) {
-  const create2 = (hash3) => weierstrass({ ...curveDef, ...getHash(hash3) });
+  const create2 = (hash4) => weierstrass({ ...curveDef, ...getHash(hash4) });
   return { ...create2(defHash), create: create2 };
 }
 var init_shortw_utils = __esm({
@@ -6909,7 +6918,7 @@ function hash_to_field(msg, count, options) {
     k: "isSafeInteger",
     hash: "hash"
   });
-  const { p, k, m, hash: hash3, expand, DST: _DST } = options;
+  const { p, k, m, hash: hash4, expand, DST: _DST } = options;
   abytes2(msg);
   anum(count);
   const DST = typeof _DST === "string" ? utf8ToBytes2(_DST) : _DST;
@@ -6918,9 +6927,9 @@ function hash_to_field(msg, count, options) {
   const len_in_bytes = count * m * L;
   let prb;
   if (expand === "xmd") {
-    prb = expand_message_xmd(msg, DST, len_in_bytes, hash3);
+    prb = expand_message_xmd(msg, DST, len_in_bytes, hash4);
   } else if (expand === "xof") {
-    prb = expand_message_xof(msg, DST, len_in_bytes, k, hash3);
+    prb = expand_message_xof(msg, DST, len_in_bytes, k, hash4);
   } else if (expand === "_internal_pass") {
     prb = msg;
   } else {
@@ -7229,8 +7238,8 @@ var init_secp256k1 = __esm({
 });
 
 // node_modules/viem/_esm/utils/signature/recoverPublicKey.js
-async function recoverPublicKey({ hash: hash3, signature }) {
-  const hashHex = isHex(hash3) ? hash3 : toHex(hash3);
+async function recoverPublicKey({ hash: hash4, signature }) {
+  const hashHex = isHex(hash4) ? hash4 : toHex(hash4);
   const { secp256k1: secp256k12 } = await Promise.resolve().then(() => (init_secp256k1(), secp256k1_exports));
   const signature_ = (() => {
     if (typeof signature === "object" && "r" in signature && "s" in signature) {
@@ -7268,8 +7277,8 @@ var init_recoverPublicKey = __esm({
 });
 
 // node_modules/viem/_esm/utils/signature/recoverAddress.js
-async function recoverAddress({ hash: hash3, signature }) {
-  return publicKeyToAddress(await recoverPublicKey({ hash: hash3, signature }));
+async function recoverAddress({ hash: hash4, signature }) {
+  return publicKeyToAddress(await recoverPublicKey({ hash: hash4, signature }));
 }
 var init_recoverAddress = __esm({
   "node_modules/viem/_esm/utils/signature/recoverAddress.js"() {
@@ -7378,18 +7387,18 @@ var init_toRlp = __esm({
 // node_modules/viem/_esm/utils/authorization/hashAuthorization.js
 function hashAuthorization(parameters) {
   const { chainId, nonce, to } = parameters;
-  const address = parameters.contractAddress ?? parameters.address;
-  const hash3 = keccak256(concatHex([
+  const address3 = parameters.contractAddress ?? parameters.address;
+  const hash4 = keccak256(concatHex([
     "0x05",
     toRlp([
       chainId ? numberToHex(chainId) : "0x",
-      address,
+      address3,
       nonce ? numberToHex(nonce) : "0x"
     ])
   ]));
   if (to === "bytes")
-    return hexToBytes(hash3);
-  return hash3;
+    return hexToBytes(hash4);
+  return hash4;
 }
 var init_hashAuthorization = __esm({
   "node_modules/viem/_esm/utils/authorization/hashAuthorization.js"() {
@@ -7881,12 +7890,12 @@ function serializeStateOverride(parameters) {
   if (!parameters)
     return void 0;
   const rpcStateOverride = {};
-  for (const { address, ...accountState } of parameters) {
-    if (!isAddress(address, { strict: false }))
-      throw new InvalidAddressError({ address });
-    if (rpcStateOverride[address])
-      throw new AccountStateConflictError({ address });
-    rpcStateOverride[address] = serializeAccountStateOverride(accountState);
+  for (const { address: address3, ...accountState } of parameters) {
+    if (!isAddress(address3, { strict: false }))
+      throw new InvalidAddressError({ address: address3 });
+    if (rpcStateOverride[address3])
+      throw new AccountStateConflictError({ address: address3 });
+    rpcStateOverride[address3] = serializeAccountStateOverride(accountState);
   }
   return rpcStateOverride;
 }
@@ -8356,7 +8365,7 @@ var init_formatBlockParameter = __esm({
 });
 
 // node_modules/viem/_esm/actions/public/getTransactionCount.js
-async function getTransactionCount(client2, { address, blockHash, blockNumber, blockTag = "latest", requireCanonical }) {
+async function getTransactionCount(client2, { address: address3, blockHash, blockNumber, blockTag = "latest", requireCanonical }) {
   const block = formatBlockParameter({
     blockHash,
     blockNumber,
@@ -8365,7 +8374,7 @@ async function getTransactionCount(client2, { address, blockHash, blockNumber, b
   });
   const count = await client2.request({
     method: "eth_getTransactionCount",
-    params: [address, block]
+    params: [address3, block]
   }, {
     dedupe: typeof blockNumber === "bigint" || blockHash !== void 0
   });
@@ -8519,16 +8528,16 @@ var init_blob2 = __esm({
       }
     };
     InvalidVersionedHashSizeError = class extends BaseError2 {
-      constructor({ hash: hash3, size: size5 }) {
-        super(`Versioned hash "${hash3}" size is invalid.`, {
+      constructor({ hash: hash4, size: size5 }) {
+        super(`Versioned hash "${hash4}" size is invalid.`, {
           metaMessages: ["Expected: 32", `Received: ${size5}`],
           name: "InvalidVersionedHashSizeError"
         });
       }
     };
     InvalidVersionedHashVersionError = class extends BaseError2 {
-      constructor({ hash: hash3, version: version4 }) {
-        super(`Versioned hash "${hash3}" version is invalid.`, {
+      constructor({ hash: hash4, version: version4 }) {
+        super(`Versioned hash "${hash4}" version is invalid.`, {
           metaMessages: [
             `Expected: ${versionedHashVersionKzg}`,
             `Received: ${version4}`
@@ -9134,7 +9143,7 @@ var init_estimateGas2 = __esm({
 
 // node_modules/viem/_esm/actions/public/estimateContractGas.js
 async function estimateContractGas(client2, parameters) {
-  const { abi: abi2, address, args, functionName, dataSuffix = typeof client2.dataSuffix === "string" ? client2.dataSuffix : client2.dataSuffix?.value, ...request2 } = parameters;
+  const { abi: abi2, address: address3, args, functionName, dataSuffix = typeof client2.dataSuffix === "string" ? client2.dataSuffix : client2.dataSuffix?.value, ...request2 } = parameters;
   const data = encodeFunctionData({
     abi: abi2,
     args,
@@ -9143,7 +9152,7 @@ async function estimateContractGas(client2, parameters) {
   try {
     const gas = await getAction(client2, estimateGas, "estimateGas")({
       data: `${data}${dataSuffix ? dataSuffix.replace("0x", "") : ""}`,
-      to: address,
+      to: address3,
       ...request2
     });
     return gas;
@@ -9151,7 +9160,7 @@ async function estimateContractGas(client2, parameters) {
     const account2 = request2.account ? parseAccount(request2.account) : void 0;
     throw getContractError(error, {
       abi: abi2,
-      address,
+      address: address3,
       args,
       docsPath: "/docs/contract/estimateContractGas",
       functionName,
@@ -9416,7 +9425,7 @@ var init_parseEventLogs = __esm({
 });
 
 // node_modules/viem/_esm/actions/public/getLogs.js
-async function getLogs(client2, { address, blockHash, fromBlock, toBlock, event, events: events_, args, strict: strict_ } = {}) {
+async function getLogs(client2, { address: address3, blockHash, fromBlock, toBlock, event, events: events_, args, strict: strict_ } = {}) {
   const strict = strict_ ?? false;
   const events = events_ ?? (event ? [event] : void 0);
   let topics = [];
@@ -9434,14 +9443,14 @@ async function getLogs(client2, { address, blockHash, fromBlock, toBlock, event,
   if (blockHash) {
     logs = await client2.request({
       method: "eth_getLogs",
-      params: [{ address, topics, blockHash }]
+      params: [{ address: address3, topics, blockHash }]
     });
   } else {
     logs = await client2.request({
       method: "eth_getLogs",
       params: [
         {
-          address,
+          address: address3,
           topics,
           fromBlock: typeof fromBlock === "bigint" ? numberToHex(fromBlock) : fromBlock,
           toBlock: typeof toBlock === "bigint" ? numberToHex(toBlock) : toBlock
@@ -9470,11 +9479,11 @@ var init_getLogs = __esm({
 
 // node_modules/viem/_esm/actions/public/getContractEvents.js
 async function getContractEvents(client2, parameters) {
-  const { abi: abi2, address, args, blockHash, eventName, fromBlock, toBlock, strict } = parameters;
+  const { abi: abi2, address: address3, args, blockHash, eventName, fromBlock, toBlock, strict } = parameters;
   const event = eventName ? getAbiItem({ abi: abi2, name: eventName }) : void 0;
   const events = !event ? abi2.filter((x) => x.type === "event") : void 0;
   return getAction(client2, getLogs, "getLogs")({
-    address,
+    address: address3,
     args,
     blockHash,
     event,
@@ -11592,10 +11601,10 @@ function getMulticallAddress(client2, parameters) {
     });
   throw new ClientChainNotConfiguredError();
 }
-function hasStateOverrideForAddress(rpcStateOverride, address) {
+function hasStateOverrideForAddress(rpcStateOverride, address3) {
   if (!rpcStateOverride)
     return false;
-  return Object.keys(rpcStateOverride).some((stateOverrideAddress) => isAddressEqual(stateOverrideAddress, address));
+  return Object.keys(rpcStateOverride).some((stateOverrideAddress) => isAddressEqual(stateOverrideAddress, address3));
 }
 function toDeploylessCallViaBytecodeData(parameters) {
   const { code, data } = parameters;
@@ -11651,7 +11660,7 @@ var init_call = __esm({
 
 // node_modules/viem/_esm/actions/public/readContract.js
 async function readContract(client2, parameters) {
-  const { abi: abi2, address, args, functionName, ...rest } = parameters;
+  const { abi: abi2, address: address3, args, functionName, ...rest } = parameters;
   const calldata = encodeFunctionData({
     abi: abi2,
     args,
@@ -11661,7 +11670,7 @@ async function readContract(client2, parameters) {
     const { data } = await getAction(client2, call, "call")({
       ...rest,
       data: calldata,
-      to: address
+      to: address3
     });
     return decodeFunctionResult({
       abi: abi2,
@@ -11672,7 +11681,7 @@ async function readContract(client2, parameters) {
   } catch (error) {
     throw getContractError(error, {
       abi: abi2,
-      address,
+      address: address3,
       args,
       docsPath: "/docs/contract/readContract",
       functionName
@@ -11691,14 +11700,14 @@ var init_readContract = __esm({
 
 // node_modules/viem/_esm/actions/public/simulateContract.js
 async function simulateContract(client2, parameters) {
-  const { abi: abi2, address, args, functionName, dataSuffix = typeof client2.dataSuffix === "string" ? client2.dataSuffix : client2.dataSuffix?.value, ...callRequest } = parameters;
+  const { abi: abi2, address: address3, args, functionName, dataSuffix = typeof client2.dataSuffix === "string" ? client2.dataSuffix : client2.dataSuffix?.value, ...callRequest } = parameters;
   const account2 = callRequest.account ? parseAccount(callRequest.account) : client2.account;
   const calldata = encodeFunctionData({ abi: abi2, args, functionName });
   try {
     const { data } = await getAction(client2, call, "call")({
       batch: false,
       data: `${calldata}${dataSuffix ? dataSuffix.replace("0x", "") : ""}`,
-      to: address,
+      to: address3,
       ...callRequest,
       account: account2
     });
@@ -11713,7 +11722,7 @@ async function simulateContract(client2, parameters) {
       result,
       request: {
         abi: minimizedAbi,
-        address,
+        address: address3,
         args,
         dataSuffix,
         functionName,
@@ -11724,7 +11733,7 @@ async function simulateContract(client2, parameters) {
   } catch (error) {
     throw getContractError(error, {
       abi: abi2,
-      address,
+      address: address3,
       args,
       docsPath: "/docs/contract/simulateContract",
       functionName,
@@ -11956,7 +11965,7 @@ var init_uninstallFilter = __esm({
 
 // node_modules/viem/_esm/actions/public/watchContractEvent.js
 function watchContractEvent(client2, parameters) {
-  const { abi: abi2, address, args, batch = true, eventName, fromBlock, onError, onLogs, poll: poll_, pollingInterval = client2.pollingInterval, strict: strict_ } = parameters;
+  const { abi: abi2, address: address3, args, batch = true, eventName, fromBlock, onError, onLogs, poll: poll_, pollingInterval = client2.pollingInterval, strict: strict_ } = parameters;
   const enablePolling = (() => {
     if (typeof poll_ !== "undefined")
       return poll_;
@@ -11972,7 +11981,7 @@ function watchContractEvent(client2, parameters) {
     const strict = strict_ ?? false;
     const observerId = stringify([
       "watchContractEvent",
-      address,
+      address3,
       args,
       batch,
       client2.uid,
@@ -11992,7 +12001,7 @@ function watchContractEvent(client2, parameters) {
           try {
             filter = await getAction(client2, createContractEventFilter, "createContractEventFilter")({
               abi: abi2,
-              address,
+              address: address3,
               args,
               eventName,
               strict,
@@ -12012,7 +12021,7 @@ function watchContractEvent(client2, parameters) {
             if (previousBlockNumber && previousBlockNumber < blockNumber) {
               logs = await getAction(client2, getContractEvents, "getContractEvents")({
                 abi: abi2,
-                address,
+                address: address3,
                 args,
                 eventName,
                 fromBlock: previousBlockNumber + 1n,
@@ -12051,7 +12060,7 @@ function watchContractEvent(client2, parameters) {
     const strict = strict_ ?? false;
     const observerId = stringify([
       "watchContractEvent",
-      address,
+      address3,
       args,
       batch,
       client2.uid,
@@ -12080,7 +12089,7 @@ function watchContractEvent(client2, parameters) {
             args
           }) : [];
           const { unsubscribe: unsubscribe_ } = await transport.subscribe({
-            params: ["logs", { address, topics }],
+            params: ["logs", { address: address3, topics }],
             onData(data) {
               if (!active)
                 return;
@@ -12149,7 +12158,7 @@ var init_watchContractEvent = __esm({
 });
 
 // node_modules/viem/_esm/errors/account.js
-var AccountNotFoundError;
+var AccountNotFoundError, AccountTypeNotSupportedError;
 var init_account = __esm({
   "node_modules/viem/_esm/errors/account.js"() {
     init_base();
@@ -12162,6 +12171,15 @@ var init_account = __esm({
           docsPath: docsPath8,
           docsSlug: "account",
           name: "AccountNotFoundError"
+        });
+      }
+    };
+    AccountTypeNotSupportedError = class extends BaseError2 {
+      constructor({ docsPath: docsPath8, metaMessages, type }) {
+        super(`Account type "${type}" is not supported.`, {
+          docsPath: docsPath8,
+          metaMessages,
+          name: "AccountTypeNotSupportedError"
         });
       }
     };
@@ -12190,6 +12208,242 @@ async function sendRawTransaction(client2, { serializedTransaction }) {
 }
 var init_sendRawTransaction = __esm({
   "node_modules/viem/_esm/actions/wallet/sendRawTransaction.js"() {
+  }
+});
+
+// node_modules/viem/_esm/actions/wallet/sendTransaction.js
+async function sendTransaction(client2, parameters) {
+  const { account: account_ = client2.account, assertChainId = true, chain = client2.chain, accessList, authorizationList, blobs, data, dataSuffix = typeof client2.dataSuffix === "string" ? client2.dataSuffix : client2.dataSuffix?.value, gas, gasPrice, maxFeePerBlobGas, maxFeePerGas, maxPriorityFeePerGas, nonce, type, value, ...rest } = parameters;
+  if (typeof account_ === "undefined")
+    throw new AccountNotFoundError({
+      docsPath: "/docs/actions/wallet/sendTransaction"
+    });
+  const account2 = account_ ? parseAccount(account_) : null;
+  let nonceManagerParameters;
+  try {
+    assertRequest(parameters);
+    const to = await (async () => {
+      if (parameters.to)
+        return parameters.to;
+      if (parameters.to === null)
+        return void 0;
+      if (authorizationList && authorizationList.length > 0)
+        return await recoverAuthorizationAddress({
+          authorization: authorizationList[0]
+        }).catch(() => {
+          throw new BaseError2("`to` is required. Could not infer from `authorizationList`.");
+        });
+      return void 0;
+    })();
+    if (account2?.type === "json-rpc" || account2 === null) {
+      let chainId;
+      if (chain !== null) {
+        chainId = await getAction(client2, getChainId, "getChainId")({});
+        if (assertChainId)
+          assertCurrentChain({
+            currentChainId: chainId,
+            chain
+          });
+      }
+      const chainFormat = client2.chain?.formatters?.transactionRequest?.format;
+      const format2 = chainFormat || formatTransactionRequest;
+      const request2 = format2({
+        // Pick out extra data that might exist on the chain's transaction request type.
+        ...extract(rest, { format: chainFormat }),
+        accessList,
+        account: account2,
+        authorizationList,
+        blobs,
+        chainId,
+        data: dataSuffix ? concat([data ?? "0x", dataSuffix]) : data,
+        gas,
+        gasPrice,
+        maxFeePerBlobGas,
+        maxFeePerGas,
+        maxPriorityFeePerGas,
+        nonce,
+        to,
+        type,
+        value
+      }, "sendTransaction");
+      const isWalletNamespaceSupported = supportsWalletNamespace.get(client2.uid);
+      const method = isWalletNamespaceSupported ? "wallet_sendTransaction" : "eth_sendTransaction";
+      try {
+        return await client2.request({
+          method,
+          params: [request2]
+        }, { retryCount: 0 });
+      } catch (e) {
+        if (isWalletNamespaceSupported === false)
+          throw e;
+        const error = e;
+        if (error.name === "InvalidInputRpcError" || error.name === "InvalidParamsRpcError" || error.name === "MethodNotFoundRpcError" || error.name === "MethodNotSupportedRpcError") {
+          return await client2.request({
+            method: "wallet_sendTransaction",
+            params: [request2]
+          }, { retryCount: 0 }).then((hash4) => {
+            supportsWalletNamespace.set(client2.uid, true);
+            return hash4;
+          }).catch((e2) => {
+            const walletNamespaceError = e2;
+            if (walletNamespaceError.name === "MethodNotFoundRpcError" || walletNamespaceError.name === "MethodNotSupportedRpcError") {
+              supportsWalletNamespace.set(client2.uid, false);
+              throw error;
+            }
+            throw walletNamespaceError;
+          });
+        }
+        throw error;
+      }
+    }
+    if (account2?.type === "local") {
+      const nonceManager = (() => {
+        if (!account2.nonceManager || typeof nonce !== "undefined")
+          return account2.nonceManager;
+        const nonceManager2 = account2.nonceManager;
+        return {
+          consume(parameters2) {
+            nonceManagerParameters = {
+              address: parameters2.address,
+              chainId: parameters2.chainId
+            };
+            return nonceManager2.consume(parameters2);
+          },
+          get(parameters2) {
+            return nonceManager2.get(parameters2);
+          },
+          increment(parameters2) {
+            return nonceManager2.increment(parameters2);
+          },
+          reset(parameters2) {
+            return nonceManager2.reset(parameters2);
+          }
+        };
+      })();
+      const request2 = await getAction(client2, prepareTransactionRequest, "prepareTransactionRequest")({
+        account: account2,
+        accessList,
+        authorizationList,
+        blobs,
+        chain,
+        data: dataSuffix ? concat([data ?? "0x", dataSuffix]) : data,
+        gas,
+        gasPrice,
+        maxFeePerBlobGas,
+        maxFeePerGas,
+        maxPriorityFeePerGas,
+        nonce,
+        nonceManager,
+        parameters: [...defaultParameters, "sidecars"],
+        type,
+        value,
+        ...rest,
+        to
+      });
+      const serializer = chain?.serializers?.transaction;
+      const signedTransaction = await account2.signTransaction(request2, {
+        serializer
+      });
+      const transactionEnvelope = (chain ?? client2.chain)?.serializers?.transactionEnvelope;
+      const serializedTransaction = transactionEnvelope ? await transactionEnvelope({
+        serializedTransaction: signedTransaction,
+        transaction: request2
+      }) : signedTransaction;
+      return await getAction(client2, sendRawTransaction, "sendRawTransaction")({
+        serializedTransaction
+      });
+    }
+    if (account2?.type === "smart")
+      throw new AccountTypeNotSupportedError({
+        metaMessages: [
+          "Consider using the `sendUserOperation` Action instead."
+        ],
+        docsPath: "/docs/actions/bundler/sendUserOperation",
+        type: "smart"
+      });
+    throw new AccountTypeNotSupportedError({
+      docsPath: "/docs/actions/wallet/sendTransaction",
+      type: account2?.type
+    });
+  } catch (err) {
+    if (err instanceof AccountTypeNotSupportedError)
+      throw err;
+    if (nonceManagerParameters)
+      account2?.nonceManager?.reset(nonceManagerParameters);
+    throw getTransactionError(err, {
+      ...parameters,
+      account: account2,
+      chain: parameters.chain || void 0
+    });
+  }
+}
+var supportsWalletNamespace;
+var init_sendTransaction = __esm({
+  "node_modules/viem/_esm/actions/wallet/sendTransaction.js"() {
+    init_parseAccount();
+    init_account();
+    init_base();
+    init_recoverAuthorizationAddress();
+    init_assertCurrentChain();
+    init_concat();
+    init_getTransactionError();
+    init_extract();
+    init_transactionRequest();
+    init_getAction();
+    init_lru();
+    init_assertRequest();
+    init_getChainId();
+    init_prepareTransactionRequest();
+    init_sendRawTransaction();
+    supportsWalletNamespace = new LruMap(128);
+  }
+});
+
+// node_modules/viem/_esm/actions/wallet/writeContract.js
+async function writeContract(client2, parameters) {
+  return writeContract.internal(client2, sendTransaction, "sendTransaction", parameters);
+}
+var init_writeContract = __esm({
+  "node_modules/viem/_esm/actions/wallet/writeContract.js"() {
+    init_parseAccount();
+    init_account();
+    init_encodeFunctionData();
+    init_getContractError();
+    init_getAction();
+    init_sendTransaction();
+    (function(writeContract2) {
+      async function internal(client2, actionFn, name, parameters) {
+        const { abi: abi2, account: account_ = client2.account, address: address3, args, functionName, ...request2 } = parameters;
+        if (typeof account_ === "undefined")
+          throw new AccountNotFoundError({
+            docsPath: "/docs/contract/writeContract"
+          });
+        const account2 = account_ ? parseAccount(account_) : null;
+        const data = encodeFunctionData({
+          abi: abi2,
+          args,
+          functionName
+        });
+        try {
+          return await getAction(client2, actionFn, name)({
+            data,
+            to: address3,
+            account: account2,
+            ...request2
+          });
+        } catch (error) {
+          throw getContractError(error, {
+            abi: abi2,
+            address: address3,
+            args,
+            docsPath: "/docs/contract/writeContract",
+            functionName,
+            sender: account2?.address
+          });
+        }
+      }
+      writeContract2.internal = internal;
+    })(writeContract || (writeContract = {}));
   }
 });
 
@@ -12280,9 +12534,9 @@ function assertTransactionEIP7702(transaction) {
   if (authorizationList) {
     for (const authorization of authorizationList) {
       const { chainId } = authorization;
-      const address = authorization.address;
-      if (!isAddress(address))
-        throw new InvalidAddressError({ address });
+      const address3 = authorization.address;
+      if (!isAddress(address3))
+        throw new InvalidAddressError({ address: address3 });
       if (chainId < 0)
         throw new InvalidChainIdError({ chainId });
     }
@@ -12294,14 +12548,14 @@ function assertTransactionEIP4844(transaction) {
   if (blobVersionedHashes) {
     if (blobVersionedHashes.length === 0)
       throw new EmptyBlobError();
-    for (const hash3 of blobVersionedHashes) {
-      const size_ = size(hash3);
-      const version4 = hexToNumber(slice(hash3, 0, 1));
+    for (const hash4 of blobVersionedHashes) {
+      const size_ = size(hash4);
+      const version4 = hexToNumber(slice(hash4, 0, 1));
       if (size_ !== 32)
-        throw new InvalidVersionedHashSizeError({ hash: hash3, size: size_ });
+        throw new InvalidVersionedHashSizeError({ hash: hash4, size: size_ });
       if (version4 !== versionedHashVersionKzg)
         throw new InvalidVersionedHashVersionError({
-          hash: hash3,
+          hash: hash4,
           version: version4
         });
     }
@@ -12363,16 +12617,16 @@ function serializeAccessList(accessList) {
     return [];
   const serializedAccessList = [];
   for (let i = 0; i < accessList.length; i++) {
-    const { address, storageKeys } = accessList[i];
+    const { address: address3, storageKeys } = accessList[i];
     for (let j = 0; j < storageKeys.length; j++) {
       if (storageKeys[j].length - 2 !== 64) {
         throw new InvalidStorageKeySizeError({ storageKey: storageKeys[j] });
       }
     }
-    if (!isAddress(address, { strict: false })) {
-      throw new InvalidAddressError({ address });
+    if (!isAddress(address3, { strict: false })) {
+      throw new InvalidAddressError({ address: address3 });
     }
-    serializedAccessList.push([address, storageKeys]);
+    serializedAccessList.push([address3, storageKeys]);
   }
   return serializedAccessList;
 }
@@ -12460,10 +12714,10 @@ function serializeTransactionEIP4844(transaction, signature) {
   const proofs = [];
   if (sidecars)
     for (let i = 0; i < sidecars.length; i++) {
-      const { blob, commitment, proof } = sidecars[i];
+      const { blob, commitment, proof: proof2 } = sidecars[i];
       blobs.push(blob);
       commitments.push(commitment);
-      proofs.push(proof);
+      proofs.push(proof2);
     }
   return concatHex([
     "0x03",
@@ -12626,8 +12880,8 @@ var init_serializeAuthorizationList = __esm({
 });
 
 // node_modules/viem/_esm/utils/authorization/verifyAuthorization.js
-async function verifyAuthorization({ address, authorization, signature }) {
-  return isAddressEqual(getAddress(address), await recoverAuthorizationAddress({
+async function verifyAuthorization({ address: address3, authorization, signature }) {
+  return isAddressEqual(getAddress(address3), await recoverAuthorizationAddress({
     authorization,
     signature
   }));
@@ -13222,6 +13476,31 @@ var init_typedData = __esm({
 });
 
 // node_modules/viem/_esm/utils/typedData.js
+function serializeTypedData(parameters) {
+  const { domain: domain_, message: message_, primaryType, types } = parameters;
+  const normalizeData = (struct, data_) => {
+    const data = { ...data_ };
+    for (const param of struct) {
+      const { name, type } = param;
+      if (type === "address")
+        data[name] = data[name].toLowerCase();
+    }
+    return data;
+  };
+  const domain = (() => {
+    if (!types.EIP712Domain)
+      return {};
+    if (!domain_)
+      return {};
+    return normalizeData(types.EIP712Domain, domain_);
+  })();
+  const message = (() => {
+    if (primaryType === "EIP712Domain")
+      return void 0;
+    return normalizeData(types[primaryType], message_);
+  })();
+  return stringify({ domain, message, primaryType, types });
+}
 function validateTypedData(parameters) {
   const { domain, message, primaryType, types } = parameters;
   const validateData = (struct, data) => {
@@ -13297,6 +13576,7 @@ var init_typedData2 = __esm({
     init_size();
     init_toHex();
     init_regex2();
+    init_stringify();
   }
 });
 
@@ -13659,40 +13939,40 @@ function assert4(value, options = {}) {
       });
   }
 }
-function checksum2(address) {
-  if (checksum.has(address))
-    return checksum.get(address);
-  assert4(address, { strict: false });
-  const hexAddress = address.substring(2).toLowerCase();
-  const hash3 = keccak2562(fromString(hexAddress), { as: "Bytes" });
+function checksum2(address3) {
+  if (checksum.has(address3))
+    return checksum.get(address3);
+  assert4(address3, { strict: false });
+  const hexAddress = address3.substring(2).toLowerCase();
+  const hash4 = keccak2562(fromString(hexAddress), { as: "Bytes" });
   const characters = hexAddress.split("");
   for (let i = 0; i < 40; i += 2) {
-    if (hash3[i >> 1] >> 4 >= 8 && characters[i]) {
+    if (hash4[i >> 1] >> 4 >= 8 && characters[i]) {
       characters[i] = characters[i].toUpperCase();
     }
-    if ((hash3[i >> 1] & 15) >= 8 && characters[i + 1]) {
+    if ((hash4[i >> 1] & 15) >= 8 && characters[i + 1]) {
       characters[i + 1] = characters[i + 1].toUpperCase();
     }
   }
   const result = `0x${characters.join("")}`;
-  checksum.set(address, result);
+  checksum.set(address3, result);
   return result;
 }
-function from5(address, options = {}) {
+function from5(address3, options = {}) {
   const { checksum: checksumVal = false } = options;
-  assert4(address);
+  assert4(address3);
   if (checksumVal)
-    return checksum2(address);
-  return address;
+    return checksum2(address3);
+  return address3;
 }
 function fromPublicKey(publicKey, options = {}) {
-  const address = keccak2562(`0x${toHex2(publicKey).slice(4)}`).substring(26);
-  return from5(`0x${address}`, options);
+  const address3 = keccak2562(`0x${toHex2(publicKey).slice(4)}`).substring(26);
+  return from5(`0x${address3}`, options);
 }
-function validate3(address, options = {}) {
+function validate3(address3, options = {}) {
   const { strict = true } = options ?? {};
   try {
-    assert4(address, { strict });
+    assert4(address3, { strict });
     return true;
   } catch {
     return false;
@@ -13708,8 +13988,8 @@ var init_Address = __esm({
     init_PublicKey();
     addressRegex2 = /^0x[a-fA-F0-9]{40}$/;
     InvalidAddressError2 = class extends BaseError3 {
-      constructor({ address, cause }) {
-        super(`Address "${address}" is invalid.`, {
+      constructor({ address: address3, cause }) {
+        super(`Address "${address3}" is invalid.`, {
           cause
         });
         Object.defineProperty(this, "name", {
@@ -13877,9 +14157,9 @@ function decodeParameter2(cursor, param, options) {
   throw new InvalidTypeError(param.type);
 }
 function decodeAddress3(cursor, options = {}) {
-  const { checksum: checksum3 = false } = options;
+  const { checksum: checksum4 = false } = options;
   const value = cursor.readBytes(32);
-  const wrap3 = (address) => checksum3 ? checksum2(address) : address;
+  const wrap3 = (address3) => checksum4 ? checksum2(address3) : address3;
   return [wrap3(fromBytes(slice2(value, -20))), 32];
 }
 function decodeArray2(cursor, param, options) {
@@ -14095,8 +14375,8 @@ function encode(preparedParameters) {
   return concat2(...staticParameters, ...dynamicParameters);
 }
 function encodeAddress2(value, options) {
-  const { checksum: checksum3 = false } = options;
-  assert4(value, { strict: checksum3 });
+  const { checksum: checksum4 = false } = options;
+  assert4(value, { strict: checksum4 });
   return {
     dynamic: false,
     encoded: padLeft(value.toLowerCase())
@@ -14550,9 +14830,9 @@ var init_AbiParameters = __esm({
     (function(encodePacked2) {
       function encode4(type, value, isArray = false) {
         if (type === "address") {
-          const address = value;
-          assert4(address);
-          return padLeft(address.toLowerCase(), isArray ? 32 : 0);
+          const address3 = value;
+          assert4(address3);
+          return padLeft(address3.toLowerCase(), isArray ? 32 : 0);
         }
         if (type === "string")
           return fromString2(value);
@@ -14984,10 +15264,10 @@ function from9(authorization, options = {}) {
   return { ...authorization, ...options.signature };
 }
 function fromRpc3(authorization) {
-  const { address, chainId, nonce } = authorization;
+  const { address: address3, chainId, nonce } = authorization;
   const signature = extract2(authorization);
   return {
-    address,
+    address: address3,
     chainId: Number(chainId),
     nonce: BigInt(nonce),
     ...signature
@@ -15005,11 +15285,11 @@ function hash2(authorization, options = {}) {
   } : authorization))));
 }
 function toTuple2(authorization) {
-  const { address, chainId, nonce } = authorization;
+  const { address: address3, chainId, nonce } = authorization;
   const signature = extract2(authorization);
   return [
     chainId ? fromNumber(chainId) : "0x",
-    address,
+    address3,
     nonce ? fromNumber(nonce) : "0x",
     ...signature ? toTuple(signature) : []
   ];
@@ -15149,6 +15429,45 @@ var init_erc8010 = __esm({
   }
 });
 
+// node_modules/viem/_esm/utils/signature/recoverTypedDataAddress.js
+async function recoverTypedDataAddress(parameters) {
+  const { domain, message, primaryType, signature, types } = parameters;
+  return recoverAddress({
+    hash: hashTypedData({
+      domain,
+      message,
+      primaryType,
+      types
+    }),
+    signature
+  });
+}
+var init_recoverTypedDataAddress = __esm({
+  "node_modules/viem/_esm/utils/signature/recoverTypedDataAddress.js"() {
+    init_hashTypedData();
+    init_recoverAddress();
+  }
+});
+
+// node_modules/viem/_esm/utils/signature/verifyTypedData.js
+async function verifyTypedData(parameters) {
+  const { address: address3, domain, message, primaryType, signature, types } = parameters;
+  return isAddressEqual(getAddress(address3), await recoverTypedDataAddress({
+    domain,
+    message,
+    primaryType,
+    signature,
+    types
+  }));
+}
+var init_verifyTypedData = __esm({
+  "node_modules/viem/_esm/utils/signature/verifyTypedData.js"() {
+    init_getAddress();
+    init_isAddressEqual();
+    init_recoverTypedDataAddress();
+  }
+});
+
 // node_modules/viem/_esm/utils/unit/formatUnits.js
 function formatUnits(value, decimals) {
   return format(value, decimals);
@@ -15178,14 +15497,14 @@ var init_utils5 = __esm({
 });
 
 // node_modules/viem/_esm/actions/public/getTransaction.js
-async function getTransaction(client2, { blockHash, blockNumber, blockTag: blockTag_, hash: hash3, index: index2, sender, nonce }) {
+async function getTransaction(client2, { blockHash, blockNumber, blockTag: blockTag_, hash: hash4, index: index2, sender, nonce }) {
   const blockTag = blockTag_ || "latest";
   const blockNumberHex = blockNumber !== void 0 ? numberToHex(blockNumber) : void 0;
   let transaction = null;
-  if (hash3) {
+  if (hash4) {
     transaction = await client2.request({
       method: "eth_getTransactionByHash",
-      params: [hash3]
+      params: [hash4]
     }, { dedupe: true });
   } else if (blockHash) {
     transaction = await client2.request({
@@ -15208,7 +15527,7 @@ async function getTransaction(client2, { blockHash, blockNumber, blockTag: block
       blockHash,
       blockNumber,
       blockTag,
-      hash: hash3,
+      hash: hash4,
       index: index2
     });
   const format2 = client2.chain?.formatters?.transaction?.format || formatTransaction;
@@ -15223,13 +15542,13 @@ var init_getTransaction = __esm({
 });
 
 // node_modules/viem/_esm/actions/public/getTransactionReceipt.js
-async function getTransactionReceipt(client2, { hash: hash3 }) {
+async function getTransactionReceipt(client2, { hash: hash4 }) {
   const receipt = await client2.request({
     method: "eth_getTransactionReceipt",
-    params: [hash3]
+    params: [hash4]
   }, { dedupe: true });
   if (!receipt)
-    throw new TransactionReceiptNotFoundError({ hash: hash3 });
+    throw new TransactionReceiptNotFoundError({ hash: hash4 });
   const format2 = client2.chain?.formatters?.transactionReceipt?.format || formatTransactionReceipt;
   return format2(receipt, "getTransactionReceipt");
 }
@@ -15265,7 +15584,7 @@ async function multicall(client2, parameters) {
   let currentChunk = 0;
   let currentChunkSize = 0;
   for (let i = 0; i < contracts2.length; i++) {
-    const { abi: abi2, address, args, functionName } = contracts2[i];
+    const { abi: abi2, address: address3, args, functionName } = contracts2[i];
     try {
       const callData = encodeFunctionData({ abi: abi2, args, functionName });
       currentChunkSize += (callData.length - 2) / 2;
@@ -15284,13 +15603,13 @@ async function multicall(client2, parameters) {
         {
           allowFailure: true,
           callData,
-          target: address
+          target: address3
         }
       ];
     } catch (err) {
       const error = getContractError(err, {
         abi: abi2,
-        address,
+        address: address3,
         args,
         docsPath: "/docs/contract/multicall",
         functionName,
@@ -15303,7 +15622,7 @@ async function multicall(client2, parameters) {
         {
           allowFailure: true,
           callData: "0x",
-          target: address
+          target: address3
         }
       ];
     }
@@ -15359,7 +15678,7 @@ async function multicall(client2, parameters) {
     for (let j = 0; j < aggregate3Result.length; j++) {
       const { returnData, success } = aggregate3Result[j];
       const { callData } = batches[i][j];
-      const { abi: abi2, address, functionName, args } = contracts2[results.length];
+      const { abi: abi2, address: address3, functionName, args } = contracts2[results.length];
       try {
         if (callData === "0x")
           throw new AbiDecodingZeroDataError();
@@ -15375,7 +15694,7 @@ async function multicall(client2, parameters) {
       } catch (err) {
         const error = getContractError(err, {
           abi: abi2,
-          address,
+          address: address3,
           args,
           docsPath: "/docs/contract/multicall",
           functionName
@@ -15840,7 +16159,7 @@ async function waitForTransactionReceipt(client2, parameters) {
   const {
     checkReplacement = client2.chain?.supportsTransactionReplacementDetection ?? true,
     confirmations = 1,
-    hash: hash3,
+    hash: hash4,
     onReplaced,
     retryCount = 6,
     retryDelay = ({ count }) => ~~(1 << count) * 200,
@@ -15857,7 +16176,7 @@ async function waitForTransactionReceipt(client2, parameters) {
   const observerId = stringify([
     "waitForTransactionReceipt",
     client2.uid,
-    hash3,
+    hash4,
     // Concurrent calls with different behavior-defining options must not
     // share an observer: the first call's polling closure decides timeout,
     // confirmations, polling interval and replacement checks for everyone.
@@ -15879,10 +16198,10 @@ async function waitForTransactionReceipt(client2, parameters) {
   const timer = timeout ? setTimeout(() => {
     _unwatch?.();
     _unobserve?.();
-    reject(new WaitForTransactionReceiptTimeoutError({ hash: hash3 }));
+    reject(new WaitForTransactionReceiptTimeoutError({ hash: hash4 }));
   }, timeout) : void 0;
   _unobserve = observe(observerId, { onReplaced, resolve, reject }, async (emit) => {
-    receipt = await getAction(client2, getTransactionReceipt, "getTransactionReceipt")({ hash: hash3 }).catch(() => void 0);
+    receipt = await getAction(client2, getTransactionReceipt, "getTransactionReceipt")({ hash: hash4 }).catch(() => void 0);
     if (receipt && confirmations <= 1) {
       clearTimeout(timer);
       emit.resolve(receipt);
@@ -15914,7 +16233,7 @@ async function waitForTransactionReceipt(client2, parameters) {
           if (checkReplacement && !transaction) {
             retrying = true;
             await withRetry(async () => {
-              transaction = await getAction(client2, getTransaction, "getTransaction")({ hash: hash3 });
+              transaction = await getAction(client2, getTransaction, "getTransaction")({ hash: hash4 });
               if (transaction.blockNumber)
                 blockNumber = transaction.blockNumber;
             }, {
@@ -15923,7 +16242,7 @@ async function waitForTransactionReceipt(client2, parameters) {
             });
             retrying = false;
           }
-          receipt = await getAction(client2, getTransactionReceipt, "getTransactionReceipt")({ hash: hash3 });
+          receipt = await getAction(client2, getTransactionReceipt, "getTransactionReceipt")({ hash: hash4 });
           if (confirmations > 1 && (!receipt.blockNumber || blockNumber - receipt.blockNumber + 1n < confirmations))
             return;
           done(() => emit.resolve(receipt));
@@ -15945,7 +16264,7 @@ async function waitForTransactionReceipt(client2, parameters) {
                 shouldRetry: ({ error }) => error instanceof BlockNotFoundError
               });
               retrying = false;
-              const replacementTransaction = block.transactions.find(({ from: from16, hash: hash4, nonce }) => isAddressEqual(from16, replacedTransaction.from) && hash4 !== replacedTransaction.hash && nonce === replacedTransaction.nonce);
+              const replacementTransaction = block.transactions.find(({ from: from16, hash: hash5, nonce }) => isAddressEqual(from16, replacedTransaction.from) && hash5 !== replacedTransaction.hash && nonce === replacedTransaction.nonce);
               if (!replacementTransaction)
                 return;
               receipt = await getAction(client2, getTransactionReceipt, "getTransactionReceipt")({
@@ -16001,81 +16320,101 @@ var init_waitForTransactionReceipt = __esm({
 function toAmount(amount, decimals) {
   return { amount, decimals, formatted: formatUnits(amount, decimals) };
 }
+function toBaseUnits(amount, decimals) {
+  if (typeof amount === "bigint")
+    return amount;
+  const resolved = amount.decimals ?? decimals;
+  return parseUnits(amount.formatted, requireTokenDecimals(resolved));
+}
+function requireTokenDecimals(decimals) {
+  if (decimals === void 0)
+    throw new Error("Token decimals are required. Pass `amount.decimals` or select a declared token.");
+  return decimals;
+}
+function resolveAmountDecimals(amount, decimals) {
+  if (typeof amount === "bigint")
+    return decimals;
+  return amount.decimals ?? decimals;
+}
 function resolveToken(client2, parameters) {
-  const { decimals, token } = parameters;
-  const declared = findDeclaredToken(client2, token);
+  const { decimals, token: token2 } = parameters;
+  const declared = findDeclaredToken(client2, token2);
   if (declared)
     return {
       address: declared.address,
       decimals: decimals ?? declared.decimals
     };
-  if (isAddress(token, { strict: false }))
+  if (isAddress(token2, { strict: false }))
     return {
-      address: token,
-      decimals: decimals ?? inferDecimals(client2, token)
+      address: token2,
+      decimals: decimals ?? inferDecimals(client2, token2)
     };
-  throw new Error(`Token "${token}" is not a declared ERC-20 token on the client's \`tokens\` array (with an address for the client's chain), and is not a valid address.`);
+  throw new Error(`Token "${token2}" is not a declared ERC-20 token on the client's \`tokens\` array (with an address for the client's chain), and is not a valid address.`);
 }
-function findDeclaredToken(client2, token) {
+function findDeclaredToken(client2, token2) {
   const tokens = client2.tokens;
   const chainId = client2.chain?.id;
   if (!tokens || chainId === void 0)
     return void 0;
-  const bySymbol = findTokenBySymbol(tokens, token);
+  const bySymbol = findTokenBySymbol(tokens, token2);
   if (bySymbol)
     return resolveTokenForChain(bySymbol, chainId);
-  if (isAddress(token, { strict: false }))
+  if (isAddress(token2, { strict: false }))
     for (const token_ of tokens) {
       const resolved = resolveTokenForChain(token_, chainId);
-      if (resolved && isAddressEqual(resolved.address, token))
+      if (resolved && isAddressEqual(resolved.address, token2))
         return resolved;
     }
   return void 0;
 }
-function resolveTokenForChain(token, chainId) {
-  const address = token.addresses[chainId];
-  if (!address)
+function resolveTokenForChain(token2, chainId) {
+  const address3 = token2.addresses[chainId];
+  if (!address3)
     return void 0;
   return {
-    address,
-    currency: token.currency,
-    decimals: token.decimals,
-    name: token.name,
-    popular: token.popular,
-    symbol: token.symbol
+    address: address3,
+    currency: token2.currency,
+    decimals: token2.decimals,
+    name: token2.name,
+    popular: token2.popular,
+    symbol: token2.symbol
   };
 }
 function findTokenBySymbol(tokens, symbol) {
   const lowerSymbol = symbol.toLowerCase();
-  for (const token of tokens) {
-    if (token.symbol?.toLowerCase() === lowerSymbol)
-      return token;
+  for (const token2 of tokens) {
+    if (token2.symbol?.toLowerCase() === lowerSymbol)
+      return token2;
   }
   return void 0;
 }
-function inferDecimals(client2, address) {
+function inferDecimals(client2, address3) {
   const tokens = client2.tokens;
   const chainId = client2.chain?.id;
   if (tokens && chainId !== void 0)
-    for (const token of tokens) {
-      const resolved = resolveTokenForChain(token, chainId);
-      if (resolved && isAddressEqual(resolved.address, address))
+    for (const token2 of tokens) {
+      const resolved = resolveTokenForChain(token2, chainId);
+      if (resolved && isAddressEqual(resolved.address, address3))
         return resolved.decimals;
     }
   return void 0;
 }
 async function resolveTokenWithDecimals(client2, parameters) {
-  const { address, decimals } = resolveToken(client2, parameters);
+  const { address: address3, decimals } = resolveToken(client2, parameters);
   if (decimals !== void 0)
-    return { address, decimals };
+    return { address: address3, decimals };
   return {
-    address,
+    address: address3,
     decimals: await readContract(client2, {
       abi: erc20Abi,
-      address,
+      address: address3,
       functionName: "decimals"
     })
   };
+}
+function pickWriteParameters(parameters) {
+  const { account: account2, chain, gas, maxFeePerGas, maxPriorityFeePerGas, nonce } = parameters;
+  return { account: account2, chain, gas, maxFeePerGas, maxPriorityFeePerGas, nonce };
 }
 function defineCall(call2) {
   return {
@@ -16091,6 +16430,7 @@ var init_internal = __esm({
     init_isAddressEqual();
     init_utils5();
     init_formatUnits();
+    init_parseUnits();
     init_readContract();
   }
 });
@@ -16111,6 +16451,221 @@ var init_sendRawTransactionSync = __esm({
   "node_modules/viem/_esm/actions/wallet/sendRawTransactionSync.js"() {
     init_transaction();
     init_transactionReceipt();
+  }
+});
+
+// node_modules/viem/_esm/actions/wallet/sendTransactionSync.js
+async function sendTransactionSync(client2, parameters) {
+  const { account: account_ = client2.account, assertChainId = true, chain = client2.chain, accessList, authorizationList, blobs, data, dataSuffix = typeof client2.dataSuffix === "string" ? client2.dataSuffix : client2.dataSuffix?.value, gas, gasPrice, maxFeePerBlobGas, maxFeePerGas, maxPriorityFeePerGas, nonce, pollingInterval, throwOnReceiptRevert, type, value, ...rest } = parameters;
+  const timeout = parameters.timeout ?? Math.max((chain?.blockTime ?? 0) * 3, 5e3);
+  if (typeof account_ === "undefined")
+    throw new AccountNotFoundError({
+      docsPath: "/docs/actions/wallet/sendTransactionSync"
+    });
+  const account2 = account_ ? parseAccount(account_) : null;
+  let nonceManagerParameters;
+  try {
+    assertRequest(parameters);
+    const to = await (async () => {
+      if (parameters.to)
+        return parameters.to;
+      if (parameters.to === null)
+        return void 0;
+      if (authorizationList && authorizationList.length > 0)
+        return await recoverAuthorizationAddress({
+          authorization: authorizationList[0]
+        }).catch(() => {
+          throw new BaseError2("`to` is required. Could not infer from `authorizationList`.");
+        });
+      return void 0;
+    })();
+    if (account2?.type === "json-rpc" || account2 === null) {
+      let chainId;
+      if (chain !== null) {
+        chainId = await getAction(client2, getChainId, "getChainId")({});
+        if (assertChainId)
+          assertCurrentChain({
+            currentChainId: chainId,
+            chain
+          });
+      }
+      const chainFormat = client2.chain?.formatters?.transactionRequest?.format;
+      const format2 = chainFormat || formatTransactionRequest;
+      const request2 = format2({
+        // Pick out extra data that might exist on the chain's transaction request type.
+        ...extract(rest, { format: chainFormat }),
+        accessList,
+        account: account2,
+        authorizationList,
+        blobs,
+        chainId,
+        data: dataSuffix ? concat([data ?? "0x", dataSuffix]) : data,
+        gas,
+        gasPrice,
+        maxFeePerBlobGas,
+        maxFeePerGas,
+        maxPriorityFeePerGas,
+        nonce,
+        to,
+        type,
+        value
+      }, "sendTransaction");
+      const isWalletNamespaceSupported = supportsWalletNamespace2.get(client2.uid);
+      const method = isWalletNamespaceSupported ? "wallet_sendTransaction" : "eth_sendTransaction";
+      const hash4 = await (async () => {
+        try {
+          return await client2.request({
+            method,
+            params: [request2]
+          }, { retryCount: 0 });
+        } catch (e) {
+          if (isWalletNamespaceSupported === false)
+            throw e;
+          const error = e;
+          if (error.name === "InvalidInputRpcError" || error.name === "InvalidParamsRpcError" || error.name === "MethodNotFoundRpcError" || error.name === "MethodNotSupportedRpcError") {
+            return await client2.request({
+              method: "wallet_sendTransaction",
+              params: [request2]
+            }, { retryCount: 0 }).then((hash5) => {
+              supportsWalletNamespace2.set(client2.uid, true);
+              return hash5;
+            }).catch((e2) => {
+              const walletNamespaceError = e2;
+              if (walletNamespaceError.name === "MethodNotFoundRpcError" || walletNamespaceError.name === "MethodNotSupportedRpcError") {
+                supportsWalletNamespace2.set(client2.uid, false);
+                throw error;
+              }
+              throw walletNamespaceError;
+            });
+          }
+          throw error;
+        }
+      })();
+      const receipt = await getAction(client2, waitForTransactionReceipt, "waitForTransactionReceipt")({
+        checkReplacement: false,
+        hash: hash4,
+        pollingInterval,
+        timeout
+      });
+      if (throwOnReceiptRevert && receipt.status === "reverted")
+        throw new TransactionReceiptRevertedError({ receipt });
+      return receipt;
+    }
+    if (account2?.type === "local") {
+      const nonceManager = (() => {
+        if (!account2.nonceManager || typeof nonce !== "undefined")
+          return account2.nonceManager;
+        const nonceManager2 = account2.nonceManager;
+        return {
+          consume(parameters2) {
+            nonceManagerParameters = {
+              address: parameters2.address,
+              chainId: parameters2.chainId
+            };
+            return nonceManager2.consume(parameters2);
+          },
+          get(parameters2) {
+            return nonceManager2.get(parameters2);
+          },
+          increment(parameters2) {
+            return nonceManager2.increment(parameters2);
+          },
+          reset(parameters2) {
+            return nonceManager2.reset(parameters2);
+          }
+        };
+      })();
+      const request2 = await getAction(client2, prepareTransactionRequest, "prepareTransactionRequest")({
+        account: account2,
+        accessList,
+        authorizationList,
+        blobs,
+        chain,
+        data: dataSuffix ? concat([data ?? "0x", dataSuffix]) : data,
+        gas,
+        gasPrice,
+        maxFeePerBlobGas,
+        maxFeePerGas,
+        maxPriorityFeePerGas,
+        nonce,
+        nonceManager,
+        parameters: [...defaultParameters, "sidecars"],
+        type,
+        value,
+        ...rest,
+        to
+      });
+      const serializer = chain?.serializers?.transaction;
+      const signedTransaction = await account2.signTransaction(request2, {
+        serializer
+      });
+      const transactionEnvelope = (chain ?? client2.chain)?.serializers?.transactionEnvelope;
+      const serializedTransaction = transactionEnvelope ? await transactionEnvelope({
+        serializedTransaction: signedTransaction,
+        transaction: request2
+      }) : signedTransaction;
+      return await getAction(client2, sendRawTransactionSync, "sendRawTransactionSync")({
+        serializedTransaction,
+        throwOnReceiptRevert,
+        timeout: parameters.timeout
+      });
+    }
+    if (account2?.type === "smart")
+      throw new AccountTypeNotSupportedError({
+        metaMessages: [
+          "Consider using the `sendUserOperation` Action instead."
+        ],
+        docsPath: "/docs/actions/bundler/sendUserOperation",
+        type: "smart"
+      });
+    throw new AccountTypeNotSupportedError({
+      docsPath: "/docs/actions/wallet/sendTransactionSync",
+      type: account2?.type
+    });
+  } catch (err) {
+    if (err instanceof AccountTypeNotSupportedError)
+      throw err;
+    if (nonceManagerParameters && !(err instanceof TransactionReceiptRevertedError))
+      account2?.nonceManager?.reset(nonceManagerParameters);
+    throw getTransactionError(err, {
+      ...parameters,
+      account: account2,
+      chain: parameters.chain || void 0
+    });
+  }
+}
+var supportsWalletNamespace2;
+var init_sendTransactionSync = __esm({
+  "node_modules/viem/_esm/actions/wallet/sendTransactionSync.js"() {
+    init_parseAccount();
+    init_account();
+    init_base();
+    init_transaction();
+    init_recoverAuthorizationAddress();
+    init_assertCurrentChain();
+    init_concat();
+    init_getTransactionError();
+    init_extract();
+    init_transactionRequest();
+    init_getAction();
+    init_lru();
+    init_assertRequest();
+    init_getChainId();
+    init_waitForTransactionReceipt();
+    init_prepareTransactionRequest();
+    init_sendRawTransactionSync();
+    supportsWalletNamespace2 = new LruMap(128);
+  }
+});
+
+// node_modules/viem/_esm/actions/wallet/writeContractSync.js
+async function writeContractSync(client2, parameters) {
+  return writeContract.internal(client2, sendTransactionSync, "sendTransactionSync", parameters);
+}
+var init_writeContractSync = __esm({
+  "node_modules/viem/_esm/actions/wallet/writeContractSync.js"() {
+    init_sendTransactionSync();
+    init_writeContract();
   }
 });
 
@@ -16178,19 +16733,19 @@ var z = {
     return field({ type: "boolean" }, (v) => typeof v === "boolean" ? null : "must be true or false");
   }
 };
-function toJsonSchema(shape) {
+function toJsonSchema(shape2) {
   const properties = {};
   const required = [];
-  for (const [k, f] of Object.entries(shape)) {
+  for (const [k, f] of Object.entries(shape2)) {
     properties[k] = f.json;
     if (f.required) required.push(k);
   }
   return { type: "object", properties, ...required.length ? { required } : {}, additionalProperties: false };
 }
-function parseArgs(shape, args) {
+function parseArgs(shape2, args) {
   const out = {};
   const input = args && typeof args === "object" ? args : {};
-  for (const [k, f] of Object.entries(shape)) {
+  for (const [k, f] of Object.entries(shape2)) {
     const v = input[k];
     if (v === void 0 || v === null) {
       if (f.fallback !== void 0) out[k] = f.fallback;
@@ -16208,8 +16763,8 @@ var McpServer = class {
     this.info = info;
     this.tools = /* @__PURE__ */ new Map();
   }
-  tool(name, description, shape, handler) {
-    this.tools.set(name, { description, shape, handler });
+  tool(name, description, shape2, handler, metadata = {}) {
+    this.tools.set(name, { description, shape: shape2, handler, metadata });
   }
   async handle(msg) {
     const { id, method, params } = msg;
@@ -16225,7 +16780,7 @@ var McpServer = class {
         return {};
       case "tools/list":
         return {
-          tools: [...this.tools].map(([name, t]) => ({ name, description: t.description, inputSchema: toJsonSchema(t.shape) }))
+          tools: [...this.tools].map(([name, t]) => ({ name, description: t.description, inputSchema: toJsonSchema(t.shape), ...t.metadata?.annotations ? { annotations: t.metadata.annotations } : {}, ...t.metadata?.outputSchema ? { outputSchema: t.metadata.outputSchema } : {} }))
         };
       case "tools/call": {
         const t = this.tools.get(params?.name);
@@ -16273,161 +16828,320 @@ var McpServer = class {
   }
 };
 
-// src/payee-profile.mjs
-var IPFS_GATEWAY = "https://ipfs.io/ipfs/";
-function uriSource(uri) {
-  const u = String(uri).trim();
-  if (u.startsWith("data:")) {
-    const comma = u.indexOf(",");
-    if (comma < 0) return { kind: "unsupported", reason: "a data: URI without data" };
-    const meta = u.slice(5, comma);
-    const body = u.slice(comma + 1);
-    try {
-      const json = /;base64$/i.test(meta) ? Buffer.from(body, "base64").toString("utf8") : decodeURIComponent(body);
-      return { kind: "inline", json };
-    } catch {
-      return { kind: "unsupported", reason: "a data: URI that doesn't decode" };
+// node_modules/viem/_esm/index.js
+init_exports();
+
+// node_modules/viem/_esm/actions/wallet/waitForCallsStatus.js
+init_base();
+
+// node_modules/viem/_esm/errors/calls.js
+init_base();
+var BundleFailedError = class extends BaseError2 {
+  constructor(result) {
+    super(`Call bundle failed with status: ${result.statusCode}`, {
+      name: "BundleFailedError"
+    });
+    Object.defineProperty(this, "result", {
+      enumerable: true,
+      configurable: true,
+      writable: true,
+      value: void 0
+    });
+    this.result = result;
+  }
+};
+
+// node_modules/viem/_esm/actions/wallet/waitForCallsStatus.js
+init_getAction();
+init_observe();
+init_poll();
+init_withResolvers();
+init_withRetry();
+init_stringify();
+
+// node_modules/viem/_esm/actions/wallet/getCallsStatus.js
+init_slice();
+init_trim();
+init_fromHex();
+init_transactionReceipt();
+
+// node_modules/viem/_esm/actions/wallet/sendCalls.js
+init_parseAccount();
+init_base();
+init_rpc();
+init_encodeFunctionData();
+init_concat();
+init_fromHex();
+init_toHex();
+init_getTransactionError();
+init_sendTransaction();
+var fallbackMagicIdentifier = "0x5792579257925792579257925792579257925792579257925792579257925792";
+var fallbackTransactionErrorMagicIdentifier = numberToHex(0, {
+  size: 32
+});
+async function sendCalls(client2, parameters) {
+  const { account: account_ = client2.account, chain = client2.chain, experimental_fallback, experimental_fallbackDelay = 32, forceAtomic = false, id, version: version4 = "2.0.0" } = parameters;
+  const account2 = account_ ? parseAccount(account_) : null;
+  let capabilities = parameters.capabilities;
+  if (client2.dataSuffix && !parameters.capabilities?.dataSuffix) {
+    if (typeof client2.dataSuffix === "string")
+      capabilities = {
+        ...parameters.capabilities,
+        dataSuffix: { value: client2.dataSuffix, optional: true }
+      };
+    else
+      capabilities = {
+        ...parameters.capabilities,
+        dataSuffix: {
+          value: client2.dataSuffix.value,
+          ...client2.dataSuffix.required ? {} : { optional: true }
+        }
+      };
+  }
+  const calls = parameters.calls.map((call_) => {
+    const call2 = call_;
+    const data = call2.abi ? encodeFunctionData({
+      abi: call2.abi,
+      functionName: call2.functionName,
+      args: call2.args
+    }) : call2.data;
+    return {
+      data: call2.dataSuffix && data ? concat([data, call2.dataSuffix]) : data,
+      to: call2.to,
+      value: call2.value ? numberToHex(call2.value) : void 0
+    };
+  });
+  try {
+    const response = await client2.request({
+      method: "wallet_sendCalls",
+      params: [
+        {
+          atomicRequired: forceAtomic,
+          calls,
+          capabilities,
+          chainId: numberToHex(chain.id),
+          from: account2?.address,
+          id,
+          version: version4
+        }
+      ]
+    }, { retryCount: 0 });
+    if (typeof response === "string")
+      return { id: response };
+    return response;
+  } catch (err) {
+    const error = err;
+    if (experimental_fallback && (error.name === "MethodNotFoundRpcError" || error.name === "MethodNotSupportedRpcError" || error.name === "UnknownRpcError" || error.details.toLowerCase() === "this request method is not supported" || error.details.toLowerCase().includes("does not exist / is not available") || error.details.toLowerCase().includes("missing or invalid. request()") || error.details.toLowerCase().includes("did not match any variant of untagged enum") || error.details.toLowerCase().includes("account upgraded to unsupported contract") || error.details.toLowerCase().includes("eip-7702 not supported") || error.details.toLowerCase().includes("unsupported wc_ method") || // magic.link
+    error.details.toLowerCase().includes("feature toggled misconfigured") || // Trust Wallet
+    error.details.toLowerCase().includes("jsonrpcengine: response has no error or result for request"))) {
+      if (capabilities) {
+        const hasNonOptionalCapability = Object.values(capabilities).some((capability) => !capability.optional);
+        if (hasNonOptionalCapability) {
+          const message = "non-optional `capabilities` are not supported on fallback to `eth_sendTransaction`.";
+          throw new UnsupportedNonOptionalCapabilityError(new BaseError2(message, {
+            details: message
+          }));
+        }
+      }
+      if (forceAtomic && calls.length > 1) {
+        const message = "`forceAtomic` is not supported on fallback to `eth_sendTransaction`.";
+        throw new AtomicityNotSupportedError(new BaseError2(message, {
+          details: message
+        }));
+      }
+      const results = [];
+      for (const call2 of calls) {
+        try {
+          const value = await sendTransaction(client2, {
+            account: account2,
+            chain,
+            data: call2.data,
+            to: call2.to,
+            value: call2.value ? hexToBigInt(call2.value) : void 0
+          });
+          results.push({ status: "fulfilled", value });
+        } catch (reason) {
+          results.push({ reason, status: "rejected" });
+        }
+        if (experimental_fallbackDelay > 0)
+          await new Promise((resolve) => setTimeout(resolve, experimental_fallbackDelay));
+      }
+      if (results.every((r) => r.status === "rejected"))
+        throw results[0].reason;
+      const hashes = results.map((result) => {
+        if (result.status === "fulfilled")
+          return result.value;
+        return fallbackTransactionErrorMagicIdentifier;
+      });
+      return {
+        id: concat([
+          ...hashes,
+          numberToHex(chain.id, { size: 32 }),
+          fallbackMagicIdentifier
+        ])
+      };
     }
+    throw getTransactionError(err, {
+      ...parameters,
+      account: account2,
+      chain: parameters.chain
+    });
   }
-  if (u.startsWith("https://")) return { kind: "fetch", url: u };
-  if (u.startsWith("ipfs://")) {
-    const path = u.slice(7).replace(/^ipfs\//, "");
-    if (!/^[a-zA-Z0-9]+(\/[^\s?#]*)?$/.test(path)) return { kind: "unsupported", reason: "an ipfs: URI that isn't a CID" };
-    return { kind: "fetch", url: `${IPFS_GATEWAY}${path}` };
-  }
-  return { kind: "unsupported", reason: `${u.split(":")[0] || "an empty"} URIs aren't read` };
 }
-var CAIP2 = /^eip155:\d{1,12}$/;
-var ADDRESS = /^0x[0-9a-fA-F]{40}$/;
-function payeeProfile(doc) {
-  if (!doc || typeof doc !== "object") return { profile: null, note: "the registration file isn't a JSON object" };
-  const list = Array.isArray(doc.services) ? doc.services : Array.isArray(doc.endpoints) ? doc.endpoints : [];
-  const entry = list.find((s) => s && typeof s === "object" && s.name === "remesso");
-  if (!entry) return { profile: null, note: "no remesso entry in its services" };
-  if (String(entry.version ?? "") !== "1") {
-    return { profile: null, note: `a remesso entry of version ${String(entry.version ?? "none")}, which this reader doesn't implement` };
-  }
-  const assets = (Array.isArray(entry.assets) ? entry.assets : []).filter((a) => a && typeof a === "object" && CAIP2.test(String(a.network)) && ADDRESS.test(String(a.asset))).map((a) => ({ network: a.network, asset: a.asset }));
-  const ref = entry.reference;
-  return {
-    profile: {
-      version: "1",
-      endpoint: typeof entry.endpoint === "string" && entry.endpoint.startsWith("https://") ? entry.endpoint : null,
-      assets,
-      reference: ref && typeof ref.required === "boolean" ? { required: ref.required } : null
+
+// node_modules/viem/_esm/actions/wallet/getCallsStatus.js
+async function getCallsStatus(client2, parameters) {
+  async function getStatus(id) {
+    const isTransactions = id.endsWith(fallbackMagicIdentifier.slice(2));
+    if (isTransactions) {
+      const chainId2 = trim(sliceHex(id, -64, -32));
+      const hashes = sliceHex(id, 0, -64).slice(2).match(/.{1,64}/g);
+      const receipts2 = await Promise.all(hashes.map((hash4) => fallbackTransactionErrorMagicIdentifier.slice(2) !== hash4 ? client2.request({
+        method: "eth_getTransactionReceipt",
+        params: [`0x${hash4}`]
+      }, { dedupe: true }) : void 0));
+      const status2 = (() => {
+        if (receipts2.some((r) => r === null))
+          return 100;
+        if (receipts2.every((r) => r?.status === "0x1"))
+          return 200;
+        if (receipts2.every((r) => r?.status === "0x0"))
+          return 500;
+        return 600;
+      })();
+      return {
+        atomic: false,
+        chainId: hexToNumber(chainId2),
+        receipts: receipts2.filter(Boolean),
+        status: status2,
+        version: "2.0.0"
+      };
     }
+    return client2.request({
+      method: "wallet_getCallsStatus",
+      params: [id]
+    });
+  }
+  const { atomic = false, chainId, receipts, version: version4 = "2.0.0", ...response } = await getStatus(parameters.id);
+  const [status, statusCode] = (() => {
+    const statusCode2 = response.status;
+    if (statusCode2 >= 100 && statusCode2 < 200)
+      return ["pending", statusCode2];
+    if (statusCode2 >= 200 && statusCode2 < 300)
+      return ["success", statusCode2];
+    if (statusCode2 >= 300 && statusCode2 < 700)
+      return ["failure", statusCode2];
+    if (statusCode2 === "CONFIRMED")
+      return ["success", 200];
+    if (statusCode2 === "PENDING")
+      return ["pending", 100];
+    return [void 0, statusCode2];
+  })();
+  return {
+    ...response,
+    atomic,
+    // @ts-expect-error: for backwards compatibility
+    chainId: chainId ? hexToNumber(chainId) : void 0,
+    receipts: receipts?.map((receipt) => ({
+      ...receipt,
+      blockNumber: hexToBigInt(receipt.blockNumber),
+      gasUsed: hexToBigInt(receipt.gasUsed),
+      status: receiptStatuses[receipt.status]
+    })) ?? [],
+    statusCode,
+    status,
+    version: version4
   };
 }
 
-// src/safe-fetch.mjs
-import { lookup } from "node:dns/promises";
-import { request } from "node:https";
-import { isIP } from "node:net";
-function v4Octets(ip) {
-  const parts = ip.split(".");
-  if (parts.length !== 4 || !parts.every((p) => /^\d{1,3}$/.test(p))) return null;
-  const o = parts.map(Number);
-  return o.every((n) => n <= 255) ? o : null;
-}
-function v4Public([a, b, c]) {
-  if (a === 0 || a === 10 || a === 127) return false;
-  if (a === 100 && b >= 64 && b <= 127) return false;
-  if (a === 169 && b === 254) return false;
-  if (a === 172 && b >= 16 && b <= 31) return false;
-  if (a === 192 && b === 0 && (c === 0 || c === 2)) return false;
-  if (a === 192 && b === 88 && c === 99) return false;
-  if (a === 192 && b === 168) return false;
-  if (a === 198 && (b === 18 || b === 19)) return false;
-  if (a === 198 && b === 51 && c === 100) return false;
-  if (a === 203 && b === 0 && c === 113) return false;
-  return a < 224;
-}
-function v6Groups(raw) {
-  let s = raw.split("%")[0].toLowerCase();
-  const last = s.lastIndexOf(":");
-  const tail = s.slice(last + 1);
-  if (tail.includes(".")) {
-    const o = v4Octets(tail);
-    if (!o) return null;
-    s = `${s.slice(0, last + 1)}${(o[0] << 8 | o[1]).toString(16)}:${(o[2] << 8 | o[3]).toString(16)}`;
+// node_modules/viem/_esm/actions/wallet/waitForCallsStatus.js
+var functionIds = /* @__PURE__ */ new WeakMap();
+var functionCount = 0;
+function getFunctionId(fn) {
+  let fnId = functionIds.get(fn);
+  if (fnId === void 0) {
+    fnId = ++functionCount;
+    functionIds.set(fn, fnId);
   }
-  const halves = s.split("::");
-  if (halves.length > 2) return null;
-  const head = halves[0] ? halves[0].split(":") : [];
-  const rest = halves.length === 2 && halves[1] ? halves[1].split(":") : [];
-  const fill = halves.length === 2 ? 8 - head.length - rest.length : 0;
-  if (fill < 0 || halves.length === 2 && fill < 1) return null;
-  const groups = [...head, ...Array(fill).fill("0"), ...rest];
-  if (groups.length !== 8 || !groups.every((g) => /^[0-9a-f]{1,4}$/.test(g))) return null;
-  return groups.map((g) => parseInt(g, 16));
+  return fnId;
 }
-function v6Public(g) {
-  const zero = (n) => g.slice(0, n).every((x) => x === 0);
-  const inner = () => [g[6] >> 8, g[6] & 255, g[7] >> 8, g[7] & 255];
-  if (zero(8)) return false;
-  if (zero(7) && g[7] === 1) return false;
-  if (zero(5) && g[5] === 65535) return v4Public(inner());
-  if (zero(6)) return v4Public(inner());
-  if (g[0] === 100 && g[1] === 65435 && g.slice(2, 6).every((x) => x === 0)) return v4Public(inner());
-  if (g[0] === 256 && g.slice(1, 4).every((x) => x === 0)) return false;
-  if (g[0] === 8193 && (g[1] === 3512 || g[1] === 0)) return false;
-  if (g[0] === 8194) return false;
-  if ((g[0] & 65024) === 64512) return false;
-  if ((g[0] & 65472) === 65152 || (g[0] & 65472) === 65216) return false;
-  return (g[0] & 65280) !== 65280;
-}
-function isPublicIp(ip) {
-  if (ip.includes(":")) {
-    const g = v6Groups(ip.replace(/^\[|\]$/g, ""));
-    return g !== null && v6Public(g);
-  }
-  const o = v4Octets(ip);
-  return o !== null && v4Public(o);
-}
-var MAX_BYTES = 256 * 1024;
-var TIMEOUT_MS = 5e3;
-async function safeFetchText(raw) {
-  const url = new URL(raw);
-  if (url.protocol !== "https:") throw new Error("only https URLs are fetched");
-  if (url.username || url.password) throw new Error("a URL with credentials in it is refused");
-  if (url.port && url.port !== "443") throw new Error("only the default HTTPS port is fetched");
-  const host = url.hostname.replace(/^\[|\]$/g, "");
-  const found = isIP(host) ? [{ address: host, family: isIP(host) }] : await lookup(host, { all: true, verbatim: true });
-  if (!found.length) throw new Error(`${host} doesn't resolve`);
-  const bad = found.find((a) => !isPublicIp(a.address));
-  if (bad) throw new Error(`${host} resolves to ${bad.address}, which isn't a public address`);
-  const pinned = found[0];
-  const pin = (_name, opts, cb) => opts?.all ? cb(null, [pinned]) : cb(null, pinned.address, pinned.family);
-  return await new Promise((resolve, reject) => {
-    const req = request(url, { method: "GET", headers: { accept: "application/json, text/plain;q=0.5", "user-agent": "remesso-wallet" }, lookup: pin }, (res) => {
-      const status = res.statusCode ?? 0;
-      if (status < 200 || status >= 300) {
-        res.resume();
-        reject(new Error(`${host} answered ${status}${status >= 300 && status < 400 ? ", a redirect, which isn't followed" : ""}`));
-        return;
+async function waitForCallsStatus(client2, parameters) {
+  const {
+    id,
+    pollingInterval = client2.pollingInterval,
+    status = ({ statusCode }) => statusCode === 200 || statusCode >= 300,
+    retryCount = 4,
+    retryDelay = ({ count }) => ~~(1 << count) * 200,
+    // exponential backoff
+    timeout = 6e4,
+    throwOnFailure = false
+  } = parameters;
+  const observerId = stringify([
+    "waitForCallsStatus",
+    client2.uid,
+    id,
+    // Concurrent calls with different behavior-defining options must not
+    // share an observer: the first call's polling closure decides the
+    // status check, failure handling and retry behavior for everyone.
+    // `timeout` is enforced per caller below, so it is not included.
+    {
+      pollingInterval,
+      retryCount,
+      // Caller-provided functions are keyed by identity, not source text:
+      // two predicates built by the same factory have identical source
+      // but capture different values, so they must not share an observer.
+      // Keying on `parameters.*` (not the destructured defaults) keeps
+      // calls that use the defaults on one shared observer, since the
+      // default functions are recreated on every call.
+      retryDelay: typeof parameters.retryDelay === "function" ? ["function", getFunctionId(parameters.retryDelay)] : parameters.retryDelay,
+      status: parameters.status ? getFunctionId(parameters.status) : void 0,
+      throwOnFailure
+    }
+  ]);
+  const { promise, resolve, reject } = withResolvers();
+  let timer;
+  const unobserve = observe(observerId, { resolve, reject }, (emit) => {
+    const unpoll = poll(async () => {
+      const done = (fn) => {
+        clearTimeout(timer);
+        unpoll();
+        fn();
+        unobserve();
+      };
+      try {
+        const result = await withRetry(async () => {
+          const result2 = await getAction(client2, getCallsStatus, "getCallsStatus")({ id });
+          if (throwOnFailure && result2.status === "failure")
+            throw new BundleFailedError(result2);
+          return result2;
+        }, {
+          retryCount,
+          delay: retryDelay
+        });
+        if (!status(result))
+          return;
+        done(() => emit.resolve(result));
+      } catch (error) {
+        done(() => emit.reject(error));
       }
-      const chunks = [];
-      let size5 = 0;
-      res.on("data", (c) => {
-        size5 += c.length;
-        if (size5 > MAX_BYTES) req.destroy(new Error(`${host} sent more than ${MAX_BYTES / 1024} KB`));
-        else chunks.push(c);
-      });
-      res.on("end", () => resolve(Buffer.concat(chunks).toString("utf8")));
-      res.on("error", reject);
+    }, {
+      interval: pollingInterval,
+      emitOnBegin: true
     });
-    const timer = setTimeout(() => req.destroy(new Error(`${host} didn't answer within ${TIMEOUT_MS / 1e3}s`)), TIMEOUT_MS);
-    req.on("error", (e) => {
-      clearTimeout(timer);
-      reject(e);
-    });
-    req.on("close", () => clearTimeout(timer));
-    req.end();
+    return unpoll;
   });
+  timer = timeout ? setTimeout(() => {
+    unobserve();
+    clearTimeout(timer);
+    reject(new WaitForCallsStatusTimeoutError({ id }));
+  }, timeout) : void 0;
+  return await promise.finally(() => unobserve());
 }
-
-// node_modules/viem/_esm/index.js
-init_exports();
+var WaitForCallsStatusTimeoutError = class extends BaseError2 {
+  constructor({ id }) {
+    super(`Timed out while waiting for call bundle with id "${id}" to be confirmed.`, { name: "WaitForCallsStatusTimeoutError" });
+  }
+};
 
 // node_modules/viem/_esm/clients/createClient.js
 init_parseAccount();
@@ -16580,10 +17294,10 @@ function encodedLabelToLabelhash(label) {
     return null;
   if (label.indexOf("]") !== 65)
     return null;
-  const hash3 = `0x${label.slice(1, 65)}`;
-  if (!isHex(hash3))
+  const hash4 = `0x${label.slice(1, 65)}`;
+  if (!isHex(hash4))
     return null;
-  return hash3;
+  return hash4;
 }
 
 // node_modules/viem/_esm/utils/ens/namehash.js
@@ -16604,8 +17318,8 @@ function namehash(name) {
 init_toBytes();
 
 // node_modules/viem/_esm/utils/ens/encodeLabelhash.js
-function encodeLabelhash(hash3) {
-  return `[${hash3.slice(2)}]`;
+function encodeLabelhash(hash4) {
+  return `[${hash4.slice(2)}]`;
 }
 
 // node_modules/viem/_esm/utils/ens/labelhash.js
@@ -16687,12 +17401,12 @@ async function getEnsAddress(client2, parameters) {
     const res = await readContractAction(readContractParameters);
     if (res[0] === "0x")
       return null;
-    const address = decodeAddress2({ coinType, data: res[0], args });
-    if (address === "0x")
+    const address3 = decodeAddress2({ coinType, data: res[0], args });
+    if (address3 === "0x")
       return null;
-    if (trim(address) === "0x00")
+    if (trim(address3) === "0x00")
       return null;
-    return address;
+    return address3;
   } catch (err) {
     if (strict)
       throw err;
@@ -16712,9 +17426,9 @@ function decodeAddress2({ coinType, data, args }) {
   } catch (err) {
     if (coinType == null)
       throw err;
-    const address = trim(data);
-    if (size(address) === 20)
-      return getAddress(address);
+    const address3 = trim(data);
+    if (size(address3) === 20)
+      return getAddress(address3);
     throw err;
   }
 }
@@ -17050,7 +17764,7 @@ init_localBatchGatewayRequest();
 init_getAction();
 init_readContract();
 async function getEnsName(client2, parameters) {
-  const { address, blockNumber, blockTag, coinType = 60n, gatewayUrls, strict } = parameters;
+  const { address: address3, blockNumber, blockTag, coinType = 60n, gatewayUrls, strict } = parameters;
   const { chain } = client2;
   const universalResolverAddress = (() => {
     if (parameters.universalResolverAddress)
@@ -17067,7 +17781,7 @@ async function getEnsName(client2, parameters) {
     const readContractParameters = {
       address: universalResolverAddress,
       abi: universalResolverReverseAbi,
-      args: [address, coinType, gatewayUrls ?? [localBatchGatewayUrl]],
+      args: [address3, coinType, gatewayUrls ?? [localBatchGatewayUrl]],
       functionName: "reverseWithGateways",
       blockNumber,
       blockTag
@@ -17201,7 +17915,7 @@ init_createContractEventFilter();
 init_encodeEventTopics();
 init_toHex();
 init_createFilterRequestScope();
-async function createEventFilter(client2, { address, args, event, events: events_, fromBlock, strict, toBlock } = {}) {
+async function createEventFilter(client2, { address: address3, args, event, events: events_, fromBlock, strict, toBlock } = {}) {
   const events = events_ ?? (event ? [event] : void 0);
   const getRequest = createFilterRequestScope(client2, {
     method: "eth_newFilter"
@@ -17221,7 +17935,7 @@ async function createEventFilter(client2, { address, args, event, events: events
     method: "eth_newFilter",
     params: [
       {
-        address,
+        address: address3,
         fromBlock: typeof fromBlock === "bigint" ? numberToHex(fromBlock) : fromBlock,
         toBlock: typeof toBlock === "bigint" ? numberToHex(toBlock) : toBlock,
         ...topics.length ? { topics } : {}
@@ -17267,7 +17981,7 @@ init_encodeFunctionData();
 init_formatBlockParameter();
 init_getAction();
 init_call();
-async function getBalance(client2, { address, blockHash, blockNumber, blockTag = client2.experimental_blockTag ?? "latest", requireCanonical }) {
+async function getBalance(client2, { address: address3, blockHash, blockNumber, blockTag = client2.experimental_blockTag ?? "latest", requireCanonical }) {
   const block = formatBlockParameter({
     blockHash,
     blockNumber,
@@ -17279,7 +17993,7 @@ async function getBalance(client2, { address, blockHash, blockNumber, blockTag =
     const calldata = encodeFunctionData({
       abi: multicall3Abi,
       functionName: "getEthBalance",
-      args: [address]
+      args: [address3]
     });
     const { data } = await getAction(client2, call, "call")({
       to: multicall3Address,
@@ -17292,13 +18006,13 @@ async function getBalance(client2, { address, blockHash, blockNumber, blockTag =
     return decodeFunctionResult({
       abi: multicall3Abi,
       functionName: "getEthBalance",
-      args: [address],
+      args: [address3],
       data: data || "0x"
     });
   }
   const balance = await client2.request({
     method: "eth_getBalance",
-    params: [address, block]
+    params: [address3, block]
   });
   return BigInt(balance);
 }
@@ -17356,7 +18070,7 @@ init_getChainId();
 
 // node_modules/viem/_esm/actions/public/getCode.js
 init_formatBlockParameter();
-async function getCode(client2, { address, blockHash, blockNumber, blockTag = "latest", requireCanonical }) {
+async function getCode(client2, { address: address3, blockHash, blockNumber, blockTag = "latest", requireCanonical }) {
   const block = formatBlockParameter({
     blockHash,
     blockNumber,
@@ -17365,7 +18079,7 @@ async function getCode(client2, { address, blockHash, blockNumber, blockTag = "l
   });
   const hex = await client2.request({
     method: "eth_getCode",
-    params: [address, block]
+    params: [address3, block]
   }, {
     dedupe: typeof blockNumber === "bigint" || blockHash !== void 0
   });
@@ -17381,9 +18095,9 @@ init_getContractEvents();
 init_getAddress();
 init_size();
 init_slice();
-async function getDelegation(client2, { address, blockNumber, blockTag = "latest" }) {
+async function getDelegation(client2, { address: address3, blockNumber, blockTag = "latest" }) {
   const code = await getCode(client2, {
-    address,
+    address: address3,
     ...blockNumber !== void 0 ? { blockNumber } : { blockTag }
   });
   if (!code)
@@ -17398,11 +18112,11 @@ async function getDelegation(client2, { address, blockNumber, blockTag = "latest
 // node_modules/viem/_esm/errors/eip712.js
 init_base();
 var Eip712DomainNotFoundError = class extends BaseError2 {
-  constructor({ address }) {
-    super(`No EIP-712 domain found on contract "${address}".`, {
+  constructor({ address: address3 }) {
+    super(`No EIP-712 domain found on contract "${address3}".`, {
       metaMessages: [
         "Ensure that:",
-        `- The contract is deployed at the address "${address}".`,
+        `- The contract is deployed at the address "${address3}".`,
         "- `eip712Domain()` function exists on the contract.",
         "- `eip712Domain()` function matches signature to ERC-5267 specification."
       ],
@@ -17415,11 +18129,11 @@ var Eip712DomainNotFoundError = class extends BaseError2 {
 init_getAction();
 init_readContract();
 async function getEip712Domain(client2, parameters) {
-  const { address, factory, factoryData } = parameters;
+  const { address: address3, factory, factoryData } = parameters;
   try {
     const [fields, name, version4, chainId, verifyingContract, salt, extensions] = await getAction(client2, readContract, "readContract")({
       abi,
-      address,
+      address: address3,
       functionName: "eip712Domain",
       factory,
       factoryData
@@ -17438,7 +18152,7 @@ async function getEip712Domain(client2, parameters) {
   } catch (e) {
     const error = e;
     if (error.name === "ContractFunctionExecutionError" && error.cause.name === "ContractFunctionZeroDataError") {
-      throw new Eip712DomainNotFoundError({ address });
+      throw new Eip712DomainNotFoundError({ address: address3 });
     }
     throw error;
   }
@@ -17520,50 +18234,50 @@ init_formatBlockParameter();
 // node_modules/viem/_esm/utils/formatters/proof.js
 init_utils5();
 function formatStorageProof(storageProof) {
-  return storageProof.map((proof) => ({
-    ...proof,
-    value: BigInt(proof.value)
+  return storageProof.map((proof2) => ({
+    ...proof2,
+    value: BigInt(proof2.value)
   }));
 }
-function formatProof(proof) {
+function formatProof(proof2) {
   return {
-    ...proof,
-    balance: proof.balance ? BigInt(proof.balance) : void 0,
-    nonce: proof.nonce ? hexToNumber(proof.nonce) : void 0,
-    storageProof: proof.storageProof ? formatStorageProof(proof.storageProof) : void 0
+    ...proof2,
+    balance: proof2.balance ? BigInt(proof2.balance) : void 0,
+    nonce: proof2.nonce ? hexToNumber(proof2.nonce) : void 0,
+    storageProof: proof2.storageProof ? formatStorageProof(proof2.storageProof) : void 0
   };
 }
 
 // node_modules/viem/_esm/actions/public/getProof.js
-async function getProof(client2, { address, blockHash, blockNumber, blockTag = "latest", requireCanonical, storageKeys }) {
+async function getProof(client2, { address: address3, blockHash, blockNumber, blockTag = "latest", requireCanonical, storageKeys }) {
   const block = formatBlockParameter({
     blockHash,
     blockNumber,
     blockTag,
     requireCanonical
   });
-  const proof = await client2.request({
+  const proof2 = await client2.request({
     method: "eth_getProof",
-    params: [address, storageKeys, block]
+    params: [address3, storageKeys, block]
   });
-  return formatProof(proof);
+  return formatProof(proof2);
 }
 
 // node_modules/viem/_esm/actions/public/getRawTransaction.js
 init_transaction();
-async function getRawTransaction(client2, { hash: hash3 }) {
+async function getRawTransaction(client2, { hash: hash4 }) {
   const rawTransaction = await client2.request({
     method: "eth_getRawTransactionByHash",
-    params: [hash3]
+    params: [hash4]
   }, { dedupe: true });
   if (!rawTransaction)
-    throw new TransactionNotFoundError({ hash: hash3 });
+    throw new TransactionNotFoundError({ hash: hash4 });
   return rawTransaction;
 }
 
 // node_modules/viem/_esm/actions/public/getStorageAt.js
 init_formatBlockParameter();
-async function getStorageAt(client2, { address, blockHash, blockNumber, blockTag = "latest", requireCanonical, slot }) {
+async function getStorageAt(client2, { address: address3, blockHash, blockNumber, blockTag = "latest", requireCanonical, slot }) {
   const block = formatBlockParameter({
     blockHash,
     blockNumber,
@@ -17572,7 +18286,7 @@ async function getStorageAt(client2, { address, blockHash, blockNumber, blockTag
   });
   const data = await client2.request({
     method: "eth_getStorageAt",
-    params: [address, slot, block]
+    params: [address3, slot, block]
   });
   return data;
 }
@@ -17599,10 +18313,10 @@ init_getTransaction();
 init_getAction();
 init_getBlockNumber();
 init_getTransaction();
-async function getTransactionConfirmations(client2, { hash: hash3, transactionReceipt }) {
+async function getTransactionConfirmations(client2, { hash: hash4, transactionReceipt }) {
   const [blockNumber, transaction] = await Promise.all([
     getAction(client2, getBlockNumber, "getBlockNumber")({}),
-    hash3 ? getAction(client2, getTransaction, "getTransaction")({ hash: hash3 }) : void 0
+    hash4 ? getAction(client2, getTransaction, "getTransaction")({ hash: hash4 }) : void 0
   ]);
   const transactionBlockNumber = transactionReceipt?.blockNumber || transaction?.blockNumber;
   if (!transactionBlockNumber)
@@ -17873,11 +18587,11 @@ async function simulateCalls(client2, parameters) {
       // Candidates without code fall out at `isBalance`.
       ...parameters.calls.map((call2) => call2.to?.toLowerCase())
     ])
-  ].filter((address) => Boolean(address) && address !== ethAddress && address !== zeroAddress) : [];
+  ].filter((address3) => Boolean(address3) && address3 !== ethAddress && address3 !== zeroAddress) : [];
   const staticCallAddress = getStaticCallAddress([
     ...account2 ? [account2.address] : [],
     ...assetAddresses,
-    ...stateOverrides?.map(({ address }) => address) ?? []
+    ...stateOverrides?.map(({ address: address3 }) => address3) ?? []
   ]);
   const staticCallStateOverrides = [
     { address: staticCallAddress, code: staticCallCode }
@@ -17890,9 +18604,9 @@ async function simulateCalls(client2, parameters) {
         data: getBalanceData,
         stateOverride: stateOverrides
       }),
-      ...assetAddresses.map((address) => readBalance(client2, {
+      ...assetAddresses.map((address3) => readBalance(client2, {
         account: account2.address,
-        address,
+        address: address3,
         ...block_,
         data: encodeData2(balanceOfFunction, [
           account2.address
@@ -17918,10 +18632,10 @@ async function simulateCalls(client2, parameters) {
           },
           // Asset post balances
           {
-            calls: assetAddresses.map((address) => ({
+            calls: assetAddresses.map((address3) => ({
               to: staticCallAddress,
               gas: assetProbeGas,
-              data: encodeStaticCall(address, encodeData2(balanceOfFunction, [
+              data: encodeStaticCall(address3, encodeData2(balanceOfFunction, [
                 account2.address
               ]))
             })),
@@ -17929,28 +18643,28 @@ async function simulateCalls(client2, parameters) {
           },
           // Decimals
           {
-            calls: assetAddresses.map((address) => ({
+            calls: assetAddresses.map((address3) => ({
               to: staticCallAddress,
               gas: assetProbeGas,
-              data: encodeStaticCall(address, encodeData2(decimalsFunction))
+              data: encodeStaticCall(address3, encodeData2(decimalsFunction))
             })),
             stateOverrides: staticCallStateOverrides
           },
           // Token URI
           {
-            calls: assetAddresses.map((address) => ({
+            calls: assetAddresses.map((address3) => ({
               to: staticCallAddress,
               gas: assetProbeGas,
-              data: encodeStaticCall(address, encodeData2(tokenUriFunction, [0n]))
+              data: encodeStaticCall(address3, encodeData2(tokenUriFunction, [0n]))
             })),
             stateOverrides: staticCallStateOverrides
           },
           // Symbols
           {
-            calls: assetAddresses.map((address) => ({
+            calls: assetAddresses.map((address3) => ({
               to: staticCallAddress,
               gas: assetProbeGas,
-              data: encodeStaticCall(address, encodeData2(symbolFunction))
+              data: encodeStaticCall(address3, encodeData2(symbolFunction))
             })),
             stateOverrides: staticCallStateOverrides
           }
@@ -17984,7 +18698,7 @@ async function simulateCalls(client2, parameters) {
     const decimals_ = decimals[i - 1];
     const symbol_ = symbols[i - 1];
     const tokenURI_ = tokenURI[i - 1];
-    const token = (() => {
+    const token2 = (() => {
       if (i === 0)
         return {
           address: ethAddress,
@@ -17998,7 +18712,7 @@ async function simulateCalls(client2, parameters) {
       };
     })();
     changes.push({
-      token,
+      token: token2,
       value: {
         pre: balancePre,
         post: balancePost,
@@ -18012,8 +18726,8 @@ async function simulateCalls(client2, parameters) {
     results
   };
 }
-function encodeStaticCall(address, data) {
-  return encodeData2(staticCallFunction, [address, data]);
+function encodeStaticCall(address3, data) {
+  return encodeData2(staticCallFunction, [address3, data]);
 }
 function tokensFromLogs(logs, account2) {
   const account_ = pad(account2.toLowerCase(), { size: 32 });
@@ -18038,16 +18752,16 @@ function decodeAssetResult(call2, abiFunction) {
   }
 }
 async function readBalance(client2, parameters) {
-  const { account: account2, address, blockNumber, blockTag, data, staticCallAddress, stateOverride } = parameters;
+  const { account: account2, address: address3, blockNumber, blockTag, data, staticCallAddress, stateOverride } = parameters;
   try {
     const result = await call({ ...client2, ccipRead: false }, {
-      account: address ? zeroAddress : account2,
-      data: address ? encodeStaticCall(address, data) : data,
-      stateOverride: address && staticCallAddress ? [
+      account: address3 ? zeroAddress : account2,
+      data: address3 ? encodeStaticCall(address3, data) : data,
+      stateOverride: address3 && staticCallAddress ? [
         ...stateOverride ?? [],
         { address: staticCallAddress, code: staticCallCode }
       ] : stateOverride,
-      ...address ? { gas: assetProbeGas, to: staticCallAddress } : {},
+      ...address3 ? { gas: assetProbeGas, to: staticCallAddress } : {},
       ...typeof blockNumber === "bigint" ? { blockNumber } : { blockTag }
     });
     return { data: result.data ?? "0x", status: "success" };
@@ -18058,7 +18772,7 @@ async function readBalance(client2, parameters) {
   }
 }
 function getStaticCallAddress(addresses) {
-  const occupied = new Set(addresses.map((address) => address.toLowerCase()));
+  const occupied = new Set(addresses.map((address3) => address3.toLowerCase()));
   let value = staticCallAddressBase;
   while (occupied.has(`0x${value.toString(16).padStart(40, "0")}`))
     value++;
@@ -18212,7 +18926,7 @@ function serializeSignature({ r, s, to = "hex", v, yParity }) {
 init_call();
 init_readContract();
 async function verifyHash(client2, parameters) {
-  const { address, chain = client2.chain, hash: hash3, erc6492VerifierAddress: verifierAddress = parameters.universalSignatureVerifierAddress ?? chain?.contracts?.erc6492Verifier?.address, multicallAddress = parameters.multicallAddress ?? chain?.contracts?.multicall3?.address, mode = "auto" } = parameters;
+  const { address: address3, chain = client2.chain, hash: hash4, erc6492VerifierAddress: verifierAddress = parameters.universalSignatureVerifierAddress ?? chain?.contracts?.erc6492Verifier?.address, multicallAddress = parameters.multicallAddress ?? chain?.contracts?.multicall3?.address, mode = "auto" } = parameters;
   if (chain?.verifyHash)
     return await chain.verifyHash(client2, parameters);
   const signature = (() => {
@@ -18226,7 +18940,7 @@ async function verifyHash(client2, parameters) {
   try {
     if (mode === "eoa") {
       try {
-        const verified = isAddressEqual(getAddress(address), await recoverAddress({ hash: hash3, signature }));
+        const verified = isAddressEqual(getAddress(address3), await recoverAddress({ hash: hash4, signature }));
         if (verified)
           return true;
       } catch {
@@ -18246,7 +18960,7 @@ async function verifyHash(client2, parameters) {
   } catch (error) {
     if (mode !== "eoa") {
       try {
-        const verified = isAddressEqual(getAddress(address), await recoverAddress({ hash: hash3, signature }));
+        const verified = isAddressEqual(getAddress(address3), await recoverAddress({ hash: hash4, signature }));
         if (verified)
           return true;
       } catch {
@@ -18259,10 +18973,10 @@ async function verifyHash(client2, parameters) {
   }
 }
 async function verifyErc8010(client2, parameters) {
-  const { address, blockHash, blockNumber, blockTag, hash: hash3, multicallAddress, requireCanonical } = parameters;
+  const { address: address3, blockHash, blockNumber, blockTag, hash: hash4, multicallAddress, requireCanonical } = parameters;
   const { authorization: authorization_ox, data: initData, signature, to } = SignatureErc8010_exports.unwrap(parameters.signature);
   const code = await getCode(client2, {
-    address,
+    address: address3,
     blockHash,
     blockNumber,
     blockTag,
@@ -18282,7 +18996,7 @@ async function verifyErc8010(client2, parameters) {
     yParity: authorization_ox.yParity
   };
   const valid = await verifyAuthorization({
-    address,
+    address: address3,
     authorization
   });
   if (!valid)
@@ -18301,17 +19015,17 @@ async function verifyErc8010(client2, parameters) {
         ...initData ? [
           {
             allowFailure: true,
-            target: to ?? address,
+            target: to ?? address3,
             callData: initData
           }
         ] : [],
         {
           allowFailure: true,
-          target: address,
+          target: address3,
           callData: encodeFunctionData({
             abi: erc1271Abi,
             functionName: "isValidSignature",
-            args: [hash3, signature]
+            args: [hash4, signature]
           })
         }
       ]
@@ -18323,7 +19037,7 @@ async function verifyErc8010(client2, parameters) {
   throw new VerificationError();
 }
 async function verifyErc6492(client2, parameters) {
-  const { address, factory, factoryData, hash: hash3, signature, verifierAddress, ...rest } = parameters;
+  const { address: address3, factory, factoryData, hash: hash4, signature, verifierAddress, ...rest } = parameters;
   const wrappedSignature = await (async () => {
     if (!factory && !factoryData)
       return signature;
@@ -18340,13 +19054,13 @@ async function verifyErc6492(client2, parameters) {
     data: encodeFunctionData({
       abi: erc6492SignatureValidatorAbi,
       functionName: "isValidSig",
-      args: [address, hash3, wrappedSignature]
+      args: [address3, hash4, wrappedSignature]
     }),
     ...rest
   } : {
     data: encodeDeployData({
       abi: erc6492SignatureValidatorAbi,
-      args: [address, hash3, wrappedSignature],
+      args: [address3, hash4, wrappedSignature],
       bytecode: erc6492SignatureValidatorByteCode
     }),
     ...rest
@@ -18361,11 +19075,11 @@ async function verifyErc6492(client2, parameters) {
   throw new VerificationError();
 }
 async function verifyErc1271(client2, parameters) {
-  const { address, blockHash, blockNumber, blockTag, hash: hash3, requireCanonical, signature } = parameters;
+  const { address: address3, blockHash, blockNumber, blockTag, hash: hash4, requireCanonical, signature } = parameters;
   const result = await getAction(client2, readContract, "readContract")({
-    address,
+    address: address3,
     abi: erc1271Abi,
-    args: [hash3, signature],
+    args: [hash4, signature],
     blockHash,
     blockNumber,
     blockTag,
@@ -18386,13 +19100,13 @@ var VerificationError = class extends Error {
 // node_modules/viem/_esm/actions/public/verifyMessage.js
 init_getAction();
 init_hashMessage();
-async function verifyMessage(client2, { address, message, factory, factoryData, signature, ...callRequest }) {
-  const hash3 = hashMessage(message);
+async function verifyMessage(client2, { address: address3, message, factory, factoryData, signature, ...callRequest }) {
+  const hash4 = hashMessage(message);
   return getAction(client2, verifyHash, "verifyHash")({
-    address,
+    address: address3,
     factory,
     factoryData,
-    hash: hash3,
+    hash: hash4,
     signature,
     ...callRequest
   });
@@ -18401,14 +19115,14 @@ async function verifyMessage(client2, { address, message, factory, factoryData, 
 // node_modules/viem/_esm/actions/public/verifyTypedData.js
 init_getAction();
 init_hashTypedData();
-async function verifyTypedData(client2, parameters) {
-  const { address, factory, factoryData, signature, message, primaryType, types, domain, ...callRequest } = parameters;
-  const hash3 = hashTypedData({ message, primaryType, types, domain });
+async function verifyTypedData2(client2, parameters) {
+  const { address: address3, factory, factoryData, signature, message, primaryType, types, domain, ...callRequest } = parameters;
+  const hash4 = hashTypedData({ message, primaryType, types, domain });
   return getAction(client2, verifyHash, "verifyHash")({
-    address,
+    address: address3,
     factory,
     factoryData,
-    hash: hash3,
+    hash: hash4,
     signature,
     ...callRequest
   });
@@ -18620,7 +19334,7 @@ init_getBlockNumber();
 init_getFilterChanges();
 init_getLogs();
 init_uninstallFilter();
-function watchEvent(client2, { address, args, batch = true, event, events, fromBlock, onError, onLogs, poll: poll_, pollingInterval = client2.pollingInterval, strict: strict_ }) {
+function watchEvent(client2, { address: address3, args, batch = true, event, events, fromBlock, onError, onLogs, poll: poll_, pollingInterval = client2.pollingInterval, strict: strict_ }) {
   const enablePolling = (() => {
     if (typeof poll_ !== "undefined")
       return poll_;
@@ -18636,7 +19350,7 @@ function watchEvent(client2, { address, args, batch = true, event, events, fromB
   const pollEvent = () => {
     const observerId = stringify([
       "watchEvent",
-      address,
+      address3,
       args,
       batch,
       client2.uid,
@@ -18654,7 +19368,7 @@ function watchEvent(client2, { address, args, batch = true, event, events, fromB
         if (!initialized) {
           try {
             filter = await getAction(client2, createEventFilter, "createEventFilter")({
-              address,
+              address: address3,
               args,
               event,
               events,
@@ -18674,7 +19388,7 @@ function watchEvent(client2, { address, args, batch = true, event, events, fromB
             const blockNumber = await getAction(client2, getBlockNumber, "getBlockNumber")({});
             if (previousBlockNumber && previousBlockNumber !== blockNumber) {
               logs = await getAction(client2, getLogs, "getLogs")({
-                address,
+                address: address3,
                 args,
                 event,
                 events,
@@ -18736,7 +19450,7 @@ function watchEvent(client2, { address, args, batch = true, event, events, fromB
             topics = topics[0];
         }
         const { unsubscribe: unsubscribe_ } = await transport.subscribe({
-          params: ["logs", { address, topics }],
+          params: ["logs", { address: address3, topics }],
           onData(data) {
             if (!active)
               return;
@@ -18817,8 +19531,8 @@ function watchPendingTransactions(client2, { batch = true, onError, onTransactio
           if (batch)
             emit.onTransactions(hashes);
           else
-            for (const hash3 of hashes)
-              emit.onTransactions([hash3]);
+            for (const hash4 of hashes)
+              emit.onTransactions([hash4]);
         } catch (err) {
           emit.onError?.(err);
         }
@@ -18901,7 +19615,7 @@ var suffixRegex = /(?:URI: (?<uri>.+))\n(?:Version: (?<version>.+))\n(?:Chain ID
 init_isAddress();
 init_isAddressEqual();
 function validateSiweMessage(parameters) {
-  const { address, domain, message, nonce, scheme, time = /* @__PURE__ */ new Date() } = parameters;
+  const { address: address3, domain, message, nonce, scheme, time = /* @__PURE__ */ new Date() } = parameters;
   if (domain && message.domain !== domain)
     return false;
   if (nonce && message.nonce !== nonce)
@@ -18927,7 +19641,7 @@ function validateSiweMessage(parameters) {
       return false;
     if (!isAddress(message.address, { strict: false }))
       return false;
-    if (address && !isAddressEqual(message.address, address))
+    if (address3 && !isAddressEqual(message.address, address3))
       return false;
   } catch {
     return false;
@@ -18937,12 +19651,12 @@ function validateSiweMessage(parameters) {
 
 // node_modules/viem/_esm/actions/siwe/verifySiweMessage.js
 async function verifySiweMessage(client2, parameters) {
-  const { address, domain, message, nonce, scheme, signature, time = /* @__PURE__ */ new Date(), ...callRequest } = parameters;
+  const { address: address3, domain, message, nonce, scheme, signature, time = /* @__PURE__ */ new Date(), ...callRequest } = parameters;
   const parsed = parseSiweMessage(message);
   if (!parsed.address)
     return false;
   const isValid2 = validateSiweMessage({
-    address,
+    address: address3,
     domain,
     message: parsed,
     nonce,
@@ -18951,13 +19665,93 @@ async function verifySiweMessage(client2, parameters) {
   });
   if (!isValid2)
     return false;
-  const hash3 = hashMessage(message);
+  const hash4 = hashMessage(message);
   return verifyHash(client2, {
     address: parsed.address,
-    hash: hash3,
+    hash: hash4,
     signature,
     ...callRequest
   });
+}
+
+// node_modules/viem/_esm/actions/token/approve.js
+init_abis();
+init_parseEventLogs();
+init_estimateContractGas();
+init_simulateContract();
+init_writeContract();
+init_internal();
+async function approve(client2, parameters) {
+  return approve.inner(writeContract, client2, parameters);
+}
+(function(approve2) {
+  async function inner(action, client2, parameters) {
+    return await action(client2, {
+      ...parameters,
+      ...approve2.call(client2, parameters)
+    });
+  }
+  approve2.inner = inner;
+  function call2(client2, parameters) {
+    return defineCall(getCall(client2, parameters));
+  }
+  approve2.call = call2;
+  async function estimateGas2(client2, parameters) {
+    return estimateContractGas(client2, {
+      ...pickWriteParameters(parameters),
+      ...approve2.call(client2, parameters)
+    });
+  }
+  approve2.estimateGas = estimateGas2;
+  async function simulate(client2, parameters) {
+    return simulateContract(client2, {
+      ...pickWriteParameters(parameters),
+      ...approve2.call(client2, parameters)
+    });
+  }
+  approve2.simulate = simulate;
+  function extractEvent(logs) {
+    const [log] = parseEventLogs({
+      abi: erc20Abi,
+      logs,
+      eventName: "Approval",
+      strict: true
+    });
+    if (!log)
+      throw new Error("`Approval` event not found.");
+    return log;
+  }
+  approve2.extractEvent = extractEvent;
+})(approve || (approve = {}));
+function getCall(client2, parameters) {
+  const { amount, spender, token: token2 } = parameters;
+  const { address: address3, decimals } = resolveToken(client2, { token: token2 });
+  return {
+    abi: erc20Abi,
+    address: address3,
+    args: [spender, toBaseUnits(amount, decimals)],
+    functionName: "approve"
+  };
+}
+
+// node_modules/viem/_esm/actions/token/approveSync.js
+init_formatUnits();
+init_writeContractSync();
+init_internal();
+async function approveSync(client2, parameters) {
+  const { amount, token: token2, throwOnReceiptRevert = true } = parameters;
+  const { decimals } = resolveToken(client2, { token: token2 });
+  const resolved = resolveAmountDecimals(amount, decimals);
+  const receipt = await approve.inner(writeContractSync, client2, {
+    ...parameters,
+    throwOnReceiptRevert
+  });
+  const { args } = approve.extractEvent(receipt.logs);
+  return {
+    ...args,
+    ...resolved === void 0 ? {} : { decimals: resolved, formatted: formatUnits(args.value, resolved) },
+    receipt
+  };
 }
 
 // node_modules/viem/_esm/actions/token/getAllowance.js
@@ -18965,15 +19759,15 @@ init_abis();
 init_readContract();
 init_internal();
 async function getAllowance(client2, parameters) {
-  const { account: account2, decimals, spender, token, ...rest } = parameters;
+  const { account: account2, decimals, spender, token: token2, ...rest } = parameters;
   const [amount, { decimals: resolved }] = await Promise.all([
     readContract(client2, {
       ...rest,
-      ...getAllowance.call(client2, { account: account2, spender, token })
+      ...getAllowance.call(client2, { account: account2, spender, token: token2 })
     }),
     resolveTokenWithDecimals(client2, {
       decimals,
-      token
+      token: token2
     })
   ]);
   return toAmount(amount, resolved);
@@ -18997,18 +19791,18 @@ init_account();
 init_readContract();
 init_internal();
 async function getBalance2(client2, parameters) {
-  const { account: account_ = client2.account, decimals, token, ...rest } = parameters;
+  const { account: account_ = client2.account, decimals, token: token2, ...rest } = parameters;
   if (!account_)
     throw new AccountNotFoundError();
   const account2 = parseAccount(account_).address;
   const [amount, { decimals: resolved }] = await Promise.all([
     readContract(client2, {
       ...rest,
-      ...getBalance2.call(client2, { account: account2, token })
+      ...getBalance2.call(client2, { account: account2, token: token2 })
     }),
     resolveTokenWithDecimals(client2, {
       decimals,
-      token
+      token: token2
     })
   ]);
   return toAmount(amount, resolved);
@@ -19034,26 +19828,26 @@ init_abis();
 init_readContract();
 init_internal();
 async function getMetadata(client2, parameters) {
-  const { token, ...rest } = parameters;
-  const { address } = resolveToken(client2, { token });
-  const declared = findDeclaredToken(client2, token);
+  const { token: token2, ...rest } = parameters;
+  const { address: address3 } = resolveToken(client2, { token: token2 });
+  const declared = findDeclaredToken(client2, token2);
   const [decimals_, name, symbol] = await Promise.all([
     declared?.decimals ?? readContract(client2, {
       ...rest,
       abi: erc20Abi,
-      address,
+      address: address3,
       functionName: "decimals"
     }),
     declared?.name ?? readContract(client2, {
       ...rest,
       abi: erc20Abi,
-      address,
+      address: address3,
       functionName: "name"
     }),
     declared?.symbol ?? readContract(client2, {
       ...rest,
       abi: erc20Abi,
-      address,
+      address: address3,
       functionName: "symbol"
     })
   ]);
@@ -19069,15 +19863,15 @@ init_abis();
 init_readContract();
 init_internal();
 async function getTotalSupply(client2, parameters) {
-  const { decimals, token, ...rest } = parameters;
+  const { decimals, token: token2, ...rest } = parameters;
   const [amount, { decimals: resolved }] = await Promise.all([
     readContract(client2, {
       ...rest,
-      ...getTotalSupply.call(client2, { token })
+      ...getTotalSupply.call(client2, { token: token2 })
     }),
     resolveTokenWithDecimals(client2, {
       decimals,
-      token
+      token: token2
     })
   ]);
   return toAmount(amount, resolved);
@@ -19093,6 +19887,94 @@ async function getTotalSupply(client2, parameters) {
   }
   getTotalSupply2.call = call2;
 })(getTotalSupply || (getTotalSupply = {}));
+
+// node_modules/viem/_esm/actions/token/transfer.js
+init_abis();
+init_parseEventLogs();
+init_estimateContractGas();
+init_simulateContract();
+init_writeContract();
+init_internal();
+async function transfer(client2, parameters) {
+  return transfer.inner(writeContract, client2, parameters);
+}
+(function(transfer2) {
+  async function inner(action, client2, parameters) {
+    return await action(client2, {
+      ...parameters,
+      ...transfer2.call(client2, parameters)
+    });
+  }
+  transfer2.inner = inner;
+  function call2(client2, parameters) {
+    return defineCall(getCall2(client2, parameters));
+  }
+  transfer2.call = call2;
+  async function estimateGas2(client2, parameters) {
+    return estimateContractGas(client2, {
+      ...pickWriteParameters(parameters),
+      ...transfer2.call(client2, parameters)
+    });
+  }
+  transfer2.estimateGas = estimateGas2;
+  async function simulate(client2, parameters) {
+    return simulateContract(client2, {
+      ...pickWriteParameters(parameters),
+      ...transfer2.call(client2, parameters)
+    });
+  }
+  transfer2.simulate = simulate;
+  function extractEvent(logs) {
+    const [log] = parseEventLogs({
+      abi: erc20Abi,
+      logs,
+      eventName: "Transfer",
+      strict: true
+    });
+    if (!log)
+      throw new Error("`Transfer` event not found.");
+    return log;
+  }
+  transfer2.extractEvent = extractEvent;
+})(transfer || (transfer = {}));
+function getCall2(client2, parameters) {
+  const { amount, from: from16, to, token: token2 } = parameters;
+  const { address: address3, decimals } = resolveToken(client2, { token: token2 });
+  const value = toBaseUnits(amount, decimals);
+  if (from16)
+    return {
+      abi: erc20Abi,
+      address: address3,
+      args: [from16, to, value],
+      functionName: "transferFrom"
+    };
+  return {
+    abi: erc20Abi,
+    address: address3,
+    args: [to, value],
+    functionName: "transfer"
+  };
+}
+
+// node_modules/viem/_esm/actions/token/transferSync.js
+init_formatUnits();
+init_writeContractSync();
+init_internal();
+async function transferSync(client2, parameters) {
+  const { amount, token: token2, throwOnReceiptRevert = true } = parameters;
+  const { decimals } = resolveToken(client2, { token: token2 });
+  const resolved = resolveAmountDecimals(amount, decimals);
+  const receipt = await transfer.inner(writeContractSync, client2, {
+    ...parameters,
+    throwOnReceiptRevert
+  });
+  const { args } = transfer.extractEvent(receipt.logs);
+  return {
+    ...args,
+    ...resolved === void 0 ? {} : { decimals: resolved, formatted: formatUnits(args.value, resolved) },
+    receipt
+  };
+}
 
 // node_modules/viem/_esm/clients/decorators/public.js
 init_prepareTransactionRequest();
@@ -19153,7 +20035,7 @@ function publicActions(client2) {
     verifyHash: (args) => verifyHash(client2, args),
     verifyMessage: (args) => verifyMessage(client2, args),
     verifySiweMessage: (args) => verifySiweMessage(client2, args),
-    verifyTypedData: (args) => verifyTypedData(client2, args),
+    verifyTypedData: (args) => verifyTypedData2(client2, args),
     uninstallFilter: (args) => uninstallFilter(client2, args),
     waitForTransactionReceipt: (args) => waitForTransactionReceipt(client2, args),
     watchBlockHeaders: (args) => watchBlockHeaders(client2, args),
@@ -19184,6 +20066,213 @@ function createPublicClient(parameters) {
     type: "publicClient"
   });
   return client2.extend(publicActions);
+}
+
+// node_modules/viem/_esm/clients/decorators/wallet.js
+init_fillTransaction();
+init_getChainId();
+
+// node_modules/viem/_esm/actions/wallet/addChain.js
+init_toHex();
+async function addChain(client2, { chain }) {
+  const { id, name, nativeCurrency, rpcUrls, blockExplorers } = chain;
+  await client2.request({
+    method: "wallet_addEthereumChain",
+    params: [
+      {
+        chainId: numberToHex(id),
+        chainName: name,
+        nativeCurrency,
+        rpcUrls: rpcUrls.default.http,
+        blockExplorerUrls: blockExplorers ? Object.values(blockExplorers).map(({ url }) => url) : void 0
+      }
+    ]
+  }, { dedupe: true, retryCount: 0 });
+}
+
+// node_modules/viem/_esm/actions/wallet/deployContract.js
+init_encodeDeployData();
+init_sendTransaction();
+function deployContract(walletClient, parameters) {
+  const { abi: abi2, args, bytecode, ...request2 } = parameters;
+  const calldata = encodeDeployData({ abi: abi2, args, bytecode });
+  return sendTransaction(walletClient, {
+    ...request2,
+    ...request2.authorizationList ? { to: null } : {},
+    data: calldata
+  });
+}
+
+// node_modules/viem/_esm/actions/wallet/getAddresses.js
+init_getAddress();
+async function getAddresses(client2) {
+  if (client2.account?.type === "local")
+    return [client2.account.address];
+  const addresses = await client2.request({ method: "eth_accounts" }, { dedupe: true });
+  return addresses.map((address3) => checksumAddress(address3));
+}
+
+// node_modules/viem/_esm/actions/wallet/getCapabilities.js
+init_parseAccount();
+init_toHex();
+async function getCapabilities(client2, parameters = {}) {
+  const { account: account2 = client2.account, chainId } = parameters;
+  const account_ = account2 ? parseAccount(account2) : void 0;
+  const params = chainId ? [account_?.address, [numberToHex(chainId)]] : [account_?.address];
+  const capabilities_raw = await client2.request({
+    method: "wallet_getCapabilities",
+    params
+  });
+  const capabilities = {};
+  for (const [chainId2, capabilities_] of Object.entries(capabilities_raw)) {
+    capabilities[Number(chainId2)] = {};
+    for (let [key, value] of Object.entries(capabilities_)) {
+      if (key === "addSubAccount")
+        key = "unstable_addSubAccount";
+      capabilities[Number(chainId2)][key] = value;
+    }
+  }
+  return typeof chainId === "number" ? capabilities[chainId] : capabilities;
+}
+
+// node_modules/viem/_esm/actions/wallet/getPermissions.js
+async function getPermissions(client2) {
+  const permissions = await client2.request({ method: "wallet_getPermissions" }, { dedupe: true });
+  return permissions;
+}
+
+// node_modules/viem/_esm/actions/wallet/prepareAuthorization.js
+init_parseAccount();
+init_account();
+init_isAddressEqual();
+init_getAction();
+init_getChainId();
+init_getTransactionCount();
+async function prepareAuthorization(client2, parameters) {
+  const { account: account_ = client2.account, chainId, nonce } = parameters;
+  if (!account_)
+    throw new AccountNotFoundError({
+      docsPath: "/docs/eip7702/prepareAuthorization"
+    });
+  const account2 = parseAccount(account_);
+  const executor = (() => {
+    if (!parameters.executor)
+      return void 0;
+    if (parameters.executor === "self")
+      return parameters.executor;
+    return parseAccount(parameters.executor);
+  })();
+  const authorization = {
+    address: parameters.contractAddress ?? parameters.address,
+    chainId,
+    nonce
+  };
+  if (typeof authorization.chainId === "undefined")
+    authorization.chainId = client2.chain?.id ?? await getAction(client2, getChainId, "getChainId")({});
+  if (typeof authorization.nonce === "undefined") {
+    authorization.nonce = await getAction(client2, getTransactionCount, "getTransactionCount")({
+      address: account2.address,
+      blockTag: "pending"
+    });
+    if (executor === "self" || executor?.address && isAddressEqual(executor.address, account2.address))
+      authorization.nonce += 1;
+  }
+  return authorization;
+}
+
+// node_modules/viem/_esm/clients/decorators/wallet.js
+init_prepareTransactionRequest();
+
+// node_modules/viem/_esm/actions/wallet/requestAddresses.js
+init_getAddress();
+async function requestAddresses(client2) {
+  const addresses = await client2.request({ method: "eth_requestAccounts" }, { dedupe: true, retryCount: 0 });
+  return addresses.map((address3) => getAddress(address3));
+}
+
+// node_modules/viem/_esm/actions/wallet/requestPermissions.js
+async function requestPermissions(client2, permissions) {
+  return client2.request({
+    method: "wallet_requestPermissions",
+    params: [permissions]
+  }, { retryCount: 0 });
+}
+
+// node_modules/viem/_esm/actions/wallet/sendCallsSync.js
+init_getAction();
+async function sendCallsSync(client2, parameters) {
+  const { chain = client2.chain } = parameters;
+  const timeout = parameters.timeout ?? Math.max((chain?.blockTime ?? 0) * 3, 5e3);
+  const result = await getAction(client2, sendCalls, "sendCalls")(parameters);
+  const status = await getAction(client2, waitForCallsStatus, "waitForCallsStatus")({
+    ...parameters,
+    id: result.id,
+    timeout
+  });
+  return status;
+}
+
+// node_modules/viem/_esm/clients/decorators/wallet.js
+init_sendRawTransaction();
+init_sendRawTransactionSync();
+init_sendTransaction();
+init_sendTransactionSync();
+
+// node_modules/viem/_esm/actions/wallet/showCallsStatus.js
+async function showCallsStatus(client2, parameters) {
+  const { id } = parameters;
+  await client2.request({
+    method: "wallet_showCallsStatus",
+    params: [id]
+  });
+  return;
+}
+
+// node_modules/viem/_esm/actions/wallet/signAuthorization.js
+init_parseAccount();
+init_account();
+async function signAuthorization(client2, parameters) {
+  const { account: account_ = client2.account } = parameters;
+  if (!account_)
+    throw new AccountNotFoundError({
+      docsPath: "/docs/eip7702/signAuthorization"
+    });
+  const account2 = parseAccount(account_);
+  if (!account2.signAuthorization)
+    throw new AccountTypeNotSupportedError({
+      docsPath: "/docs/eip7702/signAuthorization",
+      metaMessages: [
+        "The `signAuthorization` Action does not support JSON-RPC Accounts."
+      ],
+      type: account2.type
+    });
+  const authorization = await prepareAuthorization(client2, parameters);
+  return account2.signAuthorization(authorization);
+}
+
+// node_modules/viem/_esm/actions/wallet/signMessage.js
+init_parseAccount();
+init_account();
+init_toHex();
+async function signMessage(client2, { account: account_ = client2.account, message }) {
+  if (!account_)
+    throw new AccountNotFoundError({
+      docsPath: "/docs/actions/wallet/signMessage"
+    });
+  const account2 = parseAccount(account_);
+  if (account2.signMessage)
+    return account2.signMessage({ message });
+  const message_ = (() => {
+    if (typeof message === "string")
+      return stringToHex(message);
+    if (message.raw instanceof Uint8Array)
+      return toHex(message.raw);
+    return message.raw;
+  })();
+  return client2.request({
+    method: "personal_sign",
+    params: [message_, account2.address]
+  }, { retryCount: 0 });
 }
 
 // node_modules/viem/_esm/actions/wallet/signTransaction.js
@@ -19233,6 +20322,108 @@ async function signTransaction(client2, parameters) {
       }
     ]
   }, { retryCount: 0 });
+}
+
+// node_modules/viem/_esm/actions/wallet/signTypedData.js
+init_parseAccount();
+init_account();
+init_typedData2();
+async function signTypedData(client2, parameters) {
+  const { account: account_ = client2.account, domain, message, primaryType } = parameters;
+  if (!account_)
+    throw new AccountNotFoundError({
+      docsPath: "/docs/actions/wallet/signTypedData"
+    });
+  const account2 = parseAccount(account_);
+  const types = {
+    EIP712Domain: getTypesForEIP712Domain({ domain }),
+    ...parameters.types
+  };
+  validateTypedData({ domain, message, primaryType, types });
+  if (account2.signTypedData)
+    return account2.signTypedData({ domain, message, primaryType, types });
+  const typedData = serializeTypedData({ domain, message, primaryType, types });
+  return client2.request({
+    method: "eth_signTypedData_v4",
+    params: [account2.address, typedData]
+  }, { retryCount: 0 });
+}
+
+// node_modules/viem/_esm/actions/wallet/switchChain.js
+init_toHex();
+async function switchChain(client2, { id }) {
+  await client2.request({
+    method: "wallet_switchEthereumChain",
+    params: [
+      {
+        chainId: numberToHex(id)
+      }
+    ]
+  }, { retryCount: 0 });
+}
+
+// node_modules/viem/_esm/actions/wallet/watchAsset.js
+async function watchAsset(client2, params) {
+  const added = await client2.request({
+    method: "wallet_watchAsset",
+    params
+  }, { retryCount: 0 });
+  return added;
+}
+
+// node_modules/viem/_esm/clients/decorators/wallet.js
+init_writeContract();
+init_writeContractSync();
+function walletActions(client2) {
+  return {
+    addChain: (args) => addChain(client2, args),
+    deployContract: (args) => deployContract(client2, args),
+    fillTransaction: (args) => fillTransaction(client2, args),
+    getAddresses: () => getAddresses(client2),
+    getCallsStatus: (args) => getCallsStatus(client2, args),
+    getCapabilities: (args) => getCapabilities(client2, args),
+    getChainId: () => getChainId(client2),
+    getPermissions: () => getPermissions(client2),
+    prepareAuthorization: (args) => prepareAuthorization(client2, args),
+    prepareTransactionRequest: (args) => prepareTransactionRequest(client2, args),
+    requestAddresses: () => requestAddresses(client2),
+    requestPermissions: (args) => requestPermissions(client2, args),
+    sendCalls: (args) => sendCalls(client2, args),
+    sendCallsSync: (args) => sendCallsSync(client2, args),
+    sendRawTransaction: (args) => sendRawTransaction(client2, args),
+    sendRawTransactionSync: (args) => sendRawTransactionSync(client2, args),
+    sendTransaction: (args) => sendTransaction(client2, args),
+    sendTransactionSync: (args) => sendTransactionSync(client2, args),
+    showCallsStatus: (args) => showCallsStatus(client2, args),
+    signAuthorization: (args) => signAuthorization(client2, args),
+    signMessage: (args) => signMessage(client2, args),
+    signTransaction: (args) => signTransaction(client2, args),
+    signTypedData: (args) => signTypedData(client2, args),
+    switchChain: (args) => switchChain(client2, args),
+    waitForCallsStatus: (args) => waitForCallsStatus(client2, args),
+    watchAsset: (args) => watchAsset(client2, args),
+    writeContract: (args) => writeContract(client2, args),
+    writeContractSync: (args) => writeContractSync(client2, args),
+    token: {
+      approve: bindActionDecorators(client2, approve),
+      approveSync: bindActionDecorators(client2, approveSync),
+      transfer: bindActionDecorators(client2, transfer),
+      transferSync: bindActionDecorators(client2, transferSync)
+    }
+  };
+}
+
+// node_modules/viem/_esm/clients/createWalletClient.js
+function createWalletClient(parameters) {
+  const { key = "wallet", name = "Wallet Client", transport } = parameters;
+  const client2 = createClient({
+    ...parameters,
+    key,
+    name,
+    transport,
+    type: "walletClient"
+  });
+  return client2.extend(walletActions);
 }
 
 // node_modules/viem/_esm/clients/transports/createTransport.js
@@ -19349,181 +20540,23 @@ function http(url, config = {}) {
 }
 
 // node_modules/viem/_esm/index.js
+init_address2();
 init_number();
+init_decodeEventLog();
 init_encodeFunctionData();
+init_parseEventLogs();
 init_getAddress();
 init_isAddress();
 init_concat();
+init_fromHex();
 init_toHex();
+init_transactionReceipt();
 init_keccak256();
+init_hashTypedData();
+init_verifyTypedData();
+init_formatEther();
 init_formatUnits();
 init_parseUnits();
-
-// node_modules/viem/_esm/actions/index.js
-init_getBlockNumber();
-init_getChainId();
-init_getLogs();
-init_getTransaction();
-init_getTransactionCount();
-init_getTransactionReceipt();
-init_readContract();
-init_simulateContract();
-init_waitForTransactionReceipt();
-init_prepareTransactionRequest();
-init_sendRawTransaction();
-
-// node_modules/viem/_esm/accounts/generatePrivateKey.js
-init_secp256k1();
-init_toHex();
-function generatePrivateKey() {
-  return toHex(secp256k1.utils.randomPrivateKey());
-}
-
-// node_modules/viem/_esm/accounts/privateKeyToAccount.js
-init_secp256k1();
-init_toHex();
-
-// node_modules/viem/_esm/accounts/toAccount.js
-init_address();
-init_isAddress();
-function toAccount(source) {
-  if (typeof source === "string") {
-    if (!isAddress(source, { strict: false }))
-      throw new InvalidAddressError({ address: source });
-    return {
-      address: source,
-      type: "json-rpc"
-    };
-  }
-  if (!isAddress(source.address, { strict: false }))
-    throw new InvalidAddressError({ address: source.address });
-  return {
-    address: source.address,
-    nonceManager: source.nonceManager,
-    sign: source.sign,
-    signAuthorization: source.signAuthorization,
-    signMessage: source.signMessage,
-    signTransaction: source.signTransaction,
-    signTypedData: source.signTypedData,
-    source: "custom",
-    type: "local"
-  };
-}
-
-// node_modules/viem/_esm/accounts/privateKeyToAccount.js
-init_publicKeyToAddress();
-
-// node_modules/viem/_esm/accounts/utils/sign.js
-init_secp256k1();
-init_isHex();
-init_toBytes();
-init_toHex();
-var extraEntropy = false;
-async function sign({ hash: hash3, privateKey, to = "object" }) {
-  const { r, s, recovery } = secp256k1.sign(hash3.slice(2), privateKey.slice(2), {
-    lowS: true,
-    extraEntropy: isHex(extraEntropy, { strict: false }) ? hexToBytes(extraEntropy) : extraEntropy
-  });
-  const signature = {
-    r: numberToHex(r, { size: 32 }),
-    s: numberToHex(s, { size: 32 }),
-    v: recovery ? 28n : 27n,
-    yParity: recovery
-  };
-  return (() => {
-    if (to === "bytes" || to === "hex")
-      return serializeSignature({ ...signature, to });
-    return signature;
-  })();
-}
-
-// node_modules/viem/_esm/accounts/utils/signAuthorization.js
-init_hashAuthorization();
-async function signAuthorization(parameters) {
-  const { chainId, nonce, privateKey, to = "object" } = parameters;
-  const address = parameters.contractAddress ?? parameters.address;
-  const signature = await sign({
-    hash: hashAuthorization({ address, chainId, nonce }),
-    privateKey,
-    to
-  });
-  if (to === "object")
-    return {
-      address,
-      chainId,
-      nonce,
-      ...signature
-    };
-  return signature;
-}
-
-// node_modules/viem/_esm/accounts/utils/signMessage.js
-init_hashMessage();
-async function signMessage({ message, privateKey }) {
-  return await sign({ hash: hashMessage(message), privateKey, to: "hex" });
-}
-
-// node_modules/viem/_esm/accounts/utils/signTransaction.js
-init_keccak256();
-init_serializeTransaction();
-async function signTransaction2(parameters) {
-  const { privateKey, transaction, serializer = serializeTransaction } = parameters;
-  const signableTransaction = (() => {
-    if (transaction.type === "eip4844")
-      return {
-        ...transaction,
-        sidecars: false
-      };
-    return transaction;
-  })();
-  const signature = await sign({
-    hash: keccak256(await serializer(signableTransaction)),
-    privateKey
-  });
-  return await serializer(transaction, signature);
-}
-
-// node_modules/viem/_esm/accounts/utils/signTypedData.js
-init_hashTypedData();
-async function signTypedData(parameters) {
-  const { privateKey, ...typedData } = parameters;
-  return await sign({
-    hash: hashTypedData(typedData),
-    privateKey,
-    to: "hex"
-  });
-}
-
-// node_modules/viem/_esm/accounts/privateKeyToAccount.js
-function privateKeyToAccount(privateKey, options = {}) {
-  const { nonceManager } = options;
-  const publicKey = toHex(secp256k1.getPublicKey(privateKey.slice(2), false));
-  const address = publicKeyToAddress(publicKey);
-  const account2 = toAccount({
-    address,
-    nonceManager,
-    async sign({ hash: hash3 }) {
-      return sign({ hash: hash3, privateKey, to: "hex" });
-    },
-    async signAuthorization(authorization) {
-      return signAuthorization({ ...authorization, privateKey });
-    },
-    async signMessage({ message }) {
-      return signMessage({ message, privateKey });
-    },
-    async signTransaction(transaction, { serializer } = {}) {
-      return signTransaction2({ privateKey, transaction, serializer });
-    },
-    async signTypedData(typedData) {
-      return signTypedData({ ...typedData, privateKey });
-    }
-  });
-  return {
-    ...account2,
-    publicKey,
-    source: "privateKey"
-  };
-}
 
 // node_modules/viem/_esm/op-stack/contracts.js
 var contracts = {
@@ -19588,7 +20621,7 @@ function assertTransactionDeposit(transaction) {
 var fees = {
   /*
      * Estimates the fees per gas for a transaction.
-  
+
      * If the transaction is to be paid in a token (feeCurrency is present) then the fees
      * are estimated in the value of the token. Otherwise falls back to the default
      * estimation by returning null.
@@ -19804,6 +20837,5665 @@ var celo = /* @__PURE__ */ defineChain({
   testnet: false
 });
 
+// ../packages/remesso-sdk/src/generated/abi.ts
+var executorAbi = [
+  {
+    "type": "constructor",
+    "inputs": [
+      {
+        "name": "_tokenIn",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "_tokenOut",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "_router",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "_executor",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "_poolFee",
+        "type": "uint24",
+        "internalType": "uint24"
+      },
+      {
+        "name": "_treasury",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "_feeBps",
+        "type": "uint16",
+        "internalType": "uint16"
+      }
+    ],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "CURRENT_EXECUTOR",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "MAX_FEE_BPS",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint16",
+        "internalType": "uint16"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "MAX_INTERVAL",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint64",
+        "internalType": "uint64"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "MAX_LIFETIME",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint64",
+        "internalType": "uint64"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "MIN_TRIGGER_GAP",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint64",
+        "internalType": "uint64"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "acceptOwnership",
+    "inputs": [],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "cancelSchedule",
+    "inputs": [
+      {
+        "name": "id",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "createSchedule",
+    "inputs": [
+      {
+        "name": "destination",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "amountIn",
+        "type": "uint128",
+        "internalType": "uint128"
+      },
+      {
+        "name": "interval",
+        "type": "uint64",
+        "internalType": "uint64"
+      },
+      {
+        "name": "minRateE6",
+        "type": "uint96",
+        "internalType": "uint96"
+      },
+      {
+        "name": "maxRuns",
+        "type": "uint32",
+        "internalType": "uint32"
+      },
+      {
+        "name": "expiresAt",
+        "type": "uint64",
+        "internalType": "uint64"
+      },
+      {
+        "name": "firstRunAt",
+        "type": "uint64",
+        "internalType": "uint64"
+      },
+      {
+        "name": "payoutType",
+        "type": "uint8",
+        "internalType": "enum RemessoExecutorV5.PayoutType"
+      },
+      {
+        "name": "token",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "payoutToken",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "trigger",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "triggersLeft",
+        "type": "uint16",
+        "internalType": "uint16"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "id",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "directTokenAllowed",
+    "inputs": [
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bool",
+        "internalType": "bool"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "executeRun",
+    "inputs": [
+      {
+        "name": "id",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "amountOutMinimum",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "amountOut",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "executor",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "feeBps",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint16",
+        "internalType": "uint16"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "getSchedule",
+    "inputs": [
+      {
+        "name": "id",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "tuple",
+        "internalType": "struct RemessoExecutorV5.Schedule",
+        "components": [
+          {
+            "name": "sender",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "interval",
+            "type": "uint64",
+            "internalType": "uint64"
+          },
+          {
+            "name": "maxRuns",
+            "type": "uint32",
+            "internalType": "uint32"
+          },
+          {
+            "name": "destination",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "nextRunAt",
+            "type": "uint64",
+            "internalType": "uint64"
+          },
+          {
+            "name": "runsExecuted",
+            "type": "uint32",
+            "internalType": "uint32"
+          },
+          {
+            "name": "amountIn",
+            "type": "uint128",
+            "internalType": "uint128"
+          },
+          {
+            "name": "minRateE6",
+            "type": "uint96",
+            "internalType": "uint96"
+          },
+          {
+            "name": "poolFee",
+            "type": "uint24",
+            "internalType": "uint24"
+          },
+          {
+            "name": "expiresAt",
+            "type": "uint64",
+            "internalType": "uint64"
+          },
+          {
+            "name": "payoutType",
+            "type": "uint8",
+            "internalType": "enum RemessoExecutorV5.PayoutType"
+          },
+          {
+            "name": "active",
+            "type": "bool",
+            "internalType": "bool"
+          },
+          {
+            "name": "cancelled",
+            "type": "bool",
+            "internalType": "bool"
+          },
+          {
+            "name": "token",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "tokenOut",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "feeBps",
+            "type": "uint16",
+            "internalType": "uint16"
+          },
+          {
+            "name": "lastRunAt",
+            "type": "uint64",
+            "internalType": "uint64"
+          },
+          {
+            "name": "triggersLeft",
+            "type": "uint16",
+            "internalType": "uint16"
+          },
+          {
+            "name": "trigger",
+            "type": "address",
+            "internalType": "address"
+          }
+        ]
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "nextScheduleId",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "owner",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "pause",
+    "inputs": [],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "paused",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bool",
+        "internalType": "bool"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "pendingOwner",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "poolFee",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint24",
+        "internalType": "uint24"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "renounceOwnership",
+    "inputs": [],
+    "outputs": [],
+    "stateMutability": "pure"
+  },
+  {
+    "type": "function",
+    "name": "rescueToken",
+    "inputs": [
+      {
+        "name": "token",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "to",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "amount",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "router",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "contract ISwapRouter02"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "runNow",
+    "inputs": [
+      {
+        "name": "id",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "amountOutMinimum",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "amountOut",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "runnability",
+    "inputs": [
+      {
+        "name": "id",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "due",
+        "type": "bool",
+        "internalType": "bool"
+      },
+      {
+        "name": "funded",
+        "type": "bool",
+        "internalType": "bool"
+      },
+      {
+        "name": "approved",
+        "type": "bool",
+        "internalType": "bool"
+      },
+      {
+        "name": "floor",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "nextRunAt",
+        "type": "uint64",
+        "internalType": "uint64"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "schedulesOf",
+    "inputs": [
+      {
+        "name": "sender",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256[]",
+        "internalType": "uint256[]"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "setDirectToken",
+    "inputs": [
+      {
+        "name": "token",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "allowed",
+        "type": "bool",
+        "internalType": "bool"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "setExecutor",
+    "inputs": [
+      {
+        "name": "_executor",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "setFeeBps",
+    "inputs": [
+      {
+        "name": "_feeBps",
+        "type": "uint16",
+        "internalType": "uint16"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "setMinRate",
+    "inputs": [
+      {
+        "name": "id",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "minRateE6",
+        "type": "uint96",
+        "internalType": "uint96"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "setPoolFee",
+    "inputs": [
+      {
+        "name": "_poolFee",
+        "type": "uint24",
+        "internalType": "uint24"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "setScheduleActive",
+    "inputs": [
+      {
+        "name": "id",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "active",
+        "type": "bool",
+        "internalType": "bool"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "setSwapToken",
+    "inputs": [
+      {
+        "name": "token",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "allowed",
+        "type": "bool",
+        "internalType": "bool"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "setTreasury",
+    "inputs": [
+      {
+        "name": "_treasury",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "setTrigger",
+    "inputs": [
+      {
+        "name": "id",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "trigger",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "triggersLeft",
+        "type": "uint16",
+        "internalType": "uint16"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "swapTokenAllowed",
+    "inputs": [
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bool",
+        "internalType": "bool"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "tokenIn",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "contract IERC20"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "tokenOut",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "contract IERC20"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "transferOwnership",
+    "inputs": [
+      {
+        "name": "newOwner",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "treasury",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "triggerability",
+    "inputs": [
+      {
+        "name": "id",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "caller",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "canTrigger",
+        "type": "bool",
+        "internalType": "bool"
+      },
+      {
+        "name": "triggersLeft",
+        "type": "uint16",
+        "internalType": "uint16"
+      },
+      {
+        "name": "earliestTrigger",
+        "type": "uint64",
+        "internalType": "uint64"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "unpause",
+    "inputs": [],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "event",
+    "name": "DirectTokenSet",
+    "inputs": [
+      {
+        "name": "token",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "allowed",
+        "type": "bool",
+        "indexed": false,
+        "internalType": "bool"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "ExecutorUpdated",
+    "inputs": [
+      {
+        "name": "previous",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "current",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "FeeBpsUpdated",
+    "inputs": [
+      {
+        "name": "previous",
+        "type": "uint16",
+        "indexed": false,
+        "internalType": "uint16"
+      },
+      {
+        "name": "current",
+        "type": "uint16",
+        "indexed": false,
+        "internalType": "uint16"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "FeeCharged",
+    "inputs": [
+      {
+        "name": "id",
+        "type": "uint256",
+        "indexed": true,
+        "internalType": "uint256"
+      },
+      {
+        "name": "token",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "amount",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "MinRateUpdated",
+    "inputs": [
+      {
+        "name": "id",
+        "type": "uint256",
+        "indexed": true,
+        "internalType": "uint256"
+      },
+      {
+        "name": "previous",
+        "type": "uint96",
+        "indexed": false,
+        "internalType": "uint96"
+      },
+      {
+        "name": "current",
+        "type": "uint96",
+        "indexed": false,
+        "internalType": "uint96"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "OwnershipTransferStarted",
+    "inputs": [
+      {
+        "name": "previousOwner",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "newOwner",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "OwnershipTransferred",
+    "inputs": [
+      {
+        "name": "previousOwner",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "newOwner",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "Paused",
+    "inputs": [
+      {
+        "name": "account",
+        "type": "address",
+        "indexed": false,
+        "internalType": "address"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "PoolFeeUpdated",
+    "inputs": [
+      {
+        "name": "previous",
+        "type": "uint24",
+        "indexed": false,
+        "internalType": "uint24"
+      },
+      {
+        "name": "current",
+        "type": "uint24",
+        "indexed": false,
+        "internalType": "uint24"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "RunExecuted",
+    "inputs": [
+      {
+        "name": "id",
+        "type": "uint256",
+        "indexed": true,
+        "internalType": "uint256"
+      },
+      {
+        "name": "sender",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "destination",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "amountIn",
+        "type": "uint128",
+        "indexed": false,
+        "internalType": "uint128"
+      },
+      {
+        "name": "amountOut",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      },
+      {
+        "name": "runsExecuted",
+        "type": "uint32",
+        "indexed": false,
+        "internalType": "uint32"
+      },
+      {
+        "name": "nextRunAt",
+        "type": "uint64",
+        "indexed": false,
+        "internalType": "uint64"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "RunTriggered",
+    "inputs": [
+      {
+        "name": "id",
+        "type": "uint256",
+        "indexed": true,
+        "internalType": "uint256"
+      },
+      {
+        "name": "by",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "triggersLeft",
+        "type": "uint16",
+        "indexed": false,
+        "internalType": "uint16"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "ScheduleActiveSet",
+    "inputs": [
+      {
+        "name": "id",
+        "type": "uint256",
+        "indexed": true,
+        "internalType": "uint256"
+      },
+      {
+        "name": "active",
+        "type": "bool",
+        "indexed": false,
+        "internalType": "bool"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "ScheduleCancelled",
+    "inputs": [
+      {
+        "name": "id",
+        "type": "uint256",
+        "indexed": true,
+        "internalType": "uint256"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "ScheduleCreated",
+    "inputs": [
+      {
+        "name": "id",
+        "type": "uint256",
+        "indexed": true,
+        "internalType": "uint256"
+      },
+      {
+        "name": "sender",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "destination",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "amountIn",
+        "type": "uint128",
+        "indexed": false,
+        "internalType": "uint128"
+      },
+      {
+        "name": "interval",
+        "type": "uint64",
+        "indexed": false,
+        "internalType": "uint64"
+      },
+      {
+        "name": "minRateE6",
+        "type": "uint96",
+        "indexed": false,
+        "internalType": "uint96"
+      },
+      {
+        "name": "maxRuns",
+        "type": "uint32",
+        "indexed": false,
+        "internalType": "uint32"
+      },
+      {
+        "name": "expiresAt",
+        "type": "uint64",
+        "indexed": false,
+        "internalType": "uint64"
+      },
+      {
+        "name": "payoutType",
+        "type": "uint8",
+        "indexed": false,
+        "internalType": "enum RemessoExecutorV5.PayoutType"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "SwapTokenSet",
+    "inputs": [
+      {
+        "name": "token",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "allowed",
+        "type": "bool",
+        "indexed": false,
+        "internalType": "bool"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "TreasuryUpdated",
+    "inputs": [
+      {
+        "name": "previous",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "current",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "TriggerSet",
+    "inputs": [
+      {
+        "name": "id",
+        "type": "uint256",
+        "indexed": true,
+        "internalType": "uint256"
+      },
+      {
+        "name": "trigger",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "triggersLeft",
+        "type": "uint16",
+        "indexed": false,
+        "internalType": "uint16"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "Unpaused",
+    "inputs": [
+      {
+        "name": "account",
+        "type": "address",
+        "indexed": false,
+        "internalType": "address"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "error",
+    "name": "DegenerateFloor",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "EnforcedPause",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "ExpectedPause",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "FeeTooHigh",
+    "inputs": [
+      {
+        "name": "provided",
+        "type": "uint16",
+        "internalType": "uint16"
+      },
+      {
+        "name": "max",
+        "type": "uint16",
+        "internalType": "uint16"
+      }
+    ]
+  },
+  {
+    "type": "error",
+    "name": "FirstRunAfterExpiry",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "InsufficientOutput",
+    "inputs": [
+      {
+        "name": "received",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "floor",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ]
+  },
+  {
+    "type": "error",
+    "name": "InvalidAmount",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "InvalidDestination",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "InvalidInterval",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "InvalidRate",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "InvalidTrigger",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "NoFloorOnDirect",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "NoTriggersLeft",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "NotDue",
+    "inputs": [
+      {
+        "name": "nextRunAt",
+        "type": "uint64",
+        "internalType": "uint64"
+      }
+    ]
+  },
+  {
+    "type": "error",
+    "name": "NotExecutor",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "NotScheduleOwner",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "NotTrigger",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "OwnableInvalidOwner",
+    "inputs": [
+      {
+        "name": "owner",
+        "type": "address",
+        "internalType": "address"
+      }
+    ]
+  },
+  {
+    "type": "error",
+    "name": "OwnableUnauthorizedAccount",
+    "inputs": [
+      {
+        "name": "account",
+        "type": "address",
+        "internalType": "address"
+      }
+    ]
+  },
+  {
+    "type": "error",
+    "name": "ReentrancyGuardReentrantCall",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "RenounceDisabled",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "RunCapReached",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "SafeERC20FailedOperation",
+    "inputs": [
+      {
+        "name": "token",
+        "type": "address",
+        "internalType": "address"
+      }
+    ]
+  },
+  {
+    "type": "error",
+    "name": "SameToken",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "ScheduleExpired",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "ScheduleInactive",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "ScheduleIsCancelled",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "ScheduleLifetimeTooLong",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "SlippageBoundBelowFloor",
+    "inputs": [
+      {
+        "name": "provided",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "floor",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ]
+  },
+  {
+    "type": "error",
+    "name": "TokenNotAllowed",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "TriggeredTooSoon",
+    "inputs": [
+      {
+        "name": "nextAllowed",
+        "type": "uint64",
+        "internalType": "uint64"
+      }
+    ]
+  },
+  {
+    "type": "error",
+    "name": "WrongTokenForPayoutType",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "ZeroAddress",
+    "inputs": []
+  }
+];
+var allowanceAbi = [
+  {
+    "type": "function",
+    "name": "MAX_DURATION",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "MAX_RECIPIENTS",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "WINDOW",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "allowed",
+    "inputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bool",
+        "internalType": "bool"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "createPolicy",
+    "inputs": [
+      {
+        "name": "agent",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "token",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "perPayment",
+        "type": "uint128",
+        "internalType": "uint128"
+      },
+      {
+        "name": "perDay",
+        "type": "uint128",
+        "internalType": "uint128"
+      },
+      {
+        "name": "expiresAt",
+        "type": "uint64",
+        "internalType": "uint64"
+      },
+      {
+        "name": "allowlistOnly",
+        "type": "bool",
+        "internalType": "bool"
+      },
+      {
+        "name": "recipients",
+        "type": "address[]",
+        "internalType": "address[]"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "id",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "nextPolicyId",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "pay",
+    "inputs": [
+      {
+        "name": "id",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "to",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "amount",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "memo",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "policy",
+    "inputs": [
+      {
+        "name": "id",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "tuple",
+        "internalType": "struct RemessoAgentAllowance.Policy",
+        "components": [
+          {
+            "name": "owner",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "agent",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "token",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "expiresAt",
+            "type": "uint64",
+            "internalType": "uint64"
+          },
+          {
+            "name": "allowlistOnly",
+            "type": "bool",
+            "internalType": "bool"
+          },
+          {
+            "name": "revoked",
+            "type": "bool",
+            "internalType": "bool"
+          },
+          {
+            "name": "perPayment",
+            "type": "uint128",
+            "internalType": "uint128"
+          },
+          {
+            "name": "perDay",
+            "type": "uint128",
+            "internalType": "uint128"
+          },
+          {
+            "name": "spentInWindow",
+            "type": "uint128",
+            "internalType": "uint128"
+          },
+          {
+            "name": "windowStart",
+            "type": "uint64",
+            "internalType": "uint64"
+          }
+        ]
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "remainingToday",
+    "inputs": [
+      {
+        "name": "id",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "revoke",
+    "inputs": [
+      {
+        "name": "id",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "setRecipient",
+    "inputs": [
+      {
+        "name": "id",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "recipient",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "ok",
+        "type": "bool",
+        "internalType": "bool"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "event",
+    "name": "Paid",
+    "inputs": [
+      {
+        "name": "id",
+        "type": "uint256",
+        "indexed": true,
+        "internalType": "uint256"
+      },
+      {
+        "name": "to",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "amount",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      },
+      {
+        "name": "memo",
+        "type": "bytes32",
+        "indexed": false,
+        "internalType": "bytes32"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "PolicyCreated",
+    "inputs": [
+      {
+        "name": "id",
+        "type": "uint256",
+        "indexed": true,
+        "internalType": "uint256"
+      },
+      {
+        "name": "owner",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "agent",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "token",
+        "type": "address",
+        "indexed": false,
+        "internalType": "address"
+      },
+      {
+        "name": "perPayment",
+        "type": "uint128",
+        "indexed": false,
+        "internalType": "uint128"
+      },
+      {
+        "name": "perDay",
+        "type": "uint128",
+        "indexed": false,
+        "internalType": "uint128"
+      },
+      {
+        "name": "expiresAt",
+        "type": "uint64",
+        "indexed": false,
+        "internalType": "uint64"
+      },
+      {
+        "name": "allowlistOnly",
+        "type": "bool",
+        "indexed": false,
+        "internalType": "bool"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "PolicyRevoked",
+    "inputs": [
+      {
+        "name": "id",
+        "type": "uint256",
+        "indexed": true,
+        "internalType": "uint256"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "RecipientSet",
+    "inputs": [
+      {
+        "name": "id",
+        "type": "uint256",
+        "indexed": true,
+        "internalType": "uint256"
+      },
+      {
+        "name": "recipient",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "allowed",
+        "type": "bool",
+        "indexed": false,
+        "internalType": "bool"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "error",
+    "name": "BadExpiry",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "BadLimits",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "Expired",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "NotAgent",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "NotOwner",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "OverPerDay",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "OverPerPayment",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "RecipientNotAllowed",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "ReentrancyGuardReentrantCall",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "Revoked",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "SafeERC20FailedOperation",
+    "inputs": [
+      {
+        "name": "token",
+        "type": "address",
+        "internalType": "address"
+      }
+    ]
+  },
+  {
+    "type": "error",
+    "name": "SelfPayment",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "TooManyRecipients",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "ZeroAddress",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "ZeroAmount",
+    "inputs": []
+  }
+];
+
+// ../packages/remesso-sdk/src/abi.ts
+var erc20Abi2 = parseAbi([
+  "function balanceOf(address) view returns (uint256)",
+  "function allowance(address owner, address spender) view returns (uint256)",
+  "function approve(address spender, uint256 value) returns (bool)"
+]);
+var registryAbi = parseAbi([
+  "function getAgentWallet(uint256 agentId) view returns (address)",
+  "function tokenURI(uint256 agentId) view returns (string)"
+]);
+
+// ../packages/remesso-sdk/src/generated/deployment.ts
+var deployment = {
+  "version": 1,
+  "generatedBy": "scripts/build-deployments.ts, from /functions/v1/agent and chain reads. Do not edit by hand.",
+  "chain": {
+    "name": "Celo",
+    "chainId": 42220,
+    "caip2": "eip155:42220",
+    "rpc": "https://forno.celo.org"
+  },
+  "contracts": {
+    "RemessoExecutorV5": {
+      "address": "0x3C357af3300f383Ea49B6D6ED8e084199a92bEd8",
+      "deployBlock": 80268721,
+      "executor": "0xA351d65c15b8a342B6ECbC7f2B9eFE62B17cdb21",
+      "currentExecutorSentinel": "0x0000000000000000000000000000000000000001",
+      "feeBps": 25
+    },
+    "RemessoAgentAllowance": {
+      "address": "0xA6351fAeEb097698289586C4D6188530300DB209",
+      "deployBlock": 80467202
+    },
+    "ERC8004IdentityRegistry": {
+      "address": "0x8004A169FB4a3325136EB29fA0ceB6D2e539a432"
+    }
+  },
+  "tokens": [
+    {
+      "symbol": "USDT",
+      "address": "0x48065fbBE25f71C9282ddf5e1cD6D6A887483D5e",
+      "decimals": 6,
+      "currency": "USD",
+      "directAllowed": true,
+      "feeCurrency": "0x0E2A3e05bc9A16F5292A6170456A710cb89C6f72",
+      "minPerRun": "1000000",
+      "maxPerRun": "1000000000"
+    },
+    {
+      "symbol": "USDC",
+      "address": "0xcebA9300f2b948710d2653dD7B07f33A8B32118C",
+      "decimals": 6,
+      "currency": "USD",
+      "directAllowed": true,
+      "feeCurrency": "0x2F25deB3848C207fc8E0c34035B3Ba7fC157602B",
+      "minPerRun": "1000000",
+      "maxPerRun": "1000000000"
+    },
+    {
+      "symbol": "USDm",
+      "address": "0x765DE816845861e75A25fCA122bb6898B8B1282a",
+      "decimals": 18,
+      "currency": "USD",
+      "directAllowed": true,
+      "feeCurrency": "0x765DE816845861e75A25fCA122bb6898B8B1282a",
+      "minPerRun": "1000000000000000000",
+      "maxPerRun": "1000000000000000000000"
+    },
+    {
+      "symbol": "USA\u20AE",
+      "address": "0xD2ab3C9A02DBBAB236BfEC45D1d755DF4267F771",
+      "decimals": 6,
+      "currency": "USD",
+      "directAllowed": true,
+      "feeCurrency": "0x0357EE22278c922e1D36cFe6b899269b161880C4",
+      "minPerRun": "1000000",
+      "maxPerRun": "1000000000"
+    },
+    {
+      "symbol": "wARS",
+      "address": "0x0DC4F92879B7670e5f4e4e6e3c801D229129D90D",
+      "decimals": 18,
+      "currency": "ARS",
+      "directAllowed": true,
+      "feeCurrency": null,
+      "minPerRun": "1500000000000000000000",
+      "maxPerRun": "1500000000000000000000000"
+    },
+    {
+      "symbol": "wBRL",
+      "address": "0xD76f5Faf6888e24D9F04Bf92a0c8B921FE4390e0",
+      "decimals": 18,
+      "currency": "BRL",
+      "directAllowed": true,
+      "feeCurrency": null,
+      "minPerRun": "5000000000000000000",
+      "maxPerRun": "5000000000000000000000"
+    },
+    {
+      "symbol": "wCOP",
+      "address": "0x8a1D45e102e886510e891d2Ec656a708991e2D76",
+      "decimals": 18,
+      "currency": "COP",
+      "directAllowed": true,
+      "feeCurrency": null,
+      "minPerRun": "3200000000000000000000",
+      "maxPerRun": "3200000000000000000000000"
+    },
+    {
+      "symbol": "cNGN",
+      "address": "0xF6829D7393dAe24509eb1E52eE8e572e2E271a4f",
+      "decimals": 6,
+      "currency": "NGN",
+      "directAllowed": true,
+      "feeCurrency": null,
+      "minPerRun": "1300000000",
+      "maxPerRun": "1300000000000"
+    }
+  ],
+  "functions": {
+    "base": "https://engaboljiqudghvzmebq.supabase.co/functions/v1",
+    "agent": "https://engaboljiqudghvzmebq.supabase.co/functions/v1/agent",
+    "request-payment": "https://engaboljiqudghvzmebq.supabase.co/functions/v1/request-payment",
+    "payment-events": "https://engaboljiqudghvzmebq.supabase.co/functions/v1/payment-events",
+    "webhooks": "https://engaboljiqudghvzmebq.supabase.co/functions/v1/webhooks",
+    "trigger-run": "https://engaboljiqudghvzmebq.supabase.co/functions/v1/trigger-run",
+    "rate-service": "https://engaboljiqudghvzmebq.supabase.co/functions/v1/rate-service",
+    "latam-rate": "https://engaboljiqudghvzmebq.supabase.co/functions/v1/latam-rate",
+    "latam-route": "https://engaboljiqudghvzmebq.supabase.co/functions/v1/latam-route"
+  },
+  "app": {
+    "origin": "https://remesso.xyz",
+    "mcp": "https://remesso.xyz/mcp"
+  }
+};
+
+// ../packages/remesso-sdk/src/errors.ts
+var RemessoError = class extends Error {
+  code;
+  details;
+  constructor(code, message, details) {
+    super(message);
+    this.name = "RemessoError";
+    this.code = code;
+    this.details = details;
+  }
+};
+
+// ../packages/remesso-sdk/src/deployment.ts
+var CHAIN_ID = deployment.chain.chainId;
+var EXECUTOR = deployment.contracts.RemessoExecutorV5.address;
+var ALLOWANCE = deployment.contracts.RemessoAgentAllowance.address;
+var REGISTRY = deployment.contracts.ERC8004IdentityRegistry.address;
+var CURRENT_EXECUTOR = deployment.contracts.RemessoExecutorV5.currentExecutorSentinel;
+var FEE_BPS = deployment.contracts.RemessoExecutorV5.feeBps;
+var ALIASES = {
+  USAT: "USA\u20AE",
+  "USD\u20AE": "USDT",
+  USDT0: "USDT",
+  CUSD: "USDm"
+};
+function findToken(symbolOrAddress) {
+  const s = String(symbolOrAddress).trim();
+  if (/^0x[0-9a-fA-F]{40}$/.test(s)) {
+    return deployment.tokens.find((t) => t.address.toLowerCase() === s.toLowerCase());
+  }
+  const upper = s.toUpperCase();
+  const name = ALIASES[upper] ?? s;
+  return deployment.tokens.find((t) => t.symbol.toUpperCase() === name.toUpperCase());
+}
+function token(symbolOrAddress) {
+  const t = findToken(symbolOrAddress);
+  if (!t) {
+    throw new RemessoError(
+      "invalid",
+      `unknown token ${symbolOrAddress}: Remesso takes ${deployment.tokens.map((x) => x.symbol).join(", ")}`
+    );
+  }
+  return t;
+}
+function toUnits(amount, t) {
+  const s = String(amount).trim();
+  if (!/^\d{1,30}(\.\d+)?$/.test(s)) throw new RemessoError("invalid", `amount must be a decimal string, like "2.50" (got ${amount})`);
+  const decimals = s.split(".")[1]?.length ?? 0;
+  if (decimals > t.decimals) throw new RemessoError("invalid", `${t.symbol} has ${t.decimals} decimals; ${amount} has ${decimals}`);
+  return parseUnits(s, t.decimals);
+}
+function formatAmount(units, tokenOrAddress) {
+  const t = typeof tokenOrAddress === "string" ? findToken(tokenOrAddress) : tokenOrAddress;
+  if (!t) return `${units} units of ${tokenOrAddress}`;
+  return `${formatUnits(BigInt(units), t.decimals)} ${t.symbol}`;
+}
+function runLimits(t) {
+  if (!t.directAllowed || t.minPerRun == null || t.maxPerRun == null) {
+    throw new RemessoError("refused", `${t.symbol} isn't accepted for new schedules`);
+  }
+  return { min: BigInt(t.minPerRun), max: BigInt(t.maxPerRun) };
+}
+var checksum3 = (a) => {
+  try {
+    return getAddress(a);
+  } catch {
+    throw new RemessoError("invalid", `not an address: ${a}`);
+  }
+};
+
+// ../packages/remesso-sdk/src/vendor/payee-profile.ts
+var IPFS_GATEWAY = "https://ipfs.io/ipfs/";
+function uriSource(uri) {
+  const u = uri.trim();
+  if (u.startsWith("data:")) {
+    const comma = u.indexOf(",");
+    if (comma < 0) return { kind: "unsupported", reason: "a data: URI without data" };
+    const meta = u.slice(5, comma);
+    const body = u.slice(comma + 1);
+    try {
+      const json = /;base64$/i.test(meta) ? new TextDecoder().decode(Uint8Array.from(atob(body), (c) => c.charCodeAt(0))) : decodeURIComponent(body);
+      return { kind: "inline", json };
+    } catch {
+      return { kind: "unsupported", reason: "a data: URI that doesn't decode" };
+    }
+  }
+  if (u.startsWith("https://")) return { kind: "fetch", url: u };
+  if (u.startsWith("ipfs://")) {
+    const path = u.slice(7).replace(/^ipfs\//, "");
+    if (!/^[a-zA-Z0-9]+(\/[^\s?#]*)?$/.test(path)) return { kind: "unsupported", reason: "an ipfs: URI that isn't a CID" };
+    return { kind: "fetch", url: `${IPFS_GATEWAY}${path}` };
+  }
+  return { kind: "unsupported", reason: `${u.split(":")[0] || "an empty"} URIs aren't read` };
+}
+var CAIP2 = /^eip155:\d{1,12}$/;
+var ADDRESS = /^0x[0-9a-fA-F]{40}$/;
+function payeeProfile(doc) {
+  if (!doc || typeof doc !== "object") return { profile: null, note: "the registration file isn't a JSON object" };
+  const d = doc;
+  const list = Array.isArray(d.services) ? d.services : Array.isArray(d.endpoints) ? d.endpoints : [];
+  const entry = list.find((s) => s && typeof s === "object" && s.name === "remesso");
+  if (!entry) return { profile: null, note: "no remesso entry in its services" };
+  if (String(entry.version ?? "") !== "1") {
+    return { profile: null, note: `a remesso entry of version ${String(entry.version ?? "none")}, which this reader doesn't implement` };
+  }
+  const assets = (Array.isArray(entry.assets) ? entry.assets : []).filter((a) => !!a && typeof a === "object" && CAIP2.test(String(a.network)) && ADDRESS.test(String(a.asset))).map((a) => ({ network: a.network, asset: a.asset }));
+  const ref = entry.reference;
+  return {
+    profile: {
+      version: "1",
+      endpoint: typeof entry.endpoint === "string" && entry.endpoint.startsWith("https://") ? entry.endpoint : null,
+      assets,
+      reference: ref && typeof ref.required === "boolean" ? { required: ref.required } : null
+    }
+  };
+}
+
+// ../packages/remesso-sdk/src/agents.ts
+function makeAgents(ctx, deps) {
+  const agents = {
+    async find(agentId) {
+      const id = BigInt(agentId);
+      const [wallet, uri] = await Promise.all([
+        ctx.pub.readContract({ address: REGISTRY, abi: registryAbi, functionName: "getAgentWallet", args: [id] }),
+        ctx.pub.readContract({ address: REGISTRY, abi: registryAbi, functionName: "tokenURI", args: [id] }).catch(() => null)
+      ]);
+      const none = /^0x0{40}$/i.test(wallet);
+      let read = { profile: null, note: "it has no registration file" };
+      if (uri != null) {
+        try {
+          const src = uriSource(uri);
+          if (src.kind === "unsupported") read = { profile: null, note: `its registration URI is ${src.reason}` };
+          else if (src.kind === "inline") read = payeeProfile(JSON.parse(src.json));
+          else if (!ctx.fetchText) {
+            read = { profile: null, note: "its registration file is remote: pass fetchText (safeFetchText from remesso-sdk/node) to read it" };
+          } else read = payeeProfile(JSON.parse(await ctx.fetchText(src.url)));
+        } catch (e) {
+          read = { profile: null, note: `its registration file couldn't be read: ${String(e.message).slice(0, 160)}` };
+        }
+      }
+      return {
+        agentId: id,
+        wallet: none ? null : wallet,
+        profile: read.profile,
+        ...none ? { note: "it has no agentWallet set, so don't pay it" } : read.note ? { note: read.note } : {}
+      };
+    },
+    /** Resolve the registered wallet and enforce its published payment requirements. */
+    async pay(agentId, input) {
+      if (!deps) throw new RemessoError("invalid", "agent payments require the complete createRemesso client");
+      if (!input || !["wallet", "policy"].includes(input.funding)) throw new RemessoError("invalid", "choose funding: wallet or policy explicitly");
+      if (input.funding === "wallet" && (input.policyId != null || input.payer != null)) throw new RemessoError("invalid", "wallet funding cannot select a policy or another payer");
+      if (input.requestId && (input.amount !== void 0 || input.token !== void 0)) throw new RemessoError("invalid", "an invoice supplies the amount and token; omit overrides");
+      const found = await agents.find(agentId);
+      if (!found.wallet) throw new RemessoError("refused", "the receiving agent has no registered wallet");
+      const wallet = checksum3(found.wallet);
+      if (input.expectedWallet && checksum3(input.expectedWallet) !== wallet) throw new RemessoError("conflict", "the receiving agent's wallet differs from the wallet you approved");
+      if (!found.profile) throw new RemessoError("refused", `the agent has no readable supported payment profile: ${found.note ?? "no remesso entry"}`);
+      const invoice = input.requestId ? await deps.getRequest(input.requestId) : void 0;
+      if (invoice && checksum3(invoice.requested.to) !== wallet) throw new RemessoError("refused", "the invoice recipient is not this agent's registered wallet");
+      if (found.profile.reference?.required && !invoice) throw new RemessoError("refused", "the receiving agent requires a payment request reference");
+      const amount = invoice ? invoice.requested.amount : input.amount;
+      const token2 = invoice ? invoice.requested.token : input.token;
+      if (!amount || !token2) throw new RemessoError("invalid", "an agent payment requires an exact amount and token");
+      const t = token(token2);
+      if (!found.profile.assets.some((a) => a.network === "eip155:42220" && a.asset.toLowerCase() === t.address.toLowerCase())) throw new RemessoError("refused", "the receiving agent does not publish acceptance of this token on Celo");
+      const current = await ctx.pub.readContract({ address: REGISTRY, abi: registryAbi, functionName: "getAgentWallet", args: [found.agentId] });
+      if (checksum3(current) !== wallet) throw new RemessoError("conflict", "the receiving agent's wallet changed during payment preparation; review it again");
+      const key = input.idempotencyKey ?? (invoice ? `request:${invoice.id}` : "");
+      const funding2 = input.funding === "wallet" ? { funding: "wallet" } : { funding: "policy", policyId: input.policyId, payer: input.payer };
+      const payment = await deps.send({ ...funding2, to: wallet, amount, token: t.address, idempotencyKey: key, requestId: invoice?.id, waitMs: input.waitMs });
+      return { ...payment, counterparty: { agentId: found.agentId, wallet } };
+    }
+  };
+  return agents;
+}
+
+// ../packages/remesso-sdk/src/vendor/erc8021.ts
+var MARKER = "80218021802180218021802180218021";
+var SCHEMA_0 = "00";
+var CODE = /^[a-z0-9_]{1,32}$/;
+var OWN_CODES = ["remesso", "celo_5cd35ca55baf"];
+var MAX_INTEGRATOR_CODES = 3;
+function suffixFor(codes) {
+  const list = (typeof codes === "string" ? [codes] : codes).filter((code) => {
+    if (CODE.test(code)) return true;
+    console.error("attribution code must be 1-32 of [a-z0-9_]:", code);
+    return false;
+  });
+  if (list.length === 0) return void 0;
+  const field2 = list.join(",");
+  if (field2.length > 255) return void 0;
+  const hex = [...new TextEncoder().encode(field2)].map((b) => b.toString(16).padStart(2, "0")).join("");
+  const length = field2.length.toString(16).padStart(2, "0");
+  return `0x${hex}${length}${SCHEMA_0}${MARKER}`;
+}
+
+// ../packages/remesso-sdk/src/attribution.ts
+var OURS = ["remesso", "celo_5cd35ca55baf"];
+function attributionFor(builderCodes = [], ours = true) {
+  for (const code of builderCodes) {
+    if (!CODE.test(code)) {
+      throw new RemessoError("invalid", `builder code ${JSON.stringify(code)}: 1 to 32 of a-z, 0-9 and _, as Celo's attribution codes are`);
+    }
+    if (OWN_CODES.includes(code)) throw new RemessoError("invalid", `${code} is Remesso's own code: pass yours`);
+  }
+  if (new Set(builderCodes).size !== builderCodes.length) throw new RemessoError("invalid", "a builder code is repeated");
+  if (builderCodes.length > MAX_INTEGRATOR_CODES) {
+    throw new RemessoError("invalid", `at most ${MAX_INTEGRATOR_CODES} builder codes ride on a schedule's runs`);
+  }
+  const codes = [...ours ? OURS : [], ...builderCodes];
+  return codes.length ? suffixFor(codes) : void 0;
+}
+
+// node_modules/viem/_esm/actions/index.js
+init_getBlockNumber();
+init_getChainId();
+init_getGasPrice();
+init_getLogs();
+init_getTransactionCount();
+init_readContract();
+init_simulateContract();
+init_prepareTransactionRequest();
+init_sendRawTransaction();
+
+// ../packages/remesso-sdk/src/context.ts
+var CANCEL_GRACE_MS = 3e4;
+var NOTED_NONCE_MS = 12e4;
+var signers = /* @__PURE__ */ new Map();
+var notFound = (e) => ["TransactionNotFoundError", "TransactionReceiptNotFoundError"].includes(e?.name ?? "");
+function makeCtx(parts) {
+  const key = parts.account?.address.toLowerCase();
+  const state = key && signers.get(key) || { queue: Promise.resolve(), nonce: 0, notedAt: 0 };
+  if (key) signers.set(key, state);
+  const scope = key ? `${CHAIN_ID}:${key}` : null;
+  let lease;
+  const assertActive = async () => {
+    if (lease) await lease.assertActive();
+  };
+  const journals = [];
+  async function resend(raw) {
+    for (let attempt = 0; ; attempt++) {
+      await assertActive();
+      try {
+        await sendRawTransaction(parts.pub, { serializedTransaction: raw });
+        return true;
+      } catch (e) {
+        const said = String(e?.details ?? e?.message ?? e).toLowerCase();
+        if (/already known|known transaction|already imported|nonce too low|replacement transaction underpriced/.test(said)) return true;
+        if (attempt >= 2) return false;
+        await new Promise((r) => setTimeout(r, attempt ? 1500 : 500));
+      }
+    }
+  }
+  async function settle(open) {
+    await assertActive();
+    if (open.cancel) {
+      await resend(open.cancel.raw);
+      return;
+    }
+    const seen = await parts.pub.getTransaction({ hash: open.hash }).catch((e) => {
+      if (notFound(e)) return null;
+      throw e;
+    });
+    if (seen) return;
+    if (open.resend) {
+      await resend(open.raw);
+      return;
+    }
+    if (!open.cancelNow || Date.now() - open.savedAt < CANCEL_GRACE_MS) return;
+    await open.cancelNow();
+  }
+  const request2 = async (url, init) => {
+    let res;
+    try {
+      res = await parts.fetch(url, { ...init, signal: AbortSignal.timeout(2e4) });
+    } catch (e) {
+      throw new RemessoError("http", `couldn't reach ${url}: ${e.message}`);
+    }
+    const text2 = await res.text();
+    let body = null;
+    try {
+      body = text2 ? JSON.parse(text2) : null;
+    } catch {
+    }
+    if (!res.ok) {
+      const said = body;
+      const message = said?.error ? `${said.error}${said.detail ? `: ${said.detail}` : ""}` : `${res.status} ${text2.slice(0, 200)}`;
+      const code = res.status === 400 ? "invalid" : res.status === 404 ? "not_found" : res.status === 409 ? "conflict" : [401, 403, 429].includes(res.status) ? "refused" : "http";
+      throw new RemessoError(code, message, { status: res.status, body });
+    }
+    return body;
+  };
+  const ctx = {
+    ...parts,
+    async assertChain() {
+      const ids = await Promise.all([parts.pub.getChainId(), ...parts.wallet ? [parts.wallet.getChainId()] : []]);
+      for (const id of ids) {
+        if (id !== CHAIN_ID) {
+          throw new RemessoError("wrong_chain", `the RPC answers chain ${id}, not Celo mainnet (${CHAIN_ID}), so nothing is signed`);
+        }
+      }
+    },
+    requireAccount() {
+      if (!parts.account) throw new RemessoError("no_account", "this needs an account: createRemesso({ account })");
+      return parts.account;
+    },
+    post: (url, body) => request2(url, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) }),
+    get: (url) => request2(url, { method: "GET" }),
+    serial(fn) {
+      const locked = () => parts.coordinator && scope ? parts.coordinator.runExclusive(scope, async (held) => {
+        lease = held;
+        try {
+          await assertActive();
+          return await fn();
+        } finally {
+          lease = void 0;
+        }
+      }) : fn();
+      const run = state.queue.then(locked, locked);
+      state.queue = run.catch(() => {
+      });
+      return run;
+    },
+    assertActive,
+    async nextNonce() {
+      await assertActive();
+      if (!parts.account) throw new RemessoError("no_account", "this needs an account");
+      const address3 = parts.account.address;
+      const [latest, pending] = await Promise.all([
+        parts.pub.getTransactionCount({ address: address3, blockTag: "latest" }),
+        parts.pub.getTransactionCount({ address: address3, blockTag: "pending" })
+      ]);
+      const open = (await Promise.all(journals.map((read) => read(latest)))).flat().filter((t) => t.nonce >= latest).sort((a, b) => a.nonce - b.nonce);
+      for (const t of open) await settle(t);
+      let nonce = Math.max(latest, pending, ...open.map((t) => t.nonce + 1));
+      if (state.nonce > nonce && Date.now() - state.notedAt < NOTED_NONCE_MS) nonce = state.nonce;
+      return parts.coordinator?.nextNonce && scope ? await parts.coordinator.nextNonce(scope, nonce) : nonce;
+    },
+    async noteNonce(nonce) {
+      state.nonce = Math.max(state.nonce, nonce + 1);
+      state.notedAt = Date.now();
+      await assertActive();
+      if (parts.coordinator?.noteNonce && scope) await parts.coordinator.noteNonce(scope, nonce);
+    },
+    addJournal(read) {
+      journals.push(read);
+    },
+    resend,
+    async signCancel(nonce, gasToken = null) {
+      const account2 = ctx.requireAccount();
+      if (account2.type !== "local") throw new RemessoError("no_account", "cancelling a saved transaction needs a local account");
+      const fee = await gasFor(ctx, gasToken, 60000n);
+      const request3 = await prepareTransactionRequest(parts.pub, {
+        account: account2,
+        nonce,
+        to: account2.address,
+        value: 0n,
+        data: "0x",
+        ...fee
+      });
+      await assertActive();
+      const raw = await signTransaction(parts.pub, { ...request3, account: account2 });
+      return { hash: keccak256(raw), raw };
+    }
+  };
+  const coordinator = parts.coordinator;
+  if (coordinator?.openSigned && scope) {
+    ctx.addJournal(async (fromNonce) => (await coordinator.openSigned(scope, fromNonce)).map((t) => ({
+      nonce: t.nonce,
+      hash: t.hash,
+      raw: t.raw,
+      savedAt: t.savedAt,
+      resend: false,
+      ...t.cancel ? { cancel: t.cancel } : {},
+      cancelNow: async () => {
+        const cancel = await ctx.signCancel(t.nonce);
+        if (!coordinator.recordCancel) throw new RemessoError("invalid", "the coordinator saves signed writes but can't save their cancellation");
+        await coordinator.recordCancel(scope, t.nonce, cancel);
+        await resend(cancel.raw);
+      }
+    })));
+  }
+  return ctx;
+}
+async function receiptOf(pub2, hash4) {
+  const direct = () => pub2.getTransactionReceipt({ hash: hash4 }).catch((e) => {
+    if (notFound(e)) return null;
+    throw e;
+  });
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const found = await direct();
+    if (found) return found;
+  }
+  const tx = await pub2.getTransaction({ hash: hash4 }).catch((e) => {
+    if (notFound(e)) return null;
+    throw e;
+  });
+  if (!tx || tx.blockNumber == null) return null;
+  const block = await pub2.request({ method: "eth_getBlockReceipts", params: [toHex(tx.blockNumber)] }).catch(() => null);
+  const hit = block?.find((r) => typeof r?.transactionHash === "string" && r.transactionHash.toLowerCase() === hash4.toLowerCase());
+  return hit ? formatTransactionReceipt(hit) : null;
+}
+async function untilVisible(read, ready, waitMs = 6e3) {
+  const until = Date.now() + waitMs;
+  for (; ; ) {
+    const v = await read();
+    if (ready(v) || Date.now() >= until) return v;
+    await new Promise((r) => setTimeout(r, 1e3));
+  }
+}
+var PAY_GAS = 120000n;
+function gasNeeded(gas, price, headroom = "write") {
+  return headroom === "payment" ? gas * price * 5n / 4n : gas * price * 2n;
+}
+async function gasFor(ctx, t, gas = 300000n, headroom = "write") {
+  const account2 = ctx.requireAccount();
+  const [native, price] = await Promise.all([ctx.pub.getBalance({ address: account2.address }), ctx.pub.getGasPrice()]);
+  const need = gasNeeded(gas, price, headroom);
+  if (native >= need) return {};
+  if (t?.feeCurrency) {
+    const held = await ctx.pub.readContract({ address: t.address, abi: erc20Abi2, functionName: "balanceOf", args: [account2.address] });
+    if (held > 0n) return { feeCurrency: t.feeCurrency };
+  }
+  throw new RemessoError(
+    "no_gas",
+    `${account2.address} has ${formatEther2(native)} CELO, and this costs about ${formatEther2(gas * price)}. Send it a little CELO${t?.feeCurrency ? `, or hold some ${t.symbol}, which can pay for gas` : ""}.`
+  );
+}
+async function write(ctx, w) {
+  await ctx.assertChain();
+  const account2 = ctx.requireAccount();
+  if (!ctx.wallet) throw new RemessoError("no_account", "this needs an account that can send transactions");
+  if (ctx.coordinator && (account2.type !== "local" || !ctx.coordinator.recordSigned || ctx.pub.chain?.id !== CHAIN_ID)) {
+    throw new RemessoError("invalid", "coordinated writes need a sign-only local account, publicClient configured with chain: celo, and coordinator.recordSigned so transaction bytes are saved before broadcast");
+  }
+  const fee = await gasFor(ctx, w.gasToken);
+  try {
+    await ctx.pub.simulateContract({ address: w.address, abi: w.abi, functionName: w.functionName, args: w.args, account: account2, ...fee });
+  } catch (e) {
+    throw new RemessoError("refused", `the contract would refuse ${w.functionName}: ${refusal(e)}`, { cause: String(e) });
+  }
+  const nonce = w.nonce ?? await ctx.nextNonce();
+  await ctx.assertActive();
+  let hash4;
+  if (ctx.coordinator) {
+    const data = encodeFunctionData({ abi: w.abi, functionName: w.functionName, args: w.args });
+    const request2 = await prepareTransactionRequest(ctx.pub, {
+      account: account2,
+      nonce,
+      to: w.address,
+      data: ctx.dataSuffix ? concat([data, ctx.dataSuffix]) : data,
+      ...fee
+    });
+    await ctx.assertActive();
+    const raw = await signTransaction(ctx.pub, { ...request2, account: account2 });
+    hash4 = keccak256(raw);
+    try {
+      await ctx.assertActive();
+      await ctx.coordinator.recordSigned(`${CHAIN_ID}:${account2.address.toLowerCase()}`, { nonce, hash: hash4, raw });
+      await ctx.noteNonce(nonce);
+    } catch (e) {
+      throw new RemessoError("conflict", `${w.functionName} has signed transaction ${hash4}; inspect its nonce journal and original hash before retrying this action`, { hash: hash4, nonce, cause: String(e) });
+    }
+    if (!await ctx.resend(raw)) {
+      const seen = await ctx.pub.getTransaction({ hash: hash4 }).catch(() => null);
+      if (!seen) {
+        throw new RemessoError("conflict", `${w.functionName} was signed as ${hash4} but no node accepted it. It is saved: before this signer's next transaction it is cancelled with a no-op unless a node has it by then. Check that hash before retrying`, { hash: hash4, nonce });
+      }
+    }
+  } else {
+    hash4 = await ctx.wallet.writeContract({
+      address: w.address,
+      abi: w.abi,
+      functionName: w.functionName,
+      args: w.args,
+      account: account2,
+      chain: celo,
+      dataSuffix: ctx.dataSuffix,
+      nonce,
+      ...fee
+    });
+    await ctx.noteNonce(nonce);
+  }
+  const receipt = await ctx.pub.waitForTransactionReceipt({ hash: hash4, timeout: 12e4 });
+  if (receipt.transactionHash.toLowerCase() !== hash4.toLowerCase()) {
+    throw new RemessoError("conflict", `${w.functionName} was replaced; its replacement is not proof this action succeeded`, { hash: hash4, replacement: receipt.transactionHash });
+  }
+  if (receipt.status !== "success") {
+    throw new RemessoError("reverted", `${w.functionName} reverted on-chain, so nothing changed: https://celoscan.io/tx/${hash4}`, { hash: hash4 });
+  }
+  return { hash: hash4, receipt };
+}
+function refusal(e) {
+  const err = e;
+  const name = err?.cause?.data?.errorName ?? err?.data?.errorName ?? err?.cause?.cause?.data?.errorName;
+  const known = {
+    // RemessoAgentAllowance
+    NotAgent: "the policy names a different agent",
+    NotOwner: "only the policy's owner can do that",
+    Revoked: "the policy was revoked",
+    Expired: "the policy has expired",
+    OverPerPayment: "the amount is over the policy's per-payment cap",
+    OverPerDay: "today's cap is used up; it resets 24 hours after the day's first payment",
+    RecipientNotAllowed: "the recipient isn't on the policy's allowlist",
+    SelfPayment: "a policy can't pay its own owner",
+    SafeERC20FailedOperation: "the token refused the transfer: the balance or the approval is too low",
+    BadExpiry: "the expiry is in the past or too far ahead",
+    BadLimits: "the per-payment cap must be above zero and at most the daily cap",
+    TooManyRecipients: "too many recipients for one policy",
+    // RemessoExecutorV5
+    TokenNotAllowed: "the contract doesn't accept this token for new schedules",
+    InvalidAmount: "the amount is zero or too large",
+    InvalidInterval: "the interval is out of range",
+    InvalidDestination: "the recipient address isn't allowed",
+    ScheduleLifetimeTooLong: "the schedule would last longer than a year",
+    FirstRunAfterExpiry: "the first payment would fall after the schedule expires",
+    NotScheduleOwner: "only the schedule's sender can do that",
+    ScheduleIsCancelled: "the schedule is cancelled",
+    InvalidTrigger: "that address can't be a trigger (grant Remesso with the CURRENT_EXECUTOR sentinel)",
+    ZeroAddress: "an address is zero",
+    ZeroAmount: "the amount is zero"
+  };
+  return (name && known[name]) ?? name ?? String(err?.shortMessage ?? err?.message ?? e);
+}
+
+// ../packages/remesso-sdk/src/events.ts
+function makeEvents(ctx) {
+  async function list(q = {}) {
+    const address3 = (q.address ? checksum3(q.address) : ctx.account?.address)?.toLowerCase();
+    if (!address3) throw new RemessoError("invalid", "address is required without an account");
+    const params = new URLSearchParams({ address: address3, role: q.role ?? "any", after: String(q.after ?? 0), limit: String(q.limit ?? 100) });
+    if (q.kinds?.length) params.set("kind", q.kinds.join(","));
+    return await ctx.get(`${ctx.endpoints.paymentEvents}?${params}`);
+  }
+  async function* watch(q = {}) {
+    let after = q.after ?? 0;
+    while (!q.signal?.aborted) {
+      const page = await list({ ...q, after, limit: q.limit ?? 500 });
+      for (const e of page.events) yield e;
+      after = page.next;
+      if (page.events.length < (q.limit ?? 500)) await sleep(q.intervalMs ?? 15e3, q.signal);
+    }
+  }
+  return {
+    list,
+    watch,
+    /// The first event, from `after` on, that `match` accepts.
+    async waitFor(match, q = {}) {
+      const stop = new AbortController();
+      const timer = setTimeout(() => stop.abort(), q.timeoutMs ?? 20 * 6e4);
+      try {
+        for await (const e of watch({ ...q, signal: stop.signal })) if (match(e)) return e;
+      } finally {
+        clearTimeout(timer);
+      }
+      throw new RemessoError("timeout", "no matching payment event in time");
+    }
+  };
+}
+function sleep(ms, signal) {
+  if (signal?.aborted) return Promise.resolve();
+  return new Promise((resolve) => {
+    const done = () => {
+      clearTimeout(t);
+      signal?.removeEventListener("abort", done);
+      resolve();
+    };
+    const t = setTimeout(done, ms);
+    signal?.addEventListener("abort", done, { once: true });
+  });
+}
+
+// ../packages/remesso-sdk/src/links.ts
+function payLink(p, origin = deployment.app.origin) {
+  const q = new URLSearchParams();
+  q.set("to", p.to);
+  const token2 = p.token ? findToken(p.token)?.symbol ?? p.token : void 0;
+  for (const [k, v] of Object.entries({ from: p.from, amount: p.amount, token: token2, every: p.every, runs: p.runs, note: p.note, req: p.request })) {
+    if (v != null && v !== "") q.set(k, String(v));
+  }
+  return `${origin.replace(/\/+$/, "")}/schedules/new?${q.toString()}`;
+}
+
+// ../packages/remesso-sdk/src/payments.ts
+var DEPLOYMENT = `${CHAIN_ID}:${ALLOWANCE.toLowerCase()}`;
+var paymentScope = (ctx) => `${DEPLOYMENT}:${ctx.requireAccount().address.toLowerCase()}`;
+async function priorPayment(ctx, key) {
+  const scope = paymentScope(ctx);
+  const scoped = await ctx.store.byKey(key, scope);
+  if (scoped) return scoped;
+  const legacy = await ctx.store.byKey(key, DEPLOYMENT);
+  if (!legacy) return void 0;
+  const policy = await ctx.pub.readContract({ address: ALLOWANCE, abi: allowanceAbi, functionName: "policy", args: [BigInt(legacy.policyId)] });
+  return policy.agent.toLowerCase() === ctx.requireAccount().address.toLowerCase() ? { ...legacy, deployment: scope, owner: policy.owner } : void 0;
+}
+var REPEAT_MS = 10 * 6e4;
+var START_MARGIN_S = 60;
+var SEND_MARGIN_S = 30;
+var now = () => Math.floor(Date.now() / 1e3);
+var lapsed = (rec) => rec.validUntil !== void 0 && rec.validUntil - SEND_MARGIN_S <= now();
+var notFound2 = (e) => e?.name === "TransactionNotFoundError";
+var REPEAT_BLOCKS = 600n;
+var PAID = parseAbiItem("event Paid(uint256 indexed id, address indexed to, uint256 amount, bytes32 memo)");
+var explorer = (h) => `https://celoscan.io/tx/${h}`;
+function memo32(memo) {
+  if (!memo) return `0x${"0".repeat(64)}`;
+  const bytes = new TextEncoder().encode(memo);
+  if (bytes.length > 32) {
+    throw new RemessoError("invalid", `the memo is ${bytes.length} bytes and the limit is 32 (a plain letter is 1 byte, an accented letter 2, an emoji 4)`);
+  }
+  return toHex(bytes, { size: 32 });
+}
+function makePay(ctx, policies) {
+  const save = async (record) => {
+    await ctx.assertActive();
+    await ctx.store.save(record);
+  };
+  const local = () => {
+    const account2 = ctx.requireAccount();
+    if (ctx.pub.chain?.id !== CHAIN_ID) throw new RemessoError("invalid", "agent payments need publicClient configured with chain: celo so Celo fee-currency transactions are signed correctly");
+    if (account2.type !== "local") {
+      throw new RemessoError("no_account", "agent payments are signed before they're sent, which needs a local account (privateKeyToAccount)");
+    }
+    return account2;
+  };
+  async function cancel(rec) {
+    if (rec.cancel) {
+      await ctx.resend(rec.cancel.raw);
+      return rec;
+    }
+    const signed = await ctx.signCancel(rec.nonce, findToken(rec.token) ?? null);
+    const next = { ...rec, cancel: signed };
+    await save(next);
+    await ctx.resend(signed.raw);
+    return next;
+  }
+  if (ctx.account) {
+    ctx.addJournal(async (fromNonce) => {
+      const scope = paymentScope(ctx), agent = ctx.requireAccount().address.toLowerCase();
+      const agents = /* @__PURE__ */ new Map();
+      const open = [], hashes = /* @__PURE__ */ new Set();
+      for (const rec of await ctx.store.since(0)) {
+        if (rec.nonce < fromNonce || !["sent", "unsent"].includes(rec.status) || hashes.has(rec.hash.toLowerCase())) continue;
+        if (keccak256(rec.raw).toLowerCase() !== rec.hash.toLowerCase()) continue;
+        if (rec.deployment !== scope) {
+          if (rec.deployment !== DEPLOYMENT) continue;
+          if (!agents.has(rec.policyId)) {
+            agents.set(rec.policyId, ctx.pub.readContract({ address: ALLOWANCE, abi: allowanceAbi, functionName: "policy", args: [BigInt(rec.policyId)] }).then((p) => p.agent.toLowerCase()));
+          }
+          if (await agents.get(rec.policyId) !== agent) continue;
+        }
+        hashes.add(rec.hash.toLowerCase());
+        open.push({
+          nonce: rec.nonce,
+          hash: rec.hash,
+          raw: rec.raw,
+          savedAt: Date.parse(rec.at),
+          resend: !lapsed(rec),
+          ...rec.cancel ? { cancel: rec.cancel } : {},
+          cancelNow: async () => {
+            await cancel(rec);
+          }
+        });
+      }
+      return open;
+    });
+  }
+  async function sign2(p, to, units, memo) {
+    const account2 = local();
+    const fee = await gasFor(ctx, findToken(p.token) ?? null, PAY_GAS, "payment");
+    const args = [p.id, to, units, memo];
+    try {
+      await ctx.pub.simulateContract({ address: ALLOWANCE, abi: allowanceAbi, functionName: "pay", args, account: account2, ...fee });
+    } catch (e) {
+      throw new RemessoError("refused", `the policy refuses this payment: ${refusal(e)}`);
+    }
+    const data = encodeFunctionData({ abi: allowanceAbi, functionName: "pay", args });
+    const nonce = await ctx.nextNonce();
+    const request2 = await prepareTransactionRequest(ctx.pub, {
+      account: account2,
+      nonce,
+      to: ALLOWANCE,
+      data: ctx.dataSuffix ? concat([data, ctx.dataSuffix]) : data,
+      ...fee
+    });
+    await ctx.assertActive();
+    const raw = await signTransaction(ctx.pub, { ...request2, account: account2 });
+    return { hash: keccak256(raw), raw, nonce: Number(request2.nonce) };
+  }
+  function outcome(rec, receipt) {
+    if (receipt.transactionHash.toLowerCase() !== rec.hash.toLowerCase()) {
+      throw new RemessoError("conflict", "the payment transaction was replaced; its replacement is not proof this invoice was paid", { hash: rec.hash, replacement: receipt.transactionHash });
+    }
+    if (receipt.status !== "success") return { ...rec, status: "reverted" };
+    const paid = parseEventLogs({ abi: allowanceAbi, eventName: "Paid", logs: receipt.logs }).some(
+      (log) => log.address.toLowerCase() === ALLOWANCE.toLowerCase() && log.args.id === BigInt(rec.policyId) && log.args.to.toLowerCase() === rec.to.toLowerCase() && log.args.amount === BigInt(rec.units) && log.args.memo === rec.memo
+    );
+    if (!paid) throw new RemessoError("conflict", "the transaction succeeded without this payment's Paid event; nothing is reported as paid", { hash: rec.hash });
+    return { ...rec, status: "confirmed" };
+  }
+  async function broadcast(rec, waitMs) {
+    await ctx.assertActive();
+    await ctx.resend(rec.raw);
+    const receipt = await ctx.pub.waitForTransactionReceipt({ hash: rec.hash, timeout: waitMs }).catch(() => null);
+    if (!receipt) return rec;
+    const done = outcome(rec, receipt);
+    await save(done);
+    return done;
+  }
+  async function reconcile(rec) {
+    const receipt = await receiptOf(ctx.pub, rec.hash);
+    if (receipt) return outcome(rec, receipt);
+    if (rec.cancel && await receiptOf(ctx.pub, rec.cancel.hash)) return { ...rec, status: "expired" };
+    const known = (hash4) => ctx.pub.getTransaction({ hash: hash4 }).then(() => true, (e) => {
+      if (notFound2(e)) return false;
+      throw e;
+    });
+    if (await known(rec.hash) || rec.cancel && await known(rec.cancel.hash)) return { ...rec, status: "sent" };
+    const used = await getTransactionCount(ctx.pub, { address: local().address, blockTag: "latest" });
+    if (used <= rec.nonce) return { ...rec, status: "unsent" };
+    throw new RemessoError("conflict", "the payment's nonce was consumed but its receipt is unavailable; reconcile its original hash before paying again", { hash: rec.hash, nonce: rec.nonce });
+  }
+  async function settled(rec, waitMs) {
+    const until = Date.now() + waitMs;
+    for (; ; ) {
+      const next = await reconcile(rec);
+      if (next.status !== "sent" && next.status !== "unsent") {
+        await save(next);
+        return next;
+      }
+      if (Date.now() >= until) return next;
+      await new Promise((r) => setTimeout(r, 1500));
+    }
+  }
+  async function recentRepeat(policyId2, to, units, memo) {
+    const mine = (await ctx.store.since(Date.now() - REPEAT_MS)).find(
+      (p) => (p.deployment === paymentScope(ctx) || p.deployment === DEPLOYMENT) && p.policyId === policyId2.toString() && p.to === to && p.units === units.toString() && p.memo === memo && (p.status === "sent" || p.status === "confirmed")
+    );
+    if (mine) return { hash: mine.hash };
+    const head = await getBlockNumber(ctx.pub);
+    const logs = await getLogs(ctx.pub, {
+      address: ALLOWANCE,
+      event: PAID,
+      args: { id: policyId2, to },
+      fromBlock: head > REPEAT_BLOCKS ? head - REPEAT_BLOCKS : 0n,
+      toBlock: head
+    });
+    const hit = logs.find((l) => l.args.amount === units && l.args.memo === memo);
+    return hit ? { hash: hit.transactionHash } : null;
+  }
+  const result = (rec, extra = {}) => ({
+    status: rec.status === "confirmed" ? "confirmed" : "pending",
+    hash: rec.hash,
+    policyId: BigInt(rec.policyId),
+    to: rec.to,
+    amount: BigInt(rec.units),
+    token: rec.token,
+    sent: formatAmount(rec.units, rec.token),
+    explorer: explorer(rec.hash),
+    ...rec.cancel && rec.status !== "confirmed" ? { cancellation: rec.cancel.hash } : {},
+    ...extra
+  });
+  async function choose(input, units) {
+    const agent = local().address.toLowerCase();
+    const payer = input.payer ? checksum3(input.payer).toLowerCase() : null;
+    if (input.policyId != null) {
+      const p = await policies.get(input.policyId);
+      if (p.agent.toLowerCase() !== agent) throw new RemessoError("refused", `policy ${p.id} names ${p.agent}, not this agent`);
+      if (payer && p.owner.toLowerCase() !== payer) throw new RemessoError("refused", `policy ${p.id} isn't owned by the requested payer`);
+      return p;
+    }
+    const want = input.token ? findToken(input.token) : void 0;
+    if (input.token && !want) throw new RemessoError("invalid", `unknown token ${input.token}`);
+    let fallback = null;
+    for (const id of await policies.find()) {
+      const p = await policies.get(id);
+      if (!p.active || p.agent.toLowerCase() !== agent || payer && p.owner.toLowerCase() !== payer || want && p.token.toLowerCase() !== want.address.toLowerCase()) continue;
+      if (p.allowlistOnly && !await ctx.pub.readContract({ address: ALLOWANCE, abi: allowanceAbi, functionName: "allowed", args: [p.id, checksum3(input.to)] })) continue;
+      if (p.spendable >= units(p)) return p;
+      fallback ??= p;
+    }
+    if (fallback) return fallback;
+    throw new RemessoError("refused", `no active policy names this agent${want ? ` for ${want.symbol}` : ""}: its person sets one up first`);
+  }
+  return async function pay(input) {
+    return await ctx.serial(async () => {
+      await ctx.assertChain();
+      const to = checksum3(input.to);
+      const memo = memo32(input.memo);
+      const key = input.idempotencyKey;
+      if (key != null && (typeof key !== "string" || key.length === 0)) throw new RemessoError("invalid", "idempotencyKey must be a nonempty string: leave it out, or give one per payment");
+      const waitMs = input.waitMs ?? 45e3;
+      if (!Number.isSafeInteger(waitMs) || waitMs < 1 || waitMs > 12e4) throw new RemessoError("invalid", "waitMs must be from 1 to 120000 milliseconds");
+      for (const [name, value] of [["validUntil", input.validUntil], ["startBy", input.startBy]]) {
+        if (value !== void 0 && (!Number.isSafeInteger(value) || value <= 0)) throw new RemessoError("invalid", `${name} must be a Unix time in seconds`);
+      }
+      const unitsFor = (p2) => {
+        const t = findToken(p2.token);
+        if (!t) throw new RemessoError("refused", `policy ${p2.id} spends a token Remesso doesn't know (${p2.token})`);
+        return toUnits(input.amount, t);
+      };
+      const scope = paymentScope(ctx);
+      let prior = key ? await priorPayment(ctx, key) : void 0;
+      if (prior) {
+        const t = findToken(prior.token);
+        const units2 = t ? toUnits(input.amount, t) : null;
+        const tokenChanged = input.token != null && findToken(input.token)?.address.toLowerCase() !== prior.token.toLowerCase();
+        const policyChanged = input.policyId != null && BigInt(input.policyId).toString() !== prior.policyId;
+        const payerChanged = input.payer != null && (prior.owner ?? (await policies.get(prior.policyId)).owner).toLowerCase() !== checksum3(input.payer).toLowerCase();
+        if (prior.to !== to || prior.units !== units2?.toString() || prior.memo !== memo || tokenChanged || policyChanged || payerChanged || input.validUntil !== void 0 && input.validUntil !== prior.validUntil) {
+          throw new RemessoError("key_reused", `idempotency key "${key}" was already used for a different payment (${formatAmount(prior.units, prior.token)} to ${prior.to})`);
+        }
+        prior = await reconcile(prior);
+        await save(prior);
+        if (prior.status === "unsent") {
+          if (prior.cancel || lapsed(prior)) prior = await settled(await cancel(prior), waitMs);
+          else prior = await broadcast(prior, waitMs);
+        }
+        if (prior.status === "confirmed") return result(prior, { repeat: true });
+        if (prior.status === "reverted") {
+          throw new RemessoError("reverted", `this key's payment reverted on-chain, so nothing was paid: ${explorer(prior.hash)}. Use a new key to try again.`, { hash: prior.hash });
+        }
+        if (prior.status === "expired") {
+          throw new RemessoError("refused", `this key's payment was cancelled before it went out, because its deadline passed, so nothing was paid. Use a new key to try again.`, { hash: prior.hash, cancellation: prior.cancel?.hash, expired: true });
+        }
+        if (prior.status === "sent" || prior.status === "unsent") return result(prior);
+        throw new RemessoError("conflict", "this key has an unresolved payment; reconcile its original transaction before paying again", { hash: prior.hash });
+      }
+      if (input.startBy !== void 0 && now() >= input.startBy) throw new RemessoError("refused", "this payment's quote has expired, so nothing was signed: prepare it again");
+      if (input.validUntil !== void 0 && input.validUntil - START_MARGIN_S <= now()) {
+        throw new RemessoError("refused", "this payment's deadline is less than a minute away, so it isn't started and nothing was signed");
+      }
+      const p = await choose(input, unitsFor);
+      if (!p.active) throw new RemessoError("refused", `policy ${p.id} ${p.revoked ? "was revoked by its owner" : "has expired"}`);
+      const units = unitsFor(p);
+      if (input.token && findToken(input.token)?.address.toLowerCase() !== p.token.toLowerCase()) {
+        throw new RemessoError("refused", `policy ${p.id} spends ${p.symbol ?? p.token}, not ${input.token}`);
+      }
+      if (!key && !input.allowRepeat) {
+        const dup = await recentRepeat(p.id, to, units, memo);
+        if (dup) {
+          throw new RemessoError(
+            "repeat",
+            `an identical payment went out in the last 10 minutes: ${explorer(dup.hash)}. Pass allowRepeat to pay again, or an idempotencyKey to make retries safe.`,
+            { hash: dup.hash }
+          );
+        }
+      }
+      if (units > p.spendable) {
+        throw new RemessoError("refused", `${formatAmount(units, p.token)} is over what policy ${p.id} allows right now (${formatAmount(p.spendable, p.token)})`);
+      }
+      const signed = await sign2(p, to, units, memo);
+      if (input.validUntil !== void 0 && input.validUntil - SEND_MARGIN_S <= now()) throw new RemessoError("refused", "the payment's deadline came too close while signing, so nothing was saved or broadcast");
+      const rec = {
+        key: key ?? null,
+        deployment: scope,
+        owner: p.owner,
+        ...input.validUntil === void 0 ? {} : { validUntil: input.validUntil },
+        policyId: p.id.toString(),
+        to,
+        units: units.toString(),
+        token: getAddress(p.token),
+        memo,
+        hash: signed.hash,
+        nonce: signed.nonce,
+        raw: signed.raw,
+        status: "sent",
+        at: (/* @__PURE__ */ new Date()).toISOString()
+      };
+      await save(rec);
+      await ctx.noteNonce(rec.nonce);
+      const done = await broadcast(rec, waitMs);
+      if (done.status === "reverted") {
+        throw new RemessoError("reverted", `the payment reverted on-chain, so nothing was paid: ${explorer(done.hash)}`, { hash: done.hash });
+      }
+      return result(done);
+    });
+  };
+}
+
+// ../packages/remesso-sdk/src/policies.ts
+function makePolicies(ctx) {
+  const policyOf = (id) => untilVisible(
+    () => ctx.pub.readContract({ address: ALLOWANCE, abi: allowanceAbi, functionName: "policy", args: [id] }),
+    (p) => !/^0x0{40}$/i.test(p.owner)
+  );
+  const gasTokenOf = async (id) => {
+    const p = await policyOf(id);
+    if (/^0x0{40}$/i.test(p.owner)) throw new RemessoError("not_found", `there is no policy ${id}`);
+    return findToken(p.token) ?? null;
+  };
+  async function get(id) {
+    const pid = BigInt(id);
+    const [p, remaining] = await Promise.all([
+      policyOf(pid),
+      ctx.pub.readContract({ address: ALLOWANCE, abi: allowanceAbi, functionName: "remainingToday", args: [pid] })
+    ]);
+    if (/^0x0{40}$/i.test(p.owner)) throw new RemessoError("not_found", `there is no policy ${pid}`);
+    const [balance, allowance] = await Promise.all([
+      ctx.pub.readContract({ address: p.token, abi: erc20Abi2, functionName: "balanceOf", args: [p.owner] }),
+      ctx.pub.readContract({ address: p.token, abi: erc20Abi2, functionName: "allowance", args: [p.owner, ALLOWANCE] })
+    ]);
+    const active = !p.revoked && BigInt(Math.floor(Date.now() / 1e3)) < p.expiresAt;
+    let spendable = active ? remaining : 0n;
+    for (const cap of [p.perPayment, balance, allowance]) if (cap < spendable) spendable = cap;
+    return {
+      id: pid,
+      owner: p.owner,
+      agent: p.agent,
+      token: p.token,
+      symbol: findToken(p.token)?.symbol ?? null,
+      perPayment: p.perPayment,
+      perDay: p.perDay,
+      expiresAt: new Date(Number(p.expiresAt) * 1e3),
+      allowlistOnly: p.allowlistOnly,
+      revoked: p.revoked,
+      remainingToday: remaining,
+      ownerBalance: balance,
+      ownerAllowance: allowance,
+      active,
+      spendable
+    };
+  }
+  async function find(agent) {
+    const who = (agent ? checksum3(agent) : ctx.requireAccount().address).toLowerCase();
+    let indexed = [];
+    try {
+      let after = 0;
+      for (; ; ) {
+        const q = new URLSearchParams({ address: who, role: "agent", kind: "policy_created", limit: "500", after: String(after) });
+        const { events, next: next2 } = await ctx.get(`${ctx.endpoints.paymentEvents}?${q}`);
+        indexed.push(...events.filter((e) => !e.removed && e.contract.toLowerCase() === ALLOWANCE.toLowerCase()).map((e) => BigInt(e.refId)));
+        if (events.length < 500) break;
+        if (!Number.isSafeInteger(next2) || next2 <= after) throw new Error("policy event cursor didn't advance");
+        after = next2;
+      }
+    } catch {
+      indexed = [];
+    }
+    const newest = indexed.reduce((a, b) => b > a ? b : a, 0n);
+    const next = await ctx.pub.readContract({ address: ALLOWANCE, abi: allowanceAbi, functionName: "nextPolicyId" });
+    const fresh = [];
+    for (let hi = next - 1n; hi > newest; hi -= 250n) {
+      const ids = [];
+      for (let id = hi; id > newest && id > hi - 250n; id--) ids.push(id);
+      const ps = await ctx.pub.multicall({
+        allowFailure: false,
+        contracts: ids.map((id) => ({ address: ALLOWANCE, abi: allowanceAbi, functionName: "policy", args: [id] }))
+      });
+      ps.forEach((p, i) => {
+        if (p.agent.toLowerCase() === who) fresh.push(ids[i]);
+      });
+    }
+    return [.../* @__PURE__ */ new Set([...fresh, ...indexed])].sort((a, b) => b > a ? 1 : -1);
+  }
+  return {
+    get,
+    find,
+    /// As the owner: approve the budget and create a policy for an agent.
+    async create(input) {
+      return await ctx.serial(async () => {
+        const account2 = ctx.requireAccount();
+        await ctx.assertChain();
+        const t = token(input.token);
+        const agent = checksum3(input.agent);
+        if (/^0x0{40}$/i.test(agent) || agent.toLowerCase() === account2.address.toLowerCase()) throw new RemessoError("invalid", "agent must be a nonzero address different from the owner");
+        const perPayment = toUnits(input.perPayment, t);
+        const perDay = toUnits(input.perDay, t);
+        const budget = toUnits(input.budget, t);
+        if (perPayment <= 0n || perPayment > perDay) throw new RemessoError("invalid", "perPayment must be above zero and at most perDay");
+        if (perDay >= 2n ** 128n || budget <= 0n) throw new RemessoError("invalid", "policy limits must fit uint128 and budget must be positive");
+        const days = input.days ?? 30;
+        if (!Number.isFinite(days) || days <= 0 || days > 365) throw new RemessoError("invalid", "days must be above zero and at most 365");
+        const expiresAt = BigInt(Math.floor(Date.now() / 1e3) + Math.round(days * 86400));
+        const recipients = (input.recipients ?? []).map(checksum3);
+        if (recipients.length > 50 || recipients.some((r) => /^0x0{40}$/i.test(r))) throw new RemessoError("invalid", "recipients must contain at most 50 nonzero addresses");
+        const current = await ctx.pub.readContract({ address: t.address, abi: erc20Abi2, functionName: "allowance", args: [account2.address, ALLOWANCE] });
+        let nonce = await ctx.nextNonce();
+        const { hash: approveHash } = await write(ctx, {
+          address: t.address,
+          abi: erc20Abi2,
+          functionName: "approve",
+          args: [ALLOWANCE, current + budget],
+          gasToken: t,
+          nonce: nonce++
+        });
+        const { hash: hash4, receipt } = await write(ctx, {
+          address: ALLOWANCE,
+          abi: allowanceAbi,
+          functionName: "createPolicy",
+          args: [agent, t.address, perPayment, perDay, expiresAt, recipients.length > 0, recipients],
+          gasToken: t,
+          nonce
+        });
+        const id = policyIdFrom(receipt.logs);
+        if (id == null) throw new RemessoError("http", `created, but ${hash4} has no PolicyCreated log`, { hash: hash4 });
+        return { id, hash: hash4, approveHash };
+      });
+    },
+    /// As the owner: end a policy now.
+    async revoke(id) {
+      return await ctx.serial(async () => (await write(ctx, {
+        address: ALLOWANCE,
+        abi: allowanceAbi,
+        functionName: "revoke",
+        args: [BigInt(id)],
+        gasToken: await gasTokenOf(BigInt(id))
+      })).hash);
+    },
+    /// As the owner: add a recipient to a policy's allowlist, or take one off.
+    async setRecipient(id, recipient, allowed) {
+      return await ctx.serial(async () => (await write(ctx, {
+        address: ALLOWANCE,
+        abi: allowanceAbi,
+        functionName: "setRecipient",
+        args: [BigInt(id), checksum3(recipient), allowed],
+        gasToken: await gasTokenOf(BigInt(id))
+      })).hash);
+    }
+  };
+}
+function policyIdFrom(logs) {
+  const created = parseEventLogs({ abi: allowanceAbi, eventName: "PolicyCreated", logs }).find((l) => l.address.toLowerCase() === ALLOWANCE.toLowerCase());
+  return created ? created.args.id : null;
+}
+
+// ../packages/remesso-sdk/src/vendor/request-decline.ts
+var DECLINE_DOMAIN = { name: "Remesso", version: "1", chainId: 42220 };
+var DECLINE_TYPES = {
+  PaymentRequestAction: [
+    { name: "request", type: "string" },
+    { name: "action", type: "string" },
+    { name: "expiry", type: "uint64" }
+  ]
+};
+var MAX_DECLINE_TTL_SECS = 24 * 60 * 60;
+function declineTypedData(id, expiry) {
+  return {
+    domain: DECLINE_DOMAIN,
+    types: DECLINE_TYPES,
+    primaryType: "PaymentRequestAction",
+    message: { request: id, action: "decline", expiry: BigInt(expiry) }
+  };
+}
+
+// ../packages/remesso-sdk/src/requests.ts
+function makeRequests(ctx, deps) {
+  const call2 = (body) => ctx.post(ctx.endpoints.requestPayment, body);
+  async function get(id) {
+    return await call2({ action: "status", id: uuid(id) });
+  }
+  return {
+    get,
+    /// Ask `payer` to pay you. Free. Returns the request and the link that
+    /// opens their form prefilled.
+    async create(input) {
+      const to = input.to ? checksum3(input.to) : ctx.account?.address;
+      if (!to) throw new RemessoError("invalid", "to is required without an account: where you want to be paid");
+      if (input.token && !findToken(input.token)) throw new RemessoError("invalid", `unknown token ${input.token}`);
+      const out = await call2({
+        payer: checksum3(input.payer),
+        to,
+        amount: input.amount,
+        token: input.token ? findToken(input.token).symbol : void 0,
+        every: input.every,
+        runs: input.runs,
+        from: input.from,
+        note: input.note
+      });
+      return { ...out, reference: out.id.replace(/-/g, "") };
+    },
+    /// The live requests addressed to `payer` (default: this account):
+    /// pending and under 30 days old.
+    async list(payer) {
+      const who = payer ? checksum3(payer) : ctx.requireAccount().address;
+      return (await call2({ action: "list", payer: who })).requests;
+    },
+    /// Report the schedule that answers a request. It binds only if it is
+    /// from the wallet asked, pays the address that asked, was created after
+    /// the request, and answers no other request.
+    ///
+    /// Seconds after a schedule lands the backend may not see it yet: its
+    /// indexer runs every minute, and a node behind forno's load balancer can
+    /// answer from an earlier block. It says so and asks to be tried again,
+    /// which this does for up to `waitMs` (default 90s), as it does after a
+    /// server error: answering twice with the same schedule is safe, the
+    /// backend gives the first answer again.
+    async answer(id, scheduleId, contract, opts = {}) {
+      const until = Date.now() + (opts.waitMs ?? 9e4);
+      for (let wait2 = 3e3; ; wait2 = Math.min(wait2 * 2, 15e3)) {
+        try {
+          const out = await call2({
+            action: "answer",
+            id: uuid(id),
+            schedule: String(scheduleId),
+            ...contract ? { contract: checksum3(contract) } : {}
+          });
+          return { status: out.status, signed: out.signed };
+        } catch (e) {
+          const unseen = e instanceof RemessoError && e.code === "conflict" && /hasn't been seen on-chain yet/.test(e.message);
+          const serverError = e instanceof RemessoError && e.code === "http" && Number(e.details?.status) >= 500;
+          if (!(unseen || serverError) || Date.now() + wait2 > until) throw e;
+          await new Promise((res) => setTimeout(res, wait2));
+        }
+      }
+    },
+    /// Turn a request down, for everyone: signed by the wallet it was sent
+    /// to, or by an agent under a live policy from that wallet (`policyId`).
+    async decline(id, opts = {}) {
+      const account2 = ctx.requireAccount();
+      if (!ctx.wallet) throw new RemessoError("no_account", "declining needs an account that can sign");
+      const rid = uuid(id);
+      const ttl = Math.min(Math.max(opts.ttlSeconds ?? 600, 60), MAX_DECLINE_TTL_SECS);
+      const expiry = Math.floor(Date.now() / 1e3) + ttl;
+      const signature = await ctx.wallet.signTypedData({ account: account2, ...declineTypedData(rid, expiry) });
+      return await call2({
+        action: "decline",
+        id: rid,
+        expiry,
+        signature,
+        ...opts.policyId != null ? { agent: account2.address, policy_id: String(opts.policyId) } : {}
+      });
+    },
+    /// Pay a request through a policy, as an agent. The payment carries the
+    /// request's reference, so the requester sees it answered, and the
+    /// request id is the default idempotency key: one payment per request.
+    async pay(id, opts = {}) {
+      const r = await get(id);
+      if (!["pending", "accepted", "accepted_with_changes"].includes(r.status)) {
+        throw new RemessoError("refused", `request ${r.id} is ${r.status}, so it isn't paid`);
+      }
+      const amount = opts.amount ?? r.requested.amount;
+      if (!amount) throw new RemessoError("invalid", `request ${r.id} names no amount, so pass one`);
+      if (opts.token && r.requested.token && findToken(opts.token)?.address.toLowerCase() !== findToken(r.requested.token)?.address.toLowerCase()) {
+        throw new RemessoError("refused", `request ${r.id} asks for ${r.requested.token}, not ${opts.token}`);
+      }
+      const token2 = r.requested.token ?? opts.token ?? "USDT";
+      const key = opts.idempotencyKey ?? `request:${r.id}`;
+      const prior = await priorPayment(ctx, key);
+      if (r.payment?.state === "paid" && !prior) {
+        throw new RemessoError("refused", `request ${r.id} is already paid; no new payment is sent`);
+      }
+      return await deps.pay({
+        ...opts,
+        to: r.requested.to,
+        amount,
+        token: token2,
+        memo: r.reference,
+        payer: r.payer,
+        idempotencyKey: key
+      });
+    },
+    /// Wait until a request is paid: a payment with a transaction, not an
+    /// answer. Polls `status`.
+    async waitUntilPaid(id, opts = {}) {
+      const until = Date.now() + (opts.timeoutMs ?? 20 * 6e4);
+      for (; ; ) {
+        const r = await get(id);
+        if (r.payment?.state === "paid" && r.payment.txs.length > 0 && (!opts.final || r.payment.txs.some((tx) => tx.final))) return r;
+        if (r.status === "declined" || r.status === "expired") throw new RemessoError("refused", `request ${r.id} is ${r.status}`);
+        if (Date.now() > until) throw new RemessoError("timeout", `request ${r.id} isn't paid yet (${r.status})`);
+        if (opts.signal?.aborted) throw new RemessoError("timeout", "stopped");
+        await new Promise((res) => setTimeout(res, opts.intervalMs ?? 15e3));
+      }
+    }
+  };
+}
+var UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+function uuid(id) {
+  const s = String(id).trim().toLowerCase();
+  if (!UUID.test(s)) throw new RemessoError("invalid", `not a payment request id: ${id}`);
+  return s;
+}
+
+// ../packages/remesso-sdk/src/vendor/fee.ts
+function feeOf(gross, bps) {
+  return (gross * BigInt(bps) + 9999n) / 10000n;
+}
+function netOf(gross, bps) {
+  return gross - feeOf(gross, bps);
+}
+function grossFor(net, bps) {
+  if (net <= 0n) return 0n;
+  if (!Number.isInteger(bps) || bps < 0 || bps >= 1e4) throw new Error(`fee of ${bps}bps is out of range`);
+  if (bps === 0) return net;
+  let gross = net * 10000n / (10000n - BigInt(bps));
+  while (gross > 0n && netOf(gross - 1n, bps) >= net) gross--;
+  while (netOf(gross, bps) < net) gross++;
+  return gross;
+}
+
+// ../packages/remesso-sdk/src/schedules.ts
+var CADENCES = {
+  week: 7 * 86400,
+  fortnight: 14 * 86400,
+  month: 30 * 86400,
+  quarter: 90 * 86400
+};
+var DIRECT = 2;
+function makeSchedules(ctx, deps) {
+  const read = (functionName, args = []) => ctx.pub.readContract({ address: EXECUTOR, abi: executorAbi, functionName, args });
+  const gasTokenOf = async (id) => findToken((await get(id)).token) ?? null;
+  async function get(id) {
+    const s = await untilVisible(() => read("getSchedule", [BigInt(id)]), (v) => v.sender !== zeroAddress);
+    if (s.sender === zeroAddress) throw new RemessoError("not_found", `there is no schedule ${id} on ${EXECUTOR}`);
+    return {
+      id: BigInt(id),
+      sender: s.sender,
+      to: s.destination,
+      token: s.token,
+      amountIn: s.amountIn,
+      recipientGets: netOf(s.amountIn, s.feeBps),
+      feeBps: s.feeBps,
+      intervalSeconds: Number(s.interval),
+      maxRuns: s.maxRuns,
+      runsExecuted: s.runsExecuted,
+      nextRunAt: new Date(Number(s.nextRunAt) * 1e3),
+      lastRunAt: s.lastRunAt ? new Date(Number(s.lastRunAt) * 1e3) : null,
+      expiresAt: new Date(Number(s.expiresAt) * 1e3),
+      active: s.active,
+      cancelled: s.cancelled,
+      payoutType: s.payoutType,
+      trigger: s.trigger,
+      triggersLeft: s.triggersLeft
+    };
+  }
+  async function create2(input) {
+    const account2 = ctx.requireAccount();
+    await ctx.assertChain();
+    const me = account2.address.toLowerCase();
+    const warnings = [];
+    let req = null;
+    let { to, amount, receive, token: tokenIn, every, runs } = input;
+    if (input.request) {
+      req = await deps.getRequest(input.request);
+      if (req.payer.toLowerCase() !== me) {
+        throw new RemessoError("refused", `request ${req.id} was sent to ${req.payer}, not to ${account2.address}`);
+      }
+      if (req.status !== "pending") throw new RemessoError("refused", `request ${req.id} is ${req.status}, so there is nothing to answer`);
+      if (to && to.toLowerCase() !== req.requested.to.toLowerCase()) {
+        throw new RemessoError("refused", `request ${req.id} asks to be paid at ${req.requested.to}, not ${to}`);
+      }
+      to = req.requested.to;
+      tokenIn ??= req.requested.token ?? void 0;
+      every ??= req.requested.intervalSeconds ?? void 0;
+      runs ??= req.requested.runs ?? void 0;
+      if (amount == null && receive == null && req.requested.amount) receive = req.requested.amount;
+    }
+    if (!to) throw new RemessoError("invalid", "to is required: who gets paid");
+    const dest = checksum3(to);
+    if (BigInt(dest) < 0x10000n || dest.toLowerCase() === EXECUTOR.toLowerCase()) throw new RemessoError("invalid", "to isn't a valid schedule destination");
+    if (dest.toLowerCase() === me) throw new RemessoError("invalid", "to is this wallet: a schedule paying itself only loses the fee");
+    const t = token(tokenIn ?? "USDT");
+    const interval = intervalOf(every ?? "week");
+    if (runs == null) throw new RemessoError("invalid", "runs is required: how many payments");
+    if (!Number.isInteger(runs) || runs < 1 || runs > 4294967295) throw new RemessoError("invalid", "runs must be a whole number of payments");
+    if (amount == null === (receive == null)) throw new RemessoError("invalid", "give amount (what you send each time) or receive (what arrives), not both");
+    const [allowed, feeBps, maxLifetime, approved, balance] = await ctx.pub.multicall({
+      allowFailure: false,
+      contracts: [
+        { address: EXECUTOR, abi: executorAbi, functionName: "directTokenAllowed", args: [t.address] },
+        { address: EXECUTOR, abi: executorAbi, functionName: "feeBps" },
+        { address: EXECUTOR, abi: executorAbi, functionName: "MAX_LIFETIME" },
+        { address: t.address, abi: erc20Abi2, functionName: "allowance", args: [account2.address, EXECUTOR] },
+        { address: t.address, abi: erc20Abi2, functionName: "balanceOf", args: [account2.address] }
+      ]
+    });
+    if (!allowed) throw new RemessoError("refused", `the contract doesn't take ${t.symbol} for new schedules`);
+    const amountIn = receive != null ? grossFor(toUnits(receive, t), Number(feeBps)) : toUnits(amount, t);
+    const { min, max } = runLimits(t);
+    if (amountIn < min || amountIn > max) {
+      throw new RemessoError(
+        "refused",
+        `Remesso's executor sends ${formatAmount(min, t)} to ${formatAmount(max, t)} per payment, and this is ${formatAmount(amountIn, t)}. A schedule outside that is valid on-chain and never runs.`
+      );
+    }
+    const now2 = Math.floor(Date.now() / 1e3);
+    const first = input.firstRunAt ? Math.floor(input.firstRunAt.getTime() / 1e3) : now2;
+    if (!Number.isSafeInteger(first)) throw new RemessoError("invalid", "firstRunAt must be a valid date");
+    if (first < now2 - 60) throw new RemessoError("invalid", "firstRunAt is in the past");
+    const expiresAt = first + runs * interval + 3600;
+    if (BigInt(expiresAt - now2) > maxLifetime) {
+      throw new RemessoError("refused", `${runs} payments every ${interval / 86400} days don't fit in a schedule's year`);
+    }
+    let trigger = zeroAddress;
+    if (input.trigger === "remesso") trigger = CURRENT_EXECUTOR;
+    else if (input.trigger) trigger = checksum3(input.trigger);
+    if (input.triggers != null && (!Number.isInteger(input.triggers) || input.triggers < 0 || input.triggers > 65535)) {
+      throw new RemessoError("invalid", "triggers must be a whole number from 0 to 65535");
+    }
+    const triggersLeft = trigger === zeroAddress ? 0 : Math.min(input.triggers ?? runs, 65535);
+    const total = amountIn * BigInt(runs);
+    if (balance < amountIn) warnings.push(`the balance (${formatAmount(balance, t)}) is below one payment: payments fail until it's funded`);
+    const args = [dest, amountIn, BigInt(interval), 0n, runs, BigInt(expiresAt), BigInt(input.firstRunAt ? first : 0), DIRECT, t.address, zeroAddress, trigger, triggersLeft];
+    try {
+      await ctx.pub.simulateContract({ address: EXECUTOR, abi: executorAbi, functionName: "createSchedule", args, account: account2 });
+    } catch (e) {
+      throw new RemessoError("refused", `the contract would refuse createSchedule: ${refusal(e)}`);
+    }
+    let nonce = await ctx.nextNonce();
+    let approveHash = null;
+    if (input.approve !== false) {
+      ({ hash: approveHash } = await write(ctx, {
+        address: t.address,
+        abi: erc20Abi2,
+        functionName: "approve",
+        args: [EXECUTOR, approved + total],
+        gasToken: t,
+        nonce
+      }));
+      nonce++;
+    }
+    const { hash: hash4, receipt } = await write(ctx, {
+      address: EXECUTOR,
+      abi: executorAbi,
+      functionName: "createSchedule",
+      args,
+      gasToken: t,
+      nonce
+    });
+    const id = scheduleIdFrom(receipt.logs);
+    if (id == null) throw new RemessoError("http", `created, but ${hash4} has no ScheduleCreated log: read the receipt yourself`, { hash: hash4 });
+    let answered;
+    if (req) {
+      try {
+        answered = await deps.answer(req.id, id);
+      } catch (e) {
+        answered = { error: e.message };
+      }
+    }
+    return {
+      id,
+      hash: hash4,
+      approveHash,
+      to: dest,
+      token: t.symbol,
+      amountIn,
+      recipientGets: netOf(amountIn, Number(feeBps)),
+      feeBps: Number(feeBps),
+      runs,
+      intervalSeconds: interval,
+      firstRunAt: new Date(first * 1e3),
+      expiresAt: new Date(expiresAt * 1e3),
+      ...answered ? { request: answered } : {},
+      warnings
+    };
+  }
+  return {
+    create: (input) => ctx.serial(() => create2(input)),
+    get,
+    /// Whether a payment is due now, and whether it can go: funded and approved.
+    async status(id) {
+      const [due, funded, approved, , nextRunAt] = await read("runnability", [BigInt(id)]);
+      return { due, funded, approved, nextRunAt: new Date(Number(nextRunAt) * 1e3) };
+    },
+    /// The ids of every schedule `sender` (default: this account) has created.
+    async list(sender) {
+      const who = sender ? checksum3(sender) : ctx.requireAccount().address;
+      return [...await read("schedulesOf", [who])];
+    },
+    /// Stops it for good. The approval stays: lower it if nothing else needs it.
+    async cancel(id) {
+      return await ctx.serial(async () => (await write(ctx, {
+        address: EXECUTOR,
+        abi: executorAbi,
+        functionName: "cancelSchedule",
+        args: [BigInt(id)],
+        gasToken: await gasTokenOf(id)
+      })).hash);
+    },
+    /// Pauses (false) or resumes (true) the payments.
+    async setActive(id, active) {
+      return await ctx.serial(async () => (await write(ctx, {
+        address: EXECUTOR,
+        abi: executorAbi,
+        functionName: "setScheduleActive",
+        args: [BigInt(id), active],
+        gasToken: await gasTokenOf(id)
+      })).hash);
+    },
+    /// Changes who may bring a payment forward; `null` revokes.
+    async setTrigger(id, trigger, triggers = 0) {
+      const who = trigger === "remesso" ? CURRENT_EXECUTOR : trigger ? checksum3(trigger) : zeroAddress;
+      return await ctx.serial(async () => (await write(ctx, {
+        address: EXECUTOR,
+        abi: executorAbi,
+        functionName: "setTrigger",
+        args: [BigInt(id), who, who === zeroAddress ? 0 : triggers],
+        gasToken: await gasTokenOf(id)
+      })).hash);
+    }
+  };
+}
+function scheduleIdFrom(logs) {
+  const created = parseEventLogs({ abi: executorAbi, eventName: "ScheduleCreated", logs }).find((l) => l.address.toLowerCase() === EXECUTOR.toLowerCase());
+  return created ? created.args.id : null;
+}
+function intervalOf(every) {
+  if (typeof every === "number") {
+    if (!Number.isInteger(every) || every < 3600) throw new RemessoError("invalid", "every, in seconds, must be a whole number of at least 3600");
+    return every;
+  }
+  const named = CADENCES[String(every).toLowerCase().replace(/ly$/, "")];
+  if (named) return named;
+  if (/^\d+$/.test(String(every))) return intervalOf(Number(every));
+  throw new RemessoError("invalid", `every must be ${Object.keys(CADENCES).join(", ")} or seconds`);
+}
+
+// ../packages/remesso-sdk/src/receipts.ts
+var same = (a, b) => a.toLowerCase() === b.toLowerCase();
+var hashOf = (value) => typeof value === "string" && /^0x[\da-f]{64}$/i.test(value);
+function refId(value, name) {
+  if (value === void 0) return void 0;
+  if (typeof value === "number" && !Number.isSafeInteger(value) || !/^\d+$/.test(String(value))) {
+    throw new RemessoError("invalid", `${name} must be a positive integer`);
+  }
+  const id = BigInt(value);
+  if (id <= 0n || id >= 2n ** 256n) throw new RemessoError("invalid", `${name} must fit a positive uint256`);
+  return id;
+}
+function makeReceipts(ctx) {
+  async function verify(input) {
+    if (!input || !hashOf(input.txHash)) throw new RemessoError("invalid", "txHash must be a 32-byte transaction hash");
+    if (typeof input.from !== "string" || typeof input.to !== "string" || typeof input.token !== "string" || typeof input.amount !== "string") {
+      throw new RemessoError("invalid", "from, to, token and an exact decimal amount are required to verify a payment");
+    }
+    const from16 = checksum3(input.from);
+    const to = checksum3(input.to);
+    if (same(from16, zeroAddress) || same(to, zeroAddress)) throw new RemessoError("invalid", "from and to must be nonzero wallets");
+    const t = token(input.token);
+    const amount = toUnits(input.amount, t);
+    if (amount <= 0n) throw new RemessoError("invalid", "amount received must be positive");
+    const policyId2 = refId(input.policyId, "policyId");
+    const scheduleId = refId(input.scheduleId, "scheduleId");
+    if (policyId2 !== void 0 && scheduleId !== void 0) throw new RemessoError("invalid", "choose policyId or scheduleId, not both");
+    if (input.memo !== void 0 && typeof input.memo !== "string") throw new RemessoError("invalid", "memo must be the UTF-8 string passed to pay()");
+    if (scheduleId !== void 0 && input.memo !== void 0) throw new RemessoError("invalid", "schedule runs do not carry a memo");
+    const memo = input.memo === void 0 ? void 0 : memo32(input.memo);
+    const finality = input.finality ?? "included";
+    if (finality !== "included" && finality !== "finalized") throw new RemessoError("invalid", "finality must be included or finalized");
+    const chainId = await ctx.pub.getChainId();
+    if (chainId !== CHAIN_ID) throw new RemessoError("wrong_chain", `payment proofs require Celo mainnet (${CHAIN_ID}), got ${chainId}`);
+    const receipt = await receiptOf(ctx.pub, input.txHash);
+    if (!receipt) throw new RemessoError("not_found", "the transaction has no included receipt", { txHash: input.txHash });
+    if (!same(receipt.transactionHash, input.txHash)) throw new RemessoError("conflict", "the RPC returned a different transaction's receipt");
+    if (receipt.status !== "success") throw new RemessoError("reverted", "the transaction reverted; it is not payment evidence", { txHash: input.txHash });
+    if (!hashOf(receipt.blockHash) || typeof receipt.blockNumber !== "bigint") throw new RemessoError("conflict", "the receipt is not included in a block");
+    const assertCanonical = async () => {
+      const block = await ctx.pub.getBlock({ blockNumber: receipt.blockNumber });
+      if (block.number !== receipt.blockNumber || !hashOf(block.hash) || !same(block.hash, receipt.blockHash)) throw new RemessoError("conflict", "the payment's block is no longer canonical; verify it again", { txHash: input.txHash });
+    };
+    await assertCanonical();
+    const proofs = [];
+    const readPolicy2 = (id) => ctx.pub.readContract({ address: ALLOWANCE, abi: allowanceAbi, functionName: "policy", args: [id], blockNumber: receipt.blockNumber });
+    const readSchedule = (id) => ctx.pub.readContract({ address: EXECUTOR, abi: executorAbi, functionName: "getSchedule", args: [id], blockNumber: receipt.blockNumber });
+    const policies = /* @__PURE__ */ new Map();
+    const schedules = /* @__PURE__ */ new Map();
+    for (const log of receipt.logs) {
+      if (log.removed || !hashOf(log.transactionHash) || !same(log.transactionHash, input.txHash) || !hashOf(log.blockHash) || !same(log.blockHash, receipt.blockHash) || log.blockNumber !== receipt.blockNumber || !Number.isSafeInteger(log.logIndex) || log.logIndex < 0) continue;
+      if (!same(log.address, ALLOWANCE) && !same(log.address, EXECUTOR)) continue;
+      const contract = same(log.address, ALLOWANCE) ? ALLOWANCE : EXECUTOR;
+      const base = {
+        eventId: `${CHAIN_ID}:${contract.toLowerCase()}:${input.txHash.toLowerCase()}:${log.logIndex}`,
+        chainId: CHAIN_ID,
+        contract,
+        txHash: receipt.transactionHash,
+        logIndex: log.logIndex,
+        blockNumber: receipt.blockNumber,
+        blockHash: receipt.blockHash,
+        from: from16,
+        to,
+        token: t.address,
+        amount,
+        finality
+      };
+      if (contract === ALLOWANCE && scheduleId === void 0) {
+        let event;
+        try {
+          event = decodeEventLog({ abi: allowanceAbi, eventName: "Paid", topics: log.topics, data: log.data, strict: true });
+        } catch {
+          continue;
+        }
+        if (event.eventName !== "Paid") continue;
+        const { id, to: recipient, amount: paid, memo: actualMemo } = event.args;
+        if (!same(recipient, to) || paid !== amount || policyId2 !== void 0 && id !== policyId2 || memo !== void 0 && !same(actualMemo, memo)) continue;
+        if (!policies.has(id)) policies.set(id, readPolicy2(id));
+        const p = await policies.get(id);
+        if (!same(p.owner, from16) || !same(p.token, t.address)) continue;
+        const callerVerified = receipt.to !== null && same(receipt.to, ALLOWANCE);
+        if (callerVerified && !same(receipt.from, p.agent)) throw new RemessoError("conflict", "the direct payment caller differs from the policy's agent");
+        proofs.push({ ...base, kind: "policy_payment", policyId: id, agent: p.agent, memo: actualMemo, callerVerified });
+      } else if (contract === EXECUTOR && policyId2 === void 0 && memo === void 0) {
+        let event;
+        try {
+          event = decodeEventLog({ abi: executorAbi, eventName: "RunExecuted", topics: log.topics, data: log.data, strict: true });
+        } catch {
+          continue;
+        }
+        if (event.eventName !== "RunExecuted") continue;
+        const { id, sender, destination, amountIn, amountOut, runsExecuted } = event.args;
+        if (!same(sender, from16) || !same(destination, to) || amountOut !== amount || scheduleId !== void 0 && id !== scheduleId) continue;
+        if (!schedules.has(id)) schedules.set(id, readSchedule(id));
+        const s = await schedules.get(id);
+        const receivedToken = s.payoutType === 2 ? s.token : s.tokenOut;
+        if (!same(s.sender, from16) || !same(s.destination, to) || !same(receivedToken, t.address) || s.amountIn !== amountIn) continue;
+        if (s.payoutType === 2 && amountOut !== amountIn - (amountIn * BigInt(s.feeBps) + 9999n) / 10000n) continue;
+        proofs.push({ ...base, kind: "run", scheduleId: id, amountIn, runNumber: runsExecuted });
+      }
+    }
+    if (proofs.length === 0) throw new RemessoError("conflict", "the receipt contains no supported payment matching every expected term", { txHash: input.txHash });
+    if (proofs.length !== 1) throw new RemessoError("conflict", "multiple payments match these terms; specify a policyId or scheduleId to identify exactly one event", { txHash: input.txHash });
+    if (finality === "finalized") {
+      const finalized = await ctx.pub.getBlock({ blockTag: "finalized" });
+      if (!hashOf(finalized.hash) || typeof finalized.number !== "bigint" || finalized.number < receipt.blockNumber) throw new RemessoError("refused", "the payment is included but has not reached the RPC's finalized block", { txHash: input.txHash, blockNumber: String(receipt.blockNumber) });
+      if (finalized.number === receipt.blockNumber && !same(finalized.hash, receipt.blockHash)) throw new RemessoError("conflict", "the finalized block differs from the payment's block");
+    }
+    await assertCanonical();
+    return proofs[0];
+  }
+  return { verify };
+}
+
+// ../packages/remesso-sdk/src/remittances.ts
+function exactRequest(r, terms2) {
+  if (!["pending", "accepted", "accepted_with_changes"].includes(r.status)) throw new RemessoError("refused", `request ${r.id} is ${r.status}`);
+  if (!r.requested.amount || !r.requested.token || r.requested.intervalSeconds != null || r.requested.runs != null && r.requested.runs !== 1) {
+    throw new RemessoError("refused", "one-off remittances require a fixed amount and token without a recurring cadence; use schedules for recurring requests");
+  }
+  const t = token(terms2.token);
+  if (checksum3(r.requested.to) !== checksum3(terms2.to) || token(r.requested.token).address.toLowerCase() !== t.address.toLowerCase() || toUnits(r.requested.amount, t) !== toUnits(terms2.amount, t)) {
+    throw new RemessoError("refused", "the remittance must match every invoice term exactly");
+  }
+}
+function makeRemittances(ctx, deps) {
+  return {
+    // One body; the overloads only sharpen the result's type.
+    send: async function send(input) {
+      if (!input || !["policy", "wallet"].includes(input.funding)) throw new RemessoError("invalid", "choose funding: wallet or policy explicitly");
+      if (typeof input.idempotencyKey !== "string" || !input.idempotencyKey.trim()) throw new RemessoError("invalid", "a remittance requires a nonempty idempotencyKey");
+      const to = checksum3(input.to);
+      const t = token(input.token);
+      const amount = toUnits(input.amount, t);
+      if (amount <= 0n) throw new RemessoError("invalid", "a remittance amount must be positive");
+      for (const [name, value] of [["validUntil", input.validUntil], ["startBy", input.startBy]]) {
+        if (value !== void 0 && (!Number.isSafeInteger(value) || value <= 0)) throw new RemessoError("invalid", `${name} must be a Unix time in seconds`);
+      }
+      if (input.maxDebit !== void 0 && toUnits(input.maxDebit, t) < amount) throw new RemessoError("refused", "the payment exceeds maxDebit");
+      let request2;
+      if (input.requestId) {
+        request2 = await deps.requests.get(input.requestId);
+        exactRequest(request2, input);
+      }
+      if (input.funding === "wallet") {
+        if ("policyId" in input && input.policyId != null || "payer" in input && input.payer != null) throw new RemessoError("invalid", "wallet funding spends this account's funds; do not supply a policy or another payer");
+        if (input.memo !== void 0) throw new RemessoError("invalid", "a wallet payment's schedule carries no memo; use requestId to bind it to a request");
+        const { funding: _funding, memo: _memo, ...wallet } = input;
+        return await deps.wallet.send(wallet);
+      }
+      if (request2 && input.memo !== void 0) throw new RemessoError("invalid", "a request's payment carries the request's own reference as its memo");
+      if (request2?.payment?.schedule) throw new RemessoError("refused", "this invoice already has a schedule; another policy payment could pay it twice");
+      if (request2 && input.payer && checksum3(input.payer) !== checksum3(request2.payer)) throw new RemessoError("refused", "the requested payer differs from the invoice payer");
+      const paid = request2 ? await deps.requests.pay(request2.id, { policyId: input.policyId, idempotencyKey: input.idempotencyKey, waitMs: input.waitMs, validUntil: input.validUntil, startBy: input.startBy }) : await deps.pay({ to, amount: input.amount, token: t.address, payer: input.payer, policyId: input.policyId, memo: input.memo, idempotencyKey: input.idempotencyKey, waitMs: input.waitMs, validUntil: input.validUntil, startBy: input.startBy });
+      const policy = await deps.policies.get(paid.policyId);
+      return { ...paid, funding: "policy", payer: policy.owner, fee: 0n };
+    }
+  };
+}
+
+// ../packages/remesso-sdk/src/remittance-store.ts
+function memoryRemittanceStore() {
+  const records = /* @__PURE__ */ new Map();
+  const id = (key, scope) => JSON.stringify([scope, key]);
+  return {
+    get: async (key, scope) => {
+      const record = records.get(id(key, scope));
+      return record ? structuredClone(record) : void 0;
+    },
+    list: async (scope) => [...records.values()].filter((record) => record.scope === scope).map((record) => structuredClone(record)),
+    save: async (record) => {
+      records.set(id(record.key, record.scope), structuredClone(record));
+    }
+  };
+}
+
+// ../packages/remesso-sdk/src/wallet-remittances.ts
+var APPROVAL = parseAbi(["event Approval(address indexed owner, address indexed spender, uint256 value)"]);
+var INTERVAL = 3600n;
+var LIFETIME = 86400n;
+var START_MARGIN_S2 = 180;
+var RUN_RETRY_MS = 8e3;
+var UNLIMITED = 2n ** 255n;
+var same2 = (a, b) => a.toLowerCase() === b.toLowerCase();
+var notFound3 = (e) => e?.name === "TransactionNotFoundError";
+var conflict = (message, details) => new RemessoError("conflict", message, details);
+var remittanceScope = (ctx) => `${CHAIN_ID}:${EXECUTOR.toLowerCase()}:${ctx.requireAccount().address.toLowerCase()}`;
+function makeWalletRemittances(ctx, deps) {
+  const save = async (record) => {
+    await ctx.assertActive();
+    await deps.store.save(record);
+  };
+  const read = (functionName, args = []) => ctx.pub.readContract({ address: EXECUTOR, abi: executorAbi, functionName, args });
+  function local() {
+    const account2 = ctx.requireAccount();
+    if (account2.type !== "local") throw new RemessoError("no_account", "wallet remittances need a local account so each transaction can be saved before broadcasting");
+    if (ctx.pub.chain?.id !== CHAIN_ID) throw new RemessoError("invalid", "wallet remittances need publicClient configured with chain: celo");
+    return account2;
+  }
+  function journalIdentity(record, key) {
+    if (record.scope !== remittanceScope(ctx) || typeof record.payer !== "string" || !same2(record.payer, local().address) || typeof record.key !== "string" || !record.key.trim() || key != null && record.key !== key) {
+      throw new RemessoError("conflict", "the remittance store returned a record for another key, signer or deployment; restore the correct journal before sending");
+    }
+    for (const step of [record.approval, record.creation, record.execution, record.cancellation]) {
+      if (step && (!Number.isSafeInteger(step.nonce) || step.nonce < 0 || step.nonce >= Number.MAX_SAFE_INTEGER)) throw new RemessoError("conflict", "the remittance store contains an invalid transaction nonce");
+    }
+  }
+  if (ctx.account) {
+    ctx.addJournal(async (fromNonce) => {
+      const open = [];
+      for (const r of await deps.store.list(remittanceScope(ctx))) {
+        journalIdentity(r);
+        for (const step of [r.creation, r.approval, r.execution, r.cancellation]) {
+          if (step && step.nonce >= fromNonce) open.push({ nonce: step.nonce, hash: step.hash, raw: step.raw, savedAt: Date.parse(r.createdAt), resend: true });
+        }
+      }
+      return open;
+    });
+  }
+  function result(record, stage, requestError) {
+    return {
+      funding: "wallet",
+      status: record.paymentHash ? "confirmed" : "pending",
+      stage: record.paymentHash ? "payment" : stage,
+      payer: record.payer,
+      to: record.to,
+      token: record.token,
+      amount: BigInt(record.amount),
+      amountIn: BigInt(record.amountIn),
+      fee: BigInt(record.fee),
+      feeBps: record.feeBps,
+      ...record.paymentHash ? { hash: record.paymentHash } : {},
+      ...record.scheduleId ? { scheduleId: BigInt(record.scheduleId) } : {},
+      ...record.approval ? { approvalHash: record.approval.hash } : {},
+      ...record.creation ? { createHash: record.creation.hash } : {},
+      ...record.execution ? { executionHash: record.execution.hash } : {},
+      ...record.cancellation ? { cancellationHash: record.cancellation.hash } : {},
+      ...record.requestId ? { request: { id: record.requestId, bound: record.requestBound === true, ...requestError ? { error: requestError } : {} } } : {}
+    };
+  }
+  async function signStep(record, address3, abi2, functionName, args) {
+    const account2 = local();
+    const fee = await gasFor(ctx, token(record.token));
+    const nonce = await ctx.nextNonce();
+    const data = encodeFunctionData({ abi: abi2, functionName, args });
+    const request2 = await prepareTransactionRequest(ctx.pub, {
+      account: account2,
+      nonce,
+      to: address3,
+      data: ctx.dataSuffix ? concat([data, ctx.dataSuffix]) : data,
+      ...fee
+    });
+    await ctx.assertActive();
+    const raw = await signTransaction(ctx.pub, { ...request2, account: account2 });
+    return { raw, hash: keccak256(raw), nonce: Number(request2.nonce) };
+  }
+  async function signLater(record, what, address3, abi2, functionName, args) {
+    try {
+      return await signStep(record, address3, abi2, functionName, args);
+    } catch (e) {
+      if (e instanceof RemessoError && ["no_gas", "wrong_chain", "no_account", "conflict", "invalid"].includes(e.code)) throw e;
+      throw conflict(`couldn't prepare the ${what}: ${refusal(e)}. The payment's schedule exists, so it may still be paid: retry this key`, { scheduleId: record.scheduleId });
+    }
+  }
+  async function sendStep(record, step, signed, extra = {}) {
+    Object.assign(record, extra, { [step]: signed });
+    await save(record);
+    await ctx.noteNonce(signed.nonce);
+    await ctx.resend(signed.raw);
+  }
+  async function stepReceipt(step, deadline) {
+    let found = await receiptOf(ctx.pub, step.hash);
+    if (!found) {
+      const known = await ctx.pub.getTransaction({ hash: step.hash }).catch((e) => {
+        if (notFound3(e)) return null;
+        throw e;
+      });
+      if (!known) {
+        const used = await getTransactionCount(ctx.pub, { address: local().address, blockTag: "latest" });
+        if (used > step.nonce) throw conflict("the remittance nonce was consumed but its original receipt is unavailable; reconcile the original hash before continuing", { hash: step.hash, nonce: step.nonce });
+        await ctx.resend(step.raw);
+      }
+      if (Date.now() < deadline) found = await ctx.pub.waitForTransactionReceipt({ hash: step.hash, timeout: Math.max(1, deadline - Date.now()) }).catch(() => null);
+    }
+    if (found && !same2(found.transactionHash, step.hash)) throw conflict("a replacement transaction is not proof this remittance step succeeded", { hash: step.hash, replacement: found.transactionHash });
+    return found;
+  }
+  const createArgs = (r) => [r.to, BigInt(r.amountIn), INTERVAL, 0n, 1, BigInt(r.expiresAt), BigInt(r.firstRunAt), 2, r.token, zeroAddress, r.payer, 1];
+  function created(found, r) {
+    const logs = parseEventLogs({ abi: executorAbi, eventName: "ScheduleCreated", logs: found.logs });
+    const hit = logs.find((log) => same2(log.address, EXECUTOR) && same2(log.args.sender, r.payer) && same2(log.args.destination, r.to) && log.args.amountIn === BigInt(r.amountIn) && log.args.interval === INTERVAL && log.args.maxRuns === 1 && log.args.payoutType === 2 && log.args.expiresAt === BigInt(r.expiresAt));
+    if (!hit) throw conflict("the creation receipt has no matching one-payment ScheduleCreated event", { hash: found.transactionHash });
+    if (r.scheduleId && BigInt(r.scheduleId) !== hit.args.id) throw conflict("the recorded schedule does not match its original creation receipt");
+    return hit.args.id;
+  }
+  function payment(found, r) {
+    if (found.status !== "success") return false;
+    return parseEventLogs({ abi: executorAbi, eventName: "RunExecuted", logs: found.logs }).some((log) => same2(log.address, EXECUTOR) && log.args.id === BigInt(r.scheduleId) && same2(log.args.sender, r.payer) && same2(log.args.destination, r.to) && log.args.amountIn === BigInt(r.amountIn) && log.args.amountOut === BigInt(r.amount) && log.args.runsExecuted === 1);
+  }
+  async function state(r, atLeast = 0n) {
+    const { s, at } = await untilVisible(async () => {
+      const head = await ctx.pub.getBlock();
+      const block = head.number !== null && head.number >= atLeast ? head : await ctx.pub.getBlock({ blockNumber: atLeast }).catch(() => head);
+      const s2 = await ctx.pub.readContract({ address: EXECUTOR, abi: executorAbi, functionName: "getSchedule", args: [BigInt(r.scheduleId)], blockNumber: block.number });
+      return { s: s2, at: block.timestamp, fresh: block.number !== null && block.number >= atLeast };
+    }, (v) => v.fresh && !same2(v.s.sender, zeroAddress));
+    if (same2(s.sender, zeroAddress)) throw conflict("the payment's schedule isn't visible on-chain yet; retry this key", { scheduleId: r.scheduleId });
+    if (!same2(s.sender, r.payer) || !same2(s.destination, r.to) || !same2(s.token, r.token) || s.amountIn !== BigInt(r.amountIn) || s.interval !== INTERVAL || s.maxRuns !== 1 || s.payoutType !== 2) {
+      throw conflict("the created schedule's immutable terms do not match this exact remittance; no payment is sent");
+    }
+    return { s, at };
+  }
+  async function paidHash(r) {
+    if (r.paymentHash) {
+      const found = await receiptOf(ctx.pub, r.paymentHash);
+      if (found && same2(found.transactionHash, r.paymentHash) && payment(found, r)) return r.paymentHash;
+      delete r.paymentHash;
+      await save(r);
+    }
+    const head = await ctx.pub.getBlockNumber();
+    for (let from16 = BigInt(r.creationBlock); from16 <= head; from16 += 5000n) {
+      const to = from16 + 4999n > head ? head : from16 + 4999n;
+      let logs;
+      try {
+        logs = await ctx.pub.getContractEvents({ address: EXECUTOR, abi: executorAbi, eventName: "RunExecuted", args: { id: BigInt(r.scheduleId) }, fromBlock: from16, toBlock: to });
+      } catch (e) {
+        if (/out of range/i.test(String(e?.message ?? e))) return null;
+        throw e;
+      }
+      for (const log of logs) {
+        if (!log.transactionHash || log.removed) continue;
+        const found = await receiptOf(ctx.pub, log.transactionHash);
+        if (found && same2(found.transactionHash, log.transactionHash) && payment(found, r)) return found.transactionHash;
+      }
+    }
+    return null;
+  }
+  async function bind(r) {
+    if (!r.requestId || r.requestBound || !r.scheduleId) return;
+    try {
+      const answer = await deps.answer(r.requestId, BigInt(r.scheduleId));
+      if (answer.status !== "accepted") throw new Error(`the request was answered as ${answer.status}`);
+      r.requestBound = true;
+      await save(r);
+    } catch (e) {
+      return String(e.message);
+    }
+  }
+  async function runnable(r, deadline) {
+    const until = Math.min(deadline, Date.now() + RUN_RETRY_MS);
+    for (; ; ) {
+      try {
+        await ctx.pub.simulateContract({ address: EXECUTOR, abi: executorAbi, functionName: "runNow", args: [BigInt(r.scheduleId), 0n], account: local() });
+        return null;
+      } catch (e) {
+        if (Date.now() >= until) return refusal(e);
+        await new Promise((res) => setTimeout(res, 1500));
+      }
+    }
+  }
+  async function approvalInFlight(r) {
+    const used = await getTransactionCount(ctx.pub, { address: local().address, blockTag: "latest" });
+    return (await deps.store.list(r.scope)).some((other) => other.key !== r.key && other.approval && other.approval.nonce >= used);
+  }
+  return {
+    send: (input) => ctx.serial(() => proceed(input, true)),
+    /** Continue a saved payment that has started. Never starts one. */
+    resume: (input) => ctx.serial(() => proceed(input, false))
+  };
+  async function proceed(input, mayStart) {
+    const account2 = local();
+    await ctx.assertChain();
+    if (typeof input.idempotencyKey !== "string" || !input.idempotencyKey.trim()) throw new RemessoError("invalid", "idempotencyKey is required for a wallet remittance");
+    const waitMs = input.waitMs ?? 45e3;
+    if (!Number.isSafeInteger(waitMs) || waitMs < 1 || waitMs > 12e4) throw new RemessoError("invalid", "waitMs must be from 1 to 120000 milliseconds");
+    for (const [name, value] of [["validUntil", input.validUntil], ["startBy", input.startBy]]) {
+      if (value !== void 0 && (!Number.isSafeInteger(value) || value <= 0)) throw new RemessoError("invalid", `${name} must be a Unix time in seconds`);
+    }
+    const deadline = Date.now() + waitMs;
+    const to = checksum3(input.to);
+    if (BigInt(to) < 0x10000n || same2(to, EXECUTOR) || same2(to, account2.address)) throw new RemessoError("invalid", "to must be another wallet and a valid schedule destination");
+    const t = token(input.token);
+    const amount = toUnits(input.amount, t);
+    if (amount <= 0n) throw new RemessoError("invalid", "amount must be above zero");
+    const scope = remittanceScope(ctx);
+    let r = await deps.store.get(input.idempotencyKey, scope);
+    if (r) {
+      journalIdentity(r, input.idempotencyKey);
+      if (!same2(r.to, to) || !same2(r.token, t.address) || r.amount !== amount.toString() || (r.requestId ?? "") !== (input.requestId ?? "")) {
+        throw new RemessoError("key_reused", "this remittance key already belongs to different payment terms");
+      }
+      if (input.validUntil !== void 0 && input.validUntil !== r.validUntil) throw new RemessoError("key_reused", "a retry cannot change this payment's deadline");
+      if (input.maxDebit !== void 0 && BigInt(r.amountIn) > toUnits(input.maxDebit, t)) throw new RemessoError("key_reused", "this key's payment already debits more than this maxDebit; retry it without lowering maxDebit");
+    }
+    const repeat = r != null;
+    const finish = (stage, requestError2) => ({ ...result(r, stage, requestError2), ...repeat ? { repeat: true } : {} });
+    if (!r?.creation) {
+      if (!mayStart) {
+        if (!r) throw new RemessoError("not_found", "no saved payment owns this key; reconciliation never creates a new payment");
+        return finish("creation");
+      }
+      const now2 = Math.floor(Date.now() / 1e3);
+      if (input.startBy !== void 0 && now2 >= input.startBy) throw new RemessoError("refused", "this payment's quote has expired, so nothing was signed: prepare it again");
+      if (input.validUntil !== void 0 && input.validUntil - START_MARGIN_S2 <= now2) {
+        throw new RemessoError("refused", "this payment's deadline is less than three minutes away, so it isn't started and nothing was signed");
+      }
+      if (!r) {
+        if (input.requestId) {
+          const req = await deps.getRequest(input.requestId);
+          if (req.status !== "pending" || req.payment) throw new RemessoError("refused", "the request already has an answer, is expired or was declined");
+          if (!same2(req.payer, account2.address) || !same2(req.requested.to, to)) throw new RemessoError("refused", "the request payer or recipient does not match this remittance");
+          if (req.requested.intervalSeconds != null || req.requested.runs != null && req.requested.runs !== 1) throw new RemessoError("refused", "wallet remittances settle one-off requests only");
+          if (!req.requested.amount || !req.requested.token || !same2(token(req.requested.token).address, t.address) || toUnits(req.requested.amount, t) !== amount) throw new RemessoError("refused", "the request must specify this exact amount and token");
+        }
+        const [allowed, feeBps, balance, maxLifetime, block] = await Promise.all([
+          read("directTokenAllowed", [t.address]),
+          read("feeBps"),
+          ctx.pub.readContract({ address: t.address, abi: erc20Abi2, functionName: "balanceOf", args: [account2.address] }),
+          read("MAX_LIFETIME"),
+          ctx.pub.getBlock()
+        ]);
+        if (!allowed) throw new RemessoError("refused", "this token is not accepted for new Direct payments");
+        const amountIn = grossFor(amount, Number(feeBps));
+        if (input.maxDebit !== void 0 && amountIn > toUnits(input.maxDebit, t)) throw new RemessoError("refused", "the current fee would exceed maxDebit; no mandate is created");
+        const { min, max } = runLimits(t);
+        if (amountIn < min || amountIn > max) throw new RemessoError("refused", "the gross payment is outside this token's executor run limits");
+        if (balance < amountIn) throw new RemessoError("refused", "the wallet balance cannot cover the payment and its fee");
+        const life = maxLifetime < LIFETIME ? maxLifetime : LIFETIME;
+        const expiresAt = Math.min(Number(block.timestamp + life), input.validUntil !== void 0 ? input.validUntil - 1 : Number.MAX_SAFE_INTEGER);
+        if (expiresAt - Number(block.timestamp) < START_MARGIN_S2) throw new RemessoError("refused", "the payment would expire before it could be made, so nothing was signed");
+        r = {
+          key: input.idempotencyKey,
+          scope,
+          payer: account2.address,
+          to,
+          token: t.address,
+          amount: amount.toString(),
+          amountIn: amountIn.toString(),
+          fee: (amountIn - amount).toString(),
+          feeBps: Number(feeBps),
+          firstRunAt: Math.min(Number(block.timestamp + INTERVAL), expiresAt),
+          expiresAt,
+          ...input.validUntil === void 0 ? {} : { validUntil: input.validUntil },
+          createdAt: (/* @__PURE__ */ new Date()).toISOString(),
+          ...input.requestId ? { requestId: input.requestId } : {}
+        };
+        try {
+          await ctx.pub.simulateContract({ address: EXECUTOR, abi: executorAbi, functionName: "createSchedule", args: createArgs(r), account: account2 });
+        } catch (e) {
+          throw new RemessoError("refused", `the contract would refuse this remittance: ${refusal(e)}`);
+        }
+        await save(r);
+      } else {
+        if (r.expiresAt - now2 < START_MARGIN_S2) throw new RemessoError("refused", "this payment was saved but never started, and its schedule would now expire too soon; nothing was signed. Use a new key");
+        if (Number(await read("feeBps")) !== r.feeBps) throw new RemessoError("refused", "the contract's fee changed since this payment was saved, and nothing was signed. Use a new key for a fresh quote");
+      }
+      if (Date.now() >= deadline) return finish("creation");
+      await sendStep(r, "creation", await signStep(r, EXECUTOR, executorAbi, "createSchedule", createArgs(r)));
+    }
+    if (!r?.creation) throw conflict("the payment's creation step was not saved");
+    const creation = await stepReceipt(r.creation, deadline);
+    if (!creation) return finish("creation");
+    if (creation.status !== "success") {
+      throw new RemessoError("reverted", "the payment's schedule couldn't be created, so nothing was paid. This key won't create another; use a new key to try again", { hash: creation.transactionHash, stage: "creation" });
+    }
+    const id = created(creation, r);
+    if (!r.scheduleId) {
+      r.scheduleId = id.toString();
+      r.creationBlock = creation.blockNumber.toString();
+      await save(r);
+    }
+    const requestError = await bind(r);
+    const { s, at } = await state(r, creation.blockNumber);
+    if (s.runsExecuted > 0) return await paid(r, requestError);
+    if (s.cancelled || at > s.expiresAt) throw notPaid(r, s);
+    const stop = (reason) => abandon(r, reason, deadline, (stage) => finish(stage, requestError));
+    if (r.cancellation) return await stop(r.cancelReason ?? "the payment couldn't be completed");
+    if (Number(s.feeBps) !== r.feeBps || netOf(s.amountIn, Number(s.feeBps)) !== BigInt(r.amount)) {
+      return await stop("the contract's fee changed after this payment was quoted");
+    }
+    if (!s.active) {
+      throw conflict("the payer paused this payment's schedule, so it isn't run now. Resume it with schedules.setActive, or cancel it with schedules.cancel", { scheduleId: r.scheduleId, paused: true });
+    }
+    if (!r.approval && !r.approvalSkipped) {
+      if (Date.now() >= deadline || await approvalInFlight(r)) return finish("approval", requestError);
+      const current = await ctx.pub.readContract({ address: r.token, abi: erc20Abi2, functionName: "allowance", args: [r.payer, EXECUTOR] });
+      if (current >= UNLIMITED) {
+        r.approvalSkipped = true;
+        await save(r);
+      } else {
+        const approvalAmount = current + BigInt(r.amountIn);
+        await sendStep(r, "approval", await signLater(r, "approval", r.token, erc20Abi2, "approve", [EXECUTOR, approvalAmount]), { approvalAmount: approvalAmount.toString() });
+      }
+    }
+    if (r.approval) {
+      const approved = await stepReceipt(r.approval, deadline);
+      if (!approved) return finish("approval", requestError);
+      if (approved.status !== "success") return await stop("the token approval reverted");
+      if (!parseEventLogs({ abi: APPROVAL, eventName: "Approval", logs: approved.logs }).some((log) => same2(log.address, r.token) && same2(log.args.owner, r.payer) && same2(log.args.spender, EXECUTOR) && log.args.value === BigInt(r.approvalAmount ?? -1))) {
+        throw conflict("the approval receipt has no matching token Approval event");
+      }
+    }
+    if (!r.execution) {
+      if (Date.now() >= deadline) return finish("execution", requestError);
+      const refused = await runnable(r, deadline);
+      if (refused !== null) {
+        const now2 = await state(r);
+        if (now2.s.runsExecuted > 0) return await paid(r, requestError);
+        return await stop(`the contract wouldn't run the payment now (${refused})`);
+      }
+      await sendStep(r, "execution", await signLater(r, "payment", EXECUTOR, executorAbi, "runNow", [BigInt(r.scheduleId), 0n]));
+    }
+    const execution = await stepReceipt(r.execution, deadline);
+    if (!execution) return finish("execution", requestError);
+    if (payment(execution, r)) {
+      r.paymentHash = execution.transactionHash;
+      await save(r);
+      return finish("payment", requestError);
+    }
+    const after = await state(r, execution.blockNumber);
+    if (after.s.runsExecuted > 0) return await paid(r, requestError);
+    if (execution.status !== "success") return await stop("running the payment reverted");
+    throw conflict("the successful execution receipt has no matching exact RunExecuted payment");
+    async function paid(record, error) {
+      const hash4 = await paidHash(record);
+      if (hash4 && hash4 !== record.paymentHash) {
+        record.paymentHash = hash4;
+        await save(record);
+      }
+      return finish("payment", error);
+    }
+  }
+  function notPaid(r, s) {
+    const why = r.cancellation && s.cancelled ? `${r.cancelReason ?? "the payment couldn't be completed"}, so its schedule was cancelled` : s.cancelled ? "the payer cancelled this payment's schedule before it ran" : "this payment's schedule expired before it ran";
+    return new RemessoError("refused", `${why}, and nothing was paid. Use a new key to try again`, {
+      scheduleId: r.scheduleId,
+      cancelled: s.cancelled,
+      expired: !s.cancelled,
+      ...r.cancellation ? { cancellationHash: r.cancellation.hash } : {}
+    });
+  }
+  async function abandon(r, reason, deadline, finish) {
+    if (!r.cancellation) {
+      await sendStep(r, "cancellation", await signLater(r, "cancellation", EXECUTOR, executorAbi, "cancelSchedule", [BigInt(r.scheduleId)]), { cancelReason: reason });
+    }
+    const landed = await stepReceipt(r.cancellation, deadline);
+    if (!landed) return finish("cancellation");
+    const { s, at } = await state(r, landed.blockNumber);
+    if (s.runsExecuted > 0) {
+      const hash4 = await paidHash(r);
+      if (hash4) {
+        r.paymentHash = hash4;
+        await save(r);
+      }
+      return finish("payment");
+    }
+    if (s.cancelled || at > s.expiresAt) throw notPaid(r, s);
+    throw conflict("the cancellation landed but the schedule is still live; retry this key", { scheduleId: r.scheduleId, cancellationHash: r.cancellation.hash });
+  }
+}
+
+// ../packages/remesso-sdk/src/lifecycle.ts
+var APPROVAL2 = parseAbi(["event Approval(address indexed owner, address indexed spender, uint256 value)"]);
+var same3 = (a, b) => a.toLowerCase() === b.toLowerCase();
+var conflict2 = (message) => new RemessoError("conflict", message);
+var errorOf = (e) => ({ code: e instanceof RemessoError ? e.code : "rpc", message: String(e?.message ?? e) });
+var finalityError = (e) => new RemessoError(e instanceof RemessoError ? e.code : "conflict", String(e?.message ?? e), { lifecycleFinality: true });
+var stopped = /* @__PURE__ */ new Set(["failed", "cancelled", "expired"]);
+var SETTLED_MS = 2 * 36e5;
+function validate6(options) {
+  if (options.funding !== void 0 && options.funding !== "wallet" && options.funding !== "policy") throw new RemessoError("invalid", "funding must be wallet or policy");
+}
+function waitBudget(value) {
+  if (value !== void 0 && (!Number.isSafeInteger(value) || value < 1 || value > 12e4)) throw new RemessoError("invalid", "waitMs must be from 1 to 120000 milliseconds");
+}
+var aborted = () => new RemessoError("timeout", "payment wait was aborted");
+function timed(read, deadline, signal) {
+  if (signal?.aborted) return Promise.reject(aborted());
+  if (Date.now() >= deadline) return Promise.reject(new RemessoError("timeout", "payment has not reached the requested finality"));
+  return new Promise((resolve, reject) => {
+    const cleanup = () => {
+      clearTimeout(timer);
+      signal?.removeEventListener("abort", cancel);
+    };
+    const cancel = () => {
+      cleanup();
+      reject(aborted());
+    };
+    const timer = setTimeout(() => {
+      cleanup();
+      reject(new RemessoError("timeout", "payment has not reached the requested finality"));
+    }, deadline - Date.now());
+    signal?.addEventListener("abort", cancel, { once: true });
+    if (signal?.aborted) {
+      cancel();
+      return;
+    }
+    Promise.resolve().then(read).then((result) => {
+      cleanup();
+      resolve(result);
+    }, (e) => {
+      cleanup();
+      reject(e);
+    });
+  });
+}
+function sleep2(ms, signal) {
+  if (signal?.aborted) return Promise.reject(aborted());
+  return new Promise((resolve, reject) => {
+    const cleanup = () => {
+      clearTimeout(timer);
+      signal?.removeEventListener("abort", cancel);
+    };
+    const cancel = () => {
+      cleanup();
+      reject(aborted());
+    };
+    const timer = setTimeout(() => {
+      cleanup();
+      resolve();
+    }, ms);
+    signal?.addEventListener("abort", cancel, { once: true });
+    if (signal?.aborted) cancel();
+  });
+}
+function makeLifecycle(ctx, deps) {
+  function walletIdentity(r, key = r.key) {
+    if (r.key !== key || r.scope !== remittanceScope(ctx) || !same3(r.payer, ctx.requireAccount().address)) throw conflict2("the wallet journal returned another payment's identity");
+  }
+  function policyIdentity(r, key = r.key) {
+    if (!key || r.key !== key || r.deployment !== paymentScope(ctx)) throw conflict2("the policy journal returned another payment's identity");
+  }
+  async function load(key, options = {}) {
+    if (typeof key !== "string" || !key.trim()) throw new RemessoError("invalid", "an existing payment key is required");
+    validate6(options);
+    const wallet = options.funding !== "policy" ? await deps.store.get(key, remittanceScope(ctx)) : void 0;
+    const policy = options.funding !== "wallet" ? await priorPayment(ctx, key) : void 0;
+    if (wallet) walletIdentity(wallet, key);
+    if (policy) policyIdentity(policy, key);
+    if (wallet && policy) throw conflict2("this key exists in both funding journals; choose funding explicitly");
+    if (wallet) return { funding: "wallet", record: wallet };
+    if (policy) return { funding: "policy", record: policy };
+    throw new RemessoError("not_found", "no saved payment owns this key; reconciliation never creates a new payment");
+  }
+  async function receipt(hash4) {
+    const found = await receiptOf(ctx.pub, hash4);
+    if (!found) return null;
+    if (!same3(found.transactionHash, hash4)) throw conflict2("a replacement receipt is not proof this operation succeeded");
+    const block = await ctx.pub.getBlock({ blockNumber: found.blockNumber });
+    if (block.number !== found.blockNumber || !block.hash || !same3(block.hash, found.blockHash)) throw conflict2("the saved transaction's block was reorganized");
+    return found;
+  }
+  function logs(found) {
+    return found.logs.filter((log) => !log.removed && log.transactionHash && same3(log.transactionHash, found.transactionHash) && log.blockHash && same3(log.blockHash, found.blockHash) && log.blockNumber === found.blockNumber && Number.isSafeInteger(log.logIndex) && log.logIndex >= 0);
+  }
+  async function pending(base, step) {
+    const known = await ctx.pub.getTransaction({ hash: step.hash }).catch((e) => {
+      if (e.name === "TransactionNotFoundError") return null;
+      throw e;
+    });
+    if (known) {
+      if (!same3(known.hash, step.hash)) throw conflict2("the RPC returned another transaction for this signed step");
+      return { ...base, hash: step.hash, status: "broadcast" };
+    }
+    const used = await ctx.pub.getTransactionCount({ address: ctx.requireAccount().address, blockTag: "latest" });
+    return used > step.nonce ? { ...base, hash: step.hash, status: "needs_reconciliation", error: { code: "conflict", reason: "nonce_consumed", message: "the original receipt is unavailable and its nonce was consumed" } } : { ...base, hash: step.hash, status: "signed" };
+  }
+  async function proof2(base, hash4, memo) {
+    const input = {
+      txHash: hash4,
+      from: base.payer,
+      to: base.to,
+      token: base.token,
+      amount: formatUnits(base.amount, token(base.token).decimals),
+      ...base.policyId ? { policyId: base.policyId, memo } : { scheduleId: base.scheduleId }
+    };
+    const included = await deps.receipts.verify({ ...input, finality: "included" });
+    let finalized;
+    try {
+      finalized = await ctx.pub.getBlock({ blockTag: "finalized" });
+    } catch (e) {
+      if (e instanceof RemessoError && ["conflict", "reverted", "not_found", "wrong_chain"].includes(e.code)) throw finalityError(e);
+      const checked = await deps.receipts.verify({ ...input, finality: "included" });
+      return { ...base, hash: hash4, stage: "payment", status: "included", proof: checked };
+    }
+    if (typeof finalized.number === "bigint" && finalized.number >= included.blockNumber) {
+      let final;
+      try {
+        final = await deps.receipts.verify({ ...input, finality: "finalized" });
+      } catch (e) {
+        throw finalityError(e);
+      }
+      return { ...base, hash: hash4, stage: "payment", status: "finalized", proof: final };
+    }
+    return { ...base, hash: hash4, stage: "payment", status: "included", proof: included };
+  }
+  function originalMemo(r) {
+    const memo = hexToString(r.memo).replace(/\0+$/, "");
+    if (!same3(memo32(memo), r.memo)) throw conflict2("the saved payment memo cannot be round-tripped without changing its original bytes");
+    return memo;
+  }
+  async function walletDescription(r, base) {
+    if (!r.creation) {
+      if (r.scheduleId || r.approval || r.execution || r.paymentHash || r.cancellation) throw conflict2("the wallet journal is missing its original signed creation step");
+      return base;
+    }
+    base.hash = r.creation.hash;
+    const created = await receipt(r.creation.hash);
+    if (!created) return await pending(base, r.creation);
+    if (created.status !== "success") return { ...base, status: "failed" };
+    if (!same3(created.from, r.payer) || !created.to || !same3(created.to, EXECUTOR)) throw conflict2("the creation transaction does not belong to this wallet and executor");
+    const event = parseEventLogs({ abi: executorAbi, eventName: "ScheduleCreated", logs: logs(created) }).find((e) => same3(e.address, EXECUTOR) && same3(e.args.sender, r.payer) && same3(e.args.destination, r.to) && e.args.amountIn === BigInt(r.amountIn) && e.args.interval === 3600n && e.args.maxRuns === 1 && e.args.payoutType === 2 && e.args.expiresAt === BigInt(r.expiresAt));
+    if (!event || r.scheduleId && BigInt(r.scheduleId) !== event.args.id) throw conflict2("the creation receipt has no matching original one-payment schedule event");
+    base.scheduleId = event.args.id;
+    base.stage = r.execution ? "execution" : "approval";
+    base.hash = r.execution?.hash ?? r.approval?.hash ?? r.creation.hash;
+    const s = await ctx.pub.readContract({ address: EXECUTOR, abi: executorAbi, functionName: "getSchedule", args: [event.args.id] });
+    if (!same3(s.sender, r.payer) || !same3(s.destination, r.to) || !same3(s.token, r.token) || s.amountIn !== BigInt(r.amountIn) || s.interval !== 3600n || s.maxRuns !== 1 || s.payoutType !== 2) throw conflict2("the schedule's immutable terms differ from this wallet remittance");
+    const now2 = await ctx.pub.getBlock();
+    let candidateError;
+    for (const hash4 of [...new Set([r.paymentHash, r.execution?.hash].filter((v) => v != null))]) {
+      try {
+        return await proof2(base, hash4);
+      } catch (e) {
+        if (e instanceof RemessoError && e.details?.lifecycleFinality) throw e;
+        candidateError = e;
+      }
+    }
+    if (s.runsExecuted > 0 || r.paymentHash) {
+      const head = await ctx.pub.getBlockNumber();
+      for (let from16 = created.blockNumber; from16 <= head; from16 += 5000n) {
+        const found = await ctx.pub.getContractEvents({ address: EXECUTOR, abi: executorAbi, eventName: "RunExecuted", args: { id: event.args.id }, fromBlock: from16, toBlock: from16 + 4999n > head ? head : from16 + 4999n });
+        for (const log of found) {
+          if (!log.transactionHash || log.removed) continue;
+          try {
+            return await proof2(base, log.transactionHash);
+          } catch (e) {
+            if (e instanceof RemessoError && e.details?.lifecycleFinality) throw e;
+            candidateError = e;
+          }
+        }
+      }
+      throw candidateError ?? conflict2("the schedule reports a run but its exact canonical payment event is unavailable");
+    }
+    if (r.paymentHash) throw candidateError ?? conflict2("the stored payment is no longer canonical");
+    if (s.cancelled) return { ...base, stage: "cancellation", status: "cancelled", ...r.cancellation ? { hash: r.cancellation.hash } : {} };
+    if (s.expiresAt !== 0n && now2.timestamp > s.expiresAt) return { ...base, status: "expired" };
+    const live = (stage, hash4, message) => ({ ...base, stage, hash: hash4, status: "needs_reconciliation", error: { code: "reverted", message } });
+    if (r.cancellation) {
+      base = { ...base, stage: "cancellation", hash: r.cancellation.hash };
+      const cancelled = await receipt(r.cancellation.hash);
+      if (!cancelled) return await pending(base, r.cancellation);
+      if (cancelled.status !== "success") return live("cancellation", r.cancellation.hash, "the cancellation reverted while the schedule is live; reconcile this key");
+      const matching2 = parseEventLogs({ abi: executorAbi, eventName: "ScheduleCancelled", logs: logs(cancelled) }).some((e) => same3(e.address, EXECUTOR) && e.args.id === base.scheduleId);
+      if (!matching2) throw conflict2("the cancellation receipt has no matching schedule event");
+      return { ...base, status: "cancelled" };
+    }
+    if (!s.active) return { ...base, status: "paused" };
+    if (Number(s.feeBps) !== r.feeBps) throw conflict2("the schedule fee differs from the original remittance quote; reconcile to cancel safely");
+    if (r.execution) {
+      base = { ...base, stage: "execution", hash: r.execution.hash };
+      const execution = await receipt(r.execution.hash);
+      if (!execution) return await pending(base, r.execution);
+      if (execution.status !== "success") return live("execution", r.execution.hash, "running the payment reverted while its schedule is live; reconcile this key to cancel it");
+      throw candidateError ?? conflict2("the execution receipt has no matching payment event");
+    }
+    if (r.approvalSkipped) return { ...base, stage: "execution", status: "prepared" };
+    base = { ...base, stage: "approval", status: "awaiting_approval" };
+    if (!r.approval) return base;
+    base.hash = r.approval.hash;
+    const approved = await receipt(r.approval.hash);
+    if (!approved) return await pending(base, r.approval);
+    if (approved.status !== "success") return live("approval", r.approval.hash, "the approval reverted while the schedule is live; reconcile this key to cancel it");
+    const matching = parseEventLogs({ abi: APPROVAL2, eventName: "Approval", logs: logs(approved) }).some((e) => same3(e.address, r.token) && same3(e.args.owner, r.payer) && same3(e.args.spender, EXECUTOR) && e.args.value === BigInt(r.approvalAmount ?? -1));
+    if (!matching) throw conflict2("the approval receipt has no matching token, owner, spender and amount event");
+    return { ...base, stage: "execution", status: "prepared" };
+  }
+  async function describe(stored) {
+    if (stored.funding === "wallet") {
+      const r2 = stored.record;
+      walletIdentity(r2);
+      const base2 = {
+        key: r2.key,
+        funding: "wallet",
+        status: "prepared",
+        stage: "creation",
+        payer: r2.payer,
+        to: r2.to,
+        token: r2.token,
+        amount: BigInt(r2.amount),
+        createdAt: r2.createdAt,
+        ...r2.scheduleId ? { scheduleId: BigInt(r2.scheduleId) } : {},
+        ...r2.requestId ? { requestId: r2.requestId } : {}
+      };
+      try {
+        return await walletDescription(r2, base2);
+      } catch (e) {
+        return { ...base2, status: "needs_reconciliation", error: errorOf(e) };
+      }
+    }
+    const r = stored.record;
+    policyIdentity(r);
+    const owner = r.owner ?? (await ctx.pub.readContract({ address: ALLOWANCE, abi: allowanceAbi, functionName: "policy", args: [BigInt(r.policyId)] })).owner;
+    const base = { key: r.key, funding: "policy", status: "signed", stage: "payment", payer: owner, to: r.to, token: r.token, amount: BigInt(r.units), createdAt: r.at, policyId: BigInt(r.policyId), hash: r.hash };
+    try {
+      const found = await receipt(r.hash);
+      if (!found) {
+        if (r.cancel && await receipt(r.cancel.hash)) return { ...base, status: "expired" };
+        return await pending(base, r);
+      }
+      if (found.status !== "success") return { ...base, status: "failed" };
+      return await proof2(base, r.hash, originalMemo(r));
+    } catch (e) {
+      return { ...base, status: "needs_reconciliation", error: errorOf(e) };
+    }
+  }
+  async function get(key, options = {}) {
+    validate6(options);
+    await ctx.assertChain();
+    return await describe(await load(key, options));
+  }
+  async function saved(options) {
+    const out = [], now2 = Date.now();
+    if (options.funding !== "policy") {
+      for (const r of await deps.store.list(remittanceScope(ctx))) {
+        const old = now2 - Date.parse(r.createdAt) > SETTLED_MS;
+        if (r.paymentHash && old || r.expiresAt * 1e3 < now2 - SETTLED_MS) continue;
+        out.push({ funding: "wallet", record: r });
+      }
+    }
+    if (options.funding !== "wallet") {
+      const records = await ctx.store.since(0);
+      const policies = /* @__PURE__ */ new Map();
+      for (const r of records) if (r.key && r.deployment === paymentScope(ctx)) policies.set(r.key, r);
+      for (const r of records) if (r.key && r.deployment === DEPLOYMENT && !policies.has(r.key)) {
+        const owned = await priorPayment(ctx, r.key);
+        if (owned) policies.set(r.key, owned);
+      }
+      for (const record of policies.values()) {
+        if (["confirmed", "reverted", "expired"].includes(record.status) && now2 - Date.parse(record.at) > SETTLED_MS) continue;
+        out.push({ funding: "policy", record });
+      }
+    }
+    return out;
+  }
+  async function listPending(options = {}) {
+    validate6(options);
+    await ctx.assertChain();
+    const result = [];
+    for (const stored of await saved(options)) result.push(await describe(stored));
+    return result.filter((r) => r.status !== "finalized" && !stopped.has(r.status));
+  }
+  async function reconcile(key, options = {}) {
+    validate6(options);
+    waitBudget(options.waitMs);
+    await ctx.assertChain();
+    const stored = await load(key, options);
+    const before = await describe(stored);
+    if (["included", "finalized", "failed", "cancelled", "paused", "expired"].includes(before.status)) return before;
+    if (before.error?.reason === "nonce_consumed") return before;
+    if (stored.funding === "wallet" && !stored.record.creation) return before;
+    try {
+      if (stored.funding === "wallet") {
+        const r = stored.record;
+        await deps.wallet.resume({ to: r.to, amount: formatUnits(BigInt(r.amount), token(r.token).decimals), token: r.token, idempotencyKey: r.key, requestId: r.requestId, waitMs: options.waitMs, validUntil: r.validUntil });
+      } else {
+        const r = stored.record;
+        await deps.pay({
+          to: r.to,
+          amount: formatUnits(BigInt(r.units), token(r.token).decimals),
+          token: r.token,
+          policyId: r.policyId,
+          payer: before.payer,
+          memo: originalMemo(r),
+          idempotencyKey: r.key,
+          waitMs: options.waitMs,
+          validUntil: r.validUntil
+        });
+      }
+    } catch (e) {
+      return { ...await get(key, { funding: stored.funding }), error: errorOf(e) };
+    }
+    return await get(key, { funding: stored.funding });
+  }
+  async function wait2(key, options = {}) {
+    validate6(options);
+    const timeout = options.timeoutMs ?? 20 * 6e4, interval = options.intervalMs ?? 1500;
+    if (!Number.isSafeInteger(timeout) || timeout < 1 || timeout > 864e5 || !Number.isSafeInteger(interval) || interval < 1 || interval > 6e4) throw new RemessoError("invalid", "timeoutMs must be 1\u201386400000 and intervalMs 1\u201360000");
+    if (options.finality && !["included", "finalized"].includes(options.finality)) throw new RemessoError("invalid", "finality must be included or finalized");
+    const deadline = Date.now() + timeout;
+    for (; ; ) {
+      const operation = await timed(() => get(key, options), deadline, options.signal);
+      if (options.signal?.aborted) throw aborted();
+      if (Date.now() >= deadline) throw new RemessoError("timeout", "payment has not reached the requested finality", { key, operation });
+      if (operation.status === "finalized" || options.finality !== "finalized" && operation.status === "included") return operation;
+      if (stopped.has(operation.status) || operation.status === "paused") throw new RemessoError(operation.status === "failed" ? "reverted" : "refused", `payment ${operation.status}`, { key, operation });
+      await sleep2(Math.min(interval, deadline - Date.now()), options.signal);
+    }
+  }
+  async function recoverPending(options = {}) {
+    validate6(options);
+    waitBudget(options.waitMs);
+    const limit = options.limit ?? 25;
+    if (!Number.isSafeInteger(limit) || limit < 1 || limit > 1e3) throw new RemessoError("invalid", "limit must be from 1 to 1000");
+    if (options.signal?.aborted) throw aborted();
+    await ctx.assertChain();
+    const started = (await saved(options)).filter((s) => s.funding === "policy" ? s.record.status === "sent" || s.record.status === "unsent" : s.record.creation && !s.record.paymentHash);
+    const recovered = [];
+    for (const stored of started.slice(0, limit)) {
+      if (options.signal?.aborted) throw aborted();
+      const key = stored.funding === "wallet" ? stored.record.key : stored.record.key;
+      recovered.push(await reconcile(key, { funding: stored.funding, waitMs: options.waitMs }));
+    }
+    return recovered;
+  }
+  return { get, listPending, reconcile, wait: wait2, recoverPending };
+}
+
+// ../packages/remesso-sdk/src/quotes.ts
+var same4 = (a, b) => a.toLowerCase() === b.toLowerCase();
+var UINT256 = 2n ** 256n;
+function policyId(value) {
+  try {
+    if (typeof value === "number" && !Number.isSafeInteger(value)) throw new Error();
+    if (typeof value === "string" && !/^\d+$/.test(value)) throw new Error();
+    const id = BigInt(value);
+    if (id < 0n || id >= UINT256) throw new Error();
+    return id;
+  } catch {
+    throw new RemessoError("invalid", "policyId must be a nonnegative uint256 integer");
+  }
+}
+function makeQuotes(ctx, deps) {
+  return {
+    async quote(input, opts = {}) {
+      if (!input || !["wallet", "policy"].includes(input.funding)) throw new RemessoError("invalid", "choose funding: wallet or policy explicitly");
+      const ttl = opts.ttlSeconds ?? 60;
+      if (!Number.isSafeInteger(ttl) || ttl < 1 || ttl > 300) throw new RemessoError("invalid", "ttlSeconds must be an integer from 1 to 300");
+      if (typeof input.amount !== "string") throw new RemessoError("invalid", "amount must be a decimal string");
+      const account2 = ctx.requireAccount();
+      const to = checksum3(input.to);
+      const t = token(input.token);
+      const amount = toUnits(input.amount, t);
+      if (amount <= 0n) throw new RemessoError("invalid", "amount must be positive");
+      if (same4(to, zeroAddress)) throw new RemessoError("invalid", "to must be a nonzero recipient");
+      if (input.funding === "wallet" && (input.policyId != null || input.payer != null)) throw new RemessoError("invalid", "wallet funding cannot name another payer or a policy");
+      if (input.funding === "wallet" && (BigInt(to) < 0x10000n || same4(to, EXECUTOR) || same4(to, account2.address))) throw new RemessoError("invalid", "to must be another wallet and a valid schedule destination");
+      const explicitPolicy = input.funding === "policy" && input.policyId != null ? policyId(input.policyId) : void 0;
+      const requestedPayer = input.funding === "policy" && input.payer ? checksum3(input.payer) : void 0;
+      await ctx.assertChain();
+      const [block, gasPrice, native] = await Promise.all([
+        ctx.pub.getBlock(),
+        ctx.pub.getGasPrice(),
+        ctx.pub.getBalance({ address: account2.address })
+      ]);
+      const checkedAt = /* @__PURE__ */ new Date();
+      const issues = [];
+      const simulation = [];
+      const steps = [];
+      const notes = ["Estimates are not transaction fee caps. Balances, fees, policies and gas prices can change before signing."];
+      const issue = (code, message, step) => issues.push({ code, message, ...step ? { step } : {} });
+      if (account2.type !== "local") issue("unsupported_signer", "durable remittance signing needs a local account with signTransaction support");
+      if (ctx.pub.chain?.id !== CHAIN_ID) issue("missing_chain_metadata", "signing requires publicClient configured with chain: celo");
+      let request2;
+      if (input.requestId) {
+        request2 = await deps.requests.get(input.requestId);
+        try {
+          exactRequest(request2, input);
+        } catch (e) {
+          issue("invoice_mismatch", e.message, "invoice");
+        }
+        if (request2.payment) issue("invoice_already_answered", "the invoice already has payment or schedule evidence; reconcile it instead of preparing a new send", "invoice");
+        if (input.funding === "wallet" && (request2.status !== "pending" || !same4(request2.payer, account2.address))) issue("invoice_payer", "a new wallet payment requires a pending invoice addressed to this wallet", "invoice");
+        if (requestedPayer && !same4(request2.payer, requestedPayer)) issue("invoice_payer", "the requested policy payer differs from the invoice payer", "invoice");
+      }
+      let payer = input.funding === "wallet" ? account2.address : requestedPayer ?? request2?.payer ?? null;
+      let selected;
+      let feeBps = 0;
+      let grossDebit = amount;
+      let balance = null;
+      let approval = {
+        spender: input.funding === "wallet" ? EXECUTOR : ALLOWANCE,
+        current: 0n,
+        required: amount,
+        additional: amount,
+        approvedAfter: amount,
+        needsApproval: true,
+        canApprove: input.funding === "wallet"
+      };
+      const simulate = async (step, address3, abi2, functionName, args) => {
+        try {
+          await ctx.pub.simulateContract({ address: address3, abi: abi2, functionName, args, account: account2, blockNumber: block.number });
+          simulation.push({ step, success: true });
+          return true;
+        } catch (e) {
+          const message = refusal(e);
+          simulation.push({ step, success: false, error: message });
+          issue("simulation_failed", message, step);
+          return false;
+        }
+      };
+      const estimate = async (step, address3, abi2, functionName, args, fallback) => {
+        try {
+          const gas = await ctx.pub.estimateContractGas({ address: address3, abi: abi2, functionName, args, account: account2, blockNumber: block.number });
+          if (gas <= 0n) throw new Error("empty gas estimate");
+          steps.push({ step, gas: (gas * 125n + 99n) / 100n, basis: "rpc_estimate" });
+        } catch {
+          steps.push({ step, gas: fallback, basis: "conservative_hint" });
+          notes.push(`${step}: RPC gas estimation was unavailable; the fallback is a planning hint, not an upper bound.`);
+        }
+      };
+      if (input.funding === "wallet") {
+        const [allowed, fee, current, held, lifetime] = await Promise.all([
+          ctx.pub.readContract({ address: EXECUTOR, abi: executorAbi, functionName: "directTokenAllowed", args: [t.address], blockNumber: block.number }),
+          ctx.pub.readContract({ address: EXECUTOR, abi: executorAbi, functionName: "feeBps", blockNumber: block.number }),
+          ctx.pub.readContract({ address: t.address, abi: erc20Abi2, functionName: "allowance", args: [account2.address, EXECUTOR], blockNumber: block.number }),
+          ctx.pub.readContract({ address: t.address, abi: erc20Abi2, functionName: "balanceOf", args: [account2.address], blockNumber: block.number }),
+          ctx.pub.readContract({ address: EXECUTOR, abi: executorAbi, functionName: "MAX_LIFETIME", blockNumber: block.number })
+        ]);
+        feeBps = Number(fee);
+        if (!Number.isSafeInteger(feeBps) || feeBps < 0 || feeBps >= 1e4) throw new RemessoError("refused", "the live protocol fee is outside the supported range");
+        grossDebit = grossFor(amount, feeBps);
+        balance = held;
+        const unlimited = current >= 2n ** 255n;
+        approval = unlimited ? { spender: EXECUTOR, current, required: grossDebit, additional: 0n, approvedAfter: current, needsApproval: false, canApprove: true } : { spender: EXECUTOR, current, required: grossDebit, additional: grossDebit, approvedAfter: current + grossDebit, needsApproval: true, canApprove: true };
+        notes.push(unlimited ? "Wallet sends create one capped schedule; the executor's existing allowance is unlimited, so no approval is sent." : "Wallet sends create one capped schedule, then add this payment's budget to the token allowance, read again when the approval is signed.");
+        if (!allowed) issue("token_not_allowed", "the live executor does not accept this token for new Direct payments");
+        try {
+          const limits = runLimits(t);
+          if (grossDebit < limits.min || grossDebit > limits.max) issue("run_limits", "the gross debit is outside this token's executor run limits");
+        } catch (e) {
+          issue("run_limits", e.message);
+        }
+        if (grossDebit >= 2n ** 128n) issue("amount_overflow", "the gross debit does not fit the schedule's uint128 amount");
+        if (held < grossDebit) issue("insufficient_balance", "the wallet token balance cannot cover the exact recipient amount and protocol fee");
+        if (approval.needsApproval && approval.approvedAfter >= UINT256) issue("approval_overflow", "adding this payment's budget would overflow the token approval");
+        const first = block.timestamp + 3600n;
+        const expiry = block.timestamp + (lifetime < 86400n ? lifetime : 86400n);
+        const args = [to, grossDebit, 3600n, 0n, 1, expiry, first, 2, t.address, zeroAddress, account2.address, 1];
+        if (grossDebit < 2n ** 128n) {
+          await simulate("creation", EXECUTOR, executorAbi, "createSchedule", args);
+          await estimate("creation", EXECUTOR, executorAbi, "createSchedule", args, 450000n);
+        } else steps.push({ step: "creation", gas: 450000n, basis: "conservative_hint" });
+        if (!approval.needsApproval) {
+        } else if (approval.approvedAfter < UINT256) {
+          await simulate("approval", t.address, erc20Abi2, "approve", [EXECUTOR, approval.approvedAfter]);
+          await estimate("approval", t.address, erc20Abi2, "approve", [EXECUTOR, approval.approvedAfter], 100000n);
+        } else steps.push({ step: "approval", gas: 100000n, basis: "conservative_hint" });
+        steps.push({ step: "execution", gas: 300000n, basis: "conservative_hint" });
+        notes.push("Execution cannot be simulated until the schedule and allowance exist. Its gas is a conservative planning hint; creation simulation does not prove later execution will succeed.");
+      } else {
+        const acceptable = async (p) => {
+          if (!p.active || !same4(p.agent, account2.address) || !same4(p.token, t.address) || payer && !same4(p.owner, payer) || p.spendable < amount || same4(p.owner, to)) return false;
+          return !p.allowlistOnly || await ctx.pub.readContract({ address: ALLOWANCE, abi: allowanceAbi, functionName: "allowed", args: [p.id, to], blockNumber: block.number });
+        };
+        if (explicitPolicy != null) {
+          try {
+            selected = await deps.policies.get(explicitPolicy);
+          } catch (e) {
+            if (!(e instanceof RemessoError) || e.code !== "not_found") throw e;
+          }
+        } else {
+          const candidates = [];
+          for (const id of await deps.policies.find()) {
+            const p = await deps.policies.get(id);
+            if (await acceptable(p)) {
+              selected = p;
+              break;
+            }
+            if (same4(p.agent, account2.address) && same4(p.token, t.address) && (!payer || same4(p.owner, payer))) candidates.push(p);
+          }
+          selected ??= candidates[0];
+        }
+        if (!selected) issue("no_policy", "no policy for this agent, token and requested payer was found");
+        else {
+          const p = selected;
+          if (payer && !same4(p.owner, payer)) issue("policy_payer", "the selected policy belongs to another payer");
+          payer = p.owner;
+          balance = p.ownerBalance;
+          approval = {
+            spender: ALLOWANCE,
+            current: p.ownerAllowance,
+            required: amount,
+            additional: p.ownerAllowance < amount ? amount - p.ownerAllowance : 0n,
+            approvedAfter: p.ownerAllowance < amount ? amount : p.ownerAllowance,
+            needsApproval: p.ownerAllowance < amount,
+            canApprove: same4(p.owner, account2.address)
+          };
+          if (!same4(p.agent, account2.address)) issue("policy_agent", "the policy names a different agent");
+          if (!same4(p.token, t.address)) issue("policy_token", "the policy spends a different token");
+          if (!p.active || p.expiresAt.getTime() <= checkedAt.getTime()) issue("policy_inactive", p.revoked ? "the policy was revoked" : "the policy has expired");
+          if (same4(p.owner, to)) issue("policy_self_payment", "a policy cannot pay its own owner");
+          if (amount > p.perPayment) issue("policy_per_payment", "the amount exceeds the policy's per-payment cap");
+          if (amount > p.remainingToday) issue("policy_daily_limit", "the amount exceeds the remaining fixed 24-hour policy window");
+          if (amount > p.ownerBalance) issue("insufficient_balance", "the policy owner's balance is too low");
+          if (amount > p.ownerAllowance) issue("approval_required", "the policy owner must increase their token approval before this payment can proceed");
+          if (p.allowlistOnly && !await ctx.pub.readContract({ address: ALLOWANCE, abi: allowanceAbi, functionName: "allowed", args: [p.id, to], blockNumber: block.number })) issue("recipient_not_allowed", "the recipient is not on the policy allowlist");
+          if (issues.length === 0) {
+            const args = [p.id, to, amount, memo32(request2?.reference)];
+            await simulate("policy_payment", ALLOWANCE, allowanceAbi, "pay", args);
+            await estimate("policy_payment", ALLOWANCE, allowanceAbi, "pay", args, 160000n);
+          }
+        }
+        if (steps.length === 0) steps.push({ step: "policy_payment", gas: 160000n, basis: "conservative_hint" });
+        notes.push("Policy discovery and availability reads may span blocks; no daily budget or allowance is reserved by this quote.");
+      }
+      const estimatedTotalGas = steps.reduce((sum, step) => sum + step.gas, 0n);
+      const estimatedNativeCost = estimatedTotalGas * gasPrice;
+      let feeCurrency;
+      if (native < estimatedNativeCost * 2n) {
+        if (t.feeCurrency) {
+          const signerTokens = input.funding === "wallet" ? balance ?? 0n : await ctx.pub.readContract({ address: t.address, abi: erc20Abi2, functionName: "balanceOf", args: [account2.address], blockNumber: block.number });
+          let headroom = 1n;
+          try {
+            headroom = runLimits(t).min * (input.funding === "wallet" ? 3n : 1n) / 100n || 1n;
+          } catch {
+          }
+          if (signerTokens >= (input.funding === "wallet" ? grossDebit : 0n) + headroom) {
+            feeCurrency = t.feeCurrency;
+            notes.push("The signer has a supported Celo fee currency. Its converted network charge is not quoted here; estimatedNativeCost is CELO-denominated only and does not include an adapter conversion rate.");
+          } else issue("insufficient_gas", "the signer needs CELO or a supported fee-currency balance beyond the payment debit");
+        } else issue("insufficient_gas", "the signer needs CELO to cover network gas");
+      }
+      return {
+        funding: input.funding,
+        chainId: CHAIN_ID,
+        signingAgent: account2.address,
+        payer,
+        to,
+        token: t.address,
+        symbol: t.symbol,
+        decimals: t.decimals,
+        amount,
+        grossDebit,
+        protocolFee: grossDebit - amount,
+        feeBps,
+        ...selected ? { selectedPolicyId: selected.id } : {},
+        approval,
+        balance,
+        canSend: issues.length === 0,
+        issues,
+        simulation,
+        gas: { steps, estimatedTotalGas, gasPrice, estimatedNativeCost, ...feeCurrency ? { feeCurrency } : {}, notes },
+        checkedBlock: block.number,
+        checkedAt,
+        expiresAt: new Date(checkedAt.getTime() + ttl * 1e3)
+      };
+    }
+  };
+}
+
+// ../packages/remesso-sdk/src/invoices.ts
+var INVOICE_DOMAIN = Object.freeze({ name: "Remesso Invoice", version: "1", chainId: CHAIN_ID, verifyingContract: EXECUTOR });
+var INVOICE_TYPES = Object.freeze({ Invoice: [
+  { name: "issuer", type: "address" },
+  { name: "payer", type: "address" },
+  { name: "recipient", type: "address" },
+  { name: "token", type: "address" },
+  { name: "amount", type: "uint256" },
+  { name: "orderId", type: "string" },
+  { name: "nonce", type: "bytes32" },
+  { name: "issuedAt", type: "uint64" },
+  { name: "expiresAt", type: "uint64" },
+  { name: "requestId", type: "string" }
+] });
+function memoryInvoiceStore() {
+  const rows = /* @__PURE__ */ new Map();
+  return { async reserve(invoiceId, reservation) {
+    const next = { funding: reservation.funding, signer: checksum3(reservation.signer).toLowerCase(), payer: checksum3(reservation.payer).toLowerCase(), key: reservation.key, ...reservation.policyId === void 0 ? {} : { policyId: reservation.policyId } };
+    const previous = rows.get(invoiceId);
+    if (previous && JSON.stringify(previous) !== JSON.stringify(next)) throw new RemessoError("key_reused", "this invoice was reserved by a different funding route, signer or policy");
+    rows.set(invoiceId, next);
+  } };
+}
+function invoiceReference(invoiceId) {
+  if (!/^0x[\da-f]{64}$/i.test(invoiceId)) throw new RemessoError("invalid", "an invoice id is a 32-byte hex hash");
+  return invoiceId.slice(2, 34).toLowerCase();
+}
+var SKEW_S = 300;
+var ERC1271 = parseAbi(["function isValidSignature(bytes32 hash, bytes signature) view returns (bytes4)"]);
+var UUID2 = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+var bytes32 = (v) => typeof v === "string" && /^0x[\da-f]{64}$/i.test(v);
+var same5 = (a, b) => a.toLowerCase() === b.toLowerCase();
+function invalid(message) {
+  throw new RemessoError("invalid", message);
+}
+function shape(v, keys, label) {
+  if (!v || typeof v !== "object" || Array.isArray(v)) invalid(`${label} must be an object`);
+  const found = Object.keys(v);
+  if (found.length !== keys.length || found.some((key) => !keys.includes(key))) invalid(`${label} has missing or unknown fields`);
+}
+function address(value, name) {
+  if (typeof value !== "string" || !/^0x[\da-f]{40}$/i.test(value)) invalid(`${name} must be an address`);
+  const out = checksum3(value);
+  if (same5(out, zeroAddress)) invalid(`${name} must be nonzero`);
+  return out;
+}
+function seconds(value, name) {
+  if (typeof value !== "number" || !Number.isSafeInteger(value) || value <= 0) invalid(`${name} must be positive integer Unix seconds`);
+  return value;
+}
+function validate7(invoice, signed) {
+  shape(invoice, signed ? ["version", "domain", "message", "signature"] : ["version", "domain", "message"], "invoice");
+  if (invoice.version !== 1) invalid("unsupported invoice version");
+  shape(invoice.domain, ["name", "version", "chainId", "verifyingContract"], "invoice domain");
+  const d = invoice.domain;
+  if (d.chainId !== CHAIN_ID) throw new RemessoError("wrong_chain", `invoice signatures are for Celo mainnet (${CHAIN_ID})`);
+  if (d.name !== INVOICE_DOMAIN.name || d.version !== INVOICE_DOMAIN.version || typeof d.verifyingContract !== "string" || !same5(d.verifyingContract, EXECUTOR)) invalid("invoice has a different signing domain or contract");
+  shape(invoice.message, ["issuer", "payer", "recipient", "token", "amount", "orderId", "nonce", "issuedAt", "expiresAt", "requestId"], "invoice message");
+  const m = invoice.message;
+  const issuer = address(m.issuer, "issuer"), recipient = address(m.recipient, "recipient");
+  address(m.payer, "payer");
+  const asset = address(m.token, "token");
+  token(asset);
+  if (!same5(issuer, recipient)) invalid("the invoice recipient must sign as its issuer");
+  if (typeof m.amount !== "string" || !/^[1-9]\d*$/.test(m.amount) || m.amount.length > 78 || BigInt(m.amount) >= 2n ** 256n) invalid("invoice amount must be a canonical positive uint256 base-unit string");
+  if (typeof m.orderId !== "string" || !m.orderId.trim() || new TextEncoder().encode(m.orderId).length > 128 || /[\u0000-\u001f\u007f]/.test(m.orderId)) invalid("orderId must contain 1 to 128 UTF-8 bytes without control characters");
+  if (!bytes32(m.nonce) || BigInt(m.nonce) === 0n) invalid("invoice nonce must be nonzero bytes32");
+  const issued = seconds(m.issuedAt, "issuedAt"), expiry = seconds(m.expiresAt, "expiresAt");
+  if (expiry <= issued) invalid("invoice expiresAt must be after issuedAt");
+  if (typeof m.requestId !== "string" || m.requestId !== "" && !UUID2.test(m.requestId)) invalid("requestId must be a lowercase request UUID or empty");
+  if (signed && (typeof invoice.signature !== "string" || !/^0x(?:[\da-f]{2})+$/i.test(invoice.signature) || invoice.signature.length > 16386)) invalid("invoice signature must be hex bytes (at most 8192)");
+}
+function invoiceTypedData(invoice) {
+  const unsigned = { version: invoice?.version, domain: invoice?.domain, message: invoice?.message };
+  validate7(unsigned, false);
+  const m = unsigned.message;
+  return {
+    domain: INVOICE_DOMAIN,
+    types: INVOICE_TYPES,
+    primaryType: "Invoice",
+    message: { ...m, amount: BigInt(m.amount), issuedAt: BigInt(m.issuedAt), expiresAt: BigInt(m.expiresAt) }
+  };
+}
+function makeInvoices(ctx, deps) {
+  const store = deps.store ?? memoryInvoiceStore();
+  function details(invoice) {
+    const m = invoice.message, t = token(m.token), id = hashTypedData(invoiceTypedData(invoice));
+    return {
+      id,
+      idempotencyKey: `invoice:${id}`,
+      issuer: checksum3(m.issuer),
+      payer: checksum3(m.payer),
+      recipient: checksum3(m.recipient),
+      token: checksum3(m.token),
+      amount: BigInt(m.amount),
+      amountDecimal: formatUnits(BigInt(m.amount), t.decimals),
+      orderId: m.orderId,
+      nonce: m.nonce,
+      issuedAt: m.issuedAt,
+      expiresAt: m.expiresAt,
+      ...m.requestId ? { requestId: m.requestId } : {}
+    };
+  }
+  async function requestMatches(invoice) {
+    if (!invoice.requestId) return void 0;
+    const request2 = await deps.requests.get(invoice.requestId), r = request2.requested;
+    if (request2.id !== invoice.requestId || request2.reference !== invoice.requestId.replaceAll("-", "") || !same5(request2.payer, invoice.payer) || !same5(r.to, invoice.recipient) || !r.amount || !r.token || token(r.token).address.toLowerCase() !== invoice.token.toLowerCase() || toUnits(r.amount, token(invoice.token)) !== invoice.amount || r.intervalSeconds != null || r.runs != null && r.runs !== 1) throw new RemessoError("refused", "the backend request differs from the signed invoice's payer, recipient, token, amount or one-off terms");
+    return request2;
+  }
+  async function verify(invoice, opts = {}) {
+    validate7(invoice, true);
+    const now2 = Math.floor(Date.now() / 1e3);
+    if (invoice.message.issuedAt > now2 + SKEW_S) throw new RemessoError("refused", "the invoice has not been issued yet");
+    if (!opts.allowExpired && invoice.message.expiresAt <= now2) throw new RemessoError("refused", "the invoice has expired");
+    const typed = invoiceTypedData(invoice);
+    let valid = false;
+    try {
+      valid = await verifyTypedData({ ...typed, address: invoice.message.issuer, signature: invoice.signature });
+    } catch {
+    }
+    if (!valid) {
+      const chainId = await ctx.pub.getChainId();
+      if (chainId !== CHAIN_ID) throw new RemessoError("wrong_chain", "contract invoice signatures must be verified on Celo mainnet");
+      const code = await ctx.pub.getCode({ address: invoice.message.issuer });
+      if (code && code !== "0x") {
+        const magic = await ctx.pub.readContract({ address: invoice.message.issuer, abi: ERC1271, functionName: "isValidSignature", args: [hashTypedData(typed), invoice.signature] }).catch(() => null);
+        valid = magic === "0x1626ba7e";
+      }
+    }
+    if (!valid) throw new RemessoError("refused", "the invoice signature does not belong to its recipient");
+    return details(invoice);
+  }
+  function prepare(input) {
+    const account2 = ctx.requireAccount();
+    if (!ctx.wallet) throw new RemessoError("no_account", "signing an invoice needs a wallet supporting signTypedData");
+    if (!input || typeof input.amount !== "string" || typeof input.token !== "string") invalid("invoice amount and token are required strings");
+    const t = token(input.token), recipient = checksum3(input.recipient ?? account2.address);
+    if (!same5(recipient, account2.address)) throw new RemessoError("refused", "this account may only issue invoices payable to itself");
+    const unsigned = { version: 1, domain: { ...INVOICE_DOMAIN }, message: {
+      issuer: account2.address,
+      payer: checksum3(input.payer),
+      recipient,
+      token: checksum3(t.address),
+      amount: toUnits(input.amount, t).toString(),
+      orderId: input.orderId,
+      nonce: input.nonce ?? toHex(crypto.getRandomValues(new Uint8Array(32))),
+      issuedAt: input.issuedAt ?? Math.floor(Date.now() / 1e3),
+      expiresAt: input.expiresAt,
+      requestId: input.requestId ?? ""
+    } };
+    validate7(unsigned, false);
+    const info = details({ ...unsigned, signature: "0x01" }), now2 = Math.floor(Date.now() / 1e3);
+    if (info.issuedAt > now2 + SKEW_S || info.expiresAt <= now2) throw new RemessoError("refused", "an invoice must be issued already and expire in the future");
+    return unsigned;
+  }
+  async function sign2(input) {
+    const unsigned = prepare(input), account2 = ctx.requireAccount();
+    await requestMatches(details({ ...unsigned, signature: "0x01" }));
+    await ctx.assertChain();
+    const signature = await ctx.wallet.signTypedData({ account: account2, ...invoiceTypedData(unsigned) });
+    const signed = { ...unsigned, signature };
+    await verify(signed);
+    return signed;
+  }
+  return {
+    sign: sign2,
+    /** Create a backend request, then sign its exact terms. */
+    async create(input) {
+      const prepared = prepare(input);
+      if (input.requestId) return await sign2(input);
+      const account2 = ctx.requireAccount();
+      const request2 = await deps.requests.create({ payer: prepared.message.payer, to: account2.address, amount: input.amount, token: input.token, runs: 1 });
+      return await sign2({ ...input, issuedAt: prepared.message.issuedAt, nonce: prepared.message.nonce, requestId: request2.id });
+    },
+    verify,
+    /** The immutable reservation pins this invoice to one signer/funding route even after an uncertain send. */
+    async pay(invoice, options) {
+      const expected = await verify(invoice);
+      if (!options || !["wallet", "policy"].includes(options.funding)) invalid("choose wallet or policy invoice funding explicitly");
+      if (Object.keys(options).some((key) => !["funding", "policyId", "waitMs", "maxDebit"].includes(key))) invalid("invoice payment options contain unknown fields");
+      if (options.policyId !== void 0 && (typeof options.policyId === "number" && !Number.isSafeInteger(options.policyId) || !/^[1-9]\d*$/.test(String(options.policyId)) || BigInt(options.policyId) >= 2n ** 256n)) invalid("invoice policyId must be a canonical positive uint256");
+      const account2 = ctx.requireAccount();
+      if (options.funding === "wallet" && !same5(account2.address, expected.payer)) throw new RemessoError("refused", "this wallet is not the payer named in the invoice");
+      if (options.funding === "wallet" && "policyId" in options && options.policyId != null) invalid("wallet invoices cannot select a policy");
+      if (options.funding === "wallet" && !expected.requestId) {
+        throw new RemessoError("refused", "an invoice without a request is paid from a policy, whose payment carries the invoice's reference. To pay from a wallet, the recipient makes the invoice with invoices.create, which adds a request");
+      }
+      await requestMatches(expected);
+      const terms2 = { to: expected.recipient, amount: expected.amountDecimal, token: expected.token, idempotencyKey: expected.idempotencyKey, requestId: expected.requestId, validUntil: expected.expiresAt };
+      const memo = expected.requestId ? void 0 : invoiceReference(expected.id);
+      const started = options.funding === "policy" ? await priorPayment(ctx, expected.idempotencyKey) : await ctx.remittanceStore?.get(expected.idempotencyKey, remittanceScope(ctx));
+      if (!started) {
+        const quote = await deps.remittances.quote(options.funding === "policy" ? { funding: "policy", to: terms2.to, amount: terms2.amount, token: terms2.token, requestId: terms2.requestId, idempotencyKey: terms2.idempotencyKey, payer: expected.payer, ...options.policyId === void 0 ? {} : { policyId: options.policyId } } : { funding: "wallet", to: terms2.to, amount: terms2.amount, token: terms2.token, requestId: terms2.requestId, idempotencyKey: terms2.idempotencyKey });
+        if (!quote.canSend) throw new RemessoError("refused", `this invoice can't be paid this way now: ${quote.issues.map((i) => i.message).join("; ")}`, { issues: quote.issues });
+      }
+      await store.reserve(expected.id, {
+        funding: options.funding,
+        signer: account2.address,
+        payer: expected.payer,
+        key: expected.idempotencyKey,
+        ...options.policyId === void 0 ? {} : { policyId: String(options.policyId) }
+      });
+      const paid = await deps.remittances.send(options.funding === "policy" ? { ...options, ...terms2, payer: expected.payer, ...memo ? { memo } : {} } : { ...options, ...terms2 });
+      return { ...paid, invoiceId: expected.id };
+    },
+    /** Deduplicate BOTH invoiceId and payment.eventId atomically before fulfillment. */
+    async verifyPayment(invoice, input) {
+      const expected = await verify(invoice, { allowExpired: true }), request2 = await requestMatches(expected);
+      const reference = expected.requestId ? expected.requestId.replaceAll("-", "") : invoiceReference(expected.id);
+      const payment = await deps.receipts.verify({
+        ...input,
+        from: expected.payer,
+        to: expected.recipient,
+        token: expected.token,
+        amount: expected.amountDecimal,
+        finality: input.finality ?? "finalized",
+        ...input.policyId !== void 0 ? { memo: reference } : {}
+      });
+      if (request2) {
+        if (payment.kind === "policy_payment" && !same5(payment.memo, memo32(request2.reference))) throw new RemessoError("conflict", "the policy payment does not carry this invoice's request reference");
+        if (payment.kind === "run" && (!request2.payment?.schedule || !same5(request2.payment.schedule.contract, payment.contract) || request2.payment.schedule.id !== String(payment.scheduleId))) throw new RemessoError("conflict", "the schedule has not been bound to this invoice's backend request");
+      } else if (payment.kind !== "policy_payment" || !same5(payment.memo, memo32(reference))) {
+        throw new RemessoError("conflict", "an invoice without a request is settled only by a policy payment carrying its reference (invoiceReference)");
+      }
+      const block = await ctx.pub.getBlock({ blockNumber: payment.blockNumber });
+      if (!block.hash || !same5(block.hash, payment.blockHash)) throw new RemessoError("conflict", "the invoice payment block is no longer canonical");
+      if (block.timestamp + BigInt(SKEW_S) < BigInt(expected.issuedAt) || block.timestamp >= BigInt(expected.expiresAt)) throw new RemessoError("refused", "the payment was not included during the invoice's validity window");
+      return { invoiceId: expected.id, orderId: expected.orderId, payment };
+    }
+  };
+}
+
+// ../packages/remesso-sdk/src/store.ts
+var KEEP_MS = 30 * 864e5;
+var KEEP_COUNT = 1e3;
+function upsert(list, rec, now2 = Date.now()) {
+  const cutoff = now2 - KEEP_MS;
+  const rest = list.filter(
+    (p) => p.hash !== rec.hash && !(rec.key && p.key === rec.key && p.deployment === rec.deployment)
+  );
+  const all = [...rest, rec];
+  const protectedRecord = (p) => p.key != null || !["confirmed", "reverted", "expired"].includes(p.status);
+  const recent = new Set(all.filter((p) => !protectedRecord(p) && Date.parse(p.at) > cutoff).slice(-KEEP_COUNT));
+  return all.filter((p) => protectedRecord(p) || recent.has(p));
+}
+function memoryStore() {
+  let list = [];
+  return {
+    byKey: async (key, deployment2) => [...list].reverse().find((p) => p.key === key && p.deployment === deployment2),
+    since: async (since) => list.filter((p) => Date.parse(p.at) > since),
+    save: async (rec) => {
+      list = upsert(list, rec);
+    }
+  };
+}
+
+// ../packages/remesso-sdk/src/vendor/webhook-actions.ts
+var WEBHOOK_DOMAIN = { name: "Remesso", version: "1", chainId: 42220 };
+var WEBHOOK_TYPES = {
+  WebhookAction: [
+    { name: "recipient", type: "address" },
+    { name: "url", type: "string" },
+    { name: "chainId", type: "uint256" },
+    { name: "action", type: "string" },
+    { name: "nonce", type: "string" },
+    { name: "expiry", type: "uint64" }
+  ]
+};
+var MAX_ACTION_TTL_SECS = 60 * 60;
+function webhookTypedData(a) {
+  return {
+    domain: WEBHOOK_DOMAIN,
+    types: WEBHOOK_TYPES,
+    primaryType: "WebhookAction",
+    message: {
+      recipient: a.recipient,
+      url: a.url,
+      chainId: BigInt(a.chainId),
+      action: a.action,
+      nonce: a.nonce,
+      expiry: BigInt(a.expiry)
+    }
+  };
+}
+
+// ../packages/remesso-sdk/src/webhooks.ts
+function makeWebhooks(ctx) {
+  async function act(action, url, recipient, extra = {}) {
+    const account2 = ctx.requireAccount();
+    if (!ctx.wallet) throw new RemessoError("no_account", "managing webhooks needs an account that can sign");
+    const who = recipient ? checksum3(recipient) : account2.address;
+    const nonce = bytesToHex(crypto.getRandomValues(new Uint8Array(16))).slice(2);
+    const expiry = Math.floor(Date.now() / 1e3) + 600;
+    const unsigned = { recipient: who, url, chainId: WEBHOOK_DOMAIN.chainId, action, nonce, expiry };
+    const signature = await ctx.wallet.signTypedData({ account: account2, ...webhookTypedData(unsigned) });
+    return await ctx.post(ctx.endpoints.webhooks, { ...unsigned, signature, ...extra });
+  }
+  return {
+    /// Start receiving this address's payments at `url` (https). The endpoint
+    /// must already answer the challenge: run `webhookHandler` there first.
+    /// The signing secret is returned once: store it.
+    async subscribe(input) {
+      const out = await act("subscribe", input.url, input.recipient);
+      return out;
+    },
+    /// A new signing secret. The old one keeps signing alongside it for a day.
+    async rotate(input) {
+      return await act("rotate", input.url, input.recipient);
+    },
+    /// Stop.
+    async revoke(input) {
+      return await act("revoke", input.url, input.recipient);
+    },
+    /// Send failed deliveries from the last `days` (1 to 7) again.
+    async replay(input) {
+      return await act("replay", input.url, input.recipient, { days: input.days ?? 1 });
+    }
+  };
+}
+
+// ../packages/remesso-sdk/src/client.ts
+function createRemesso(opts = {}) {
+  const rpc = opts.rpcUrl ?? deployment.chain.rpc;
+  const pub2 = opts.publicClient ?? createPublicClient({ chain: celo, transport: http(rpc) });
+  if (opts.publicClient?.chain && opts.publicClient.chain.id !== celo.id) {
+    throw new RemessoError("wrong_chain", "publicClient must be configured for Celo mainnet");
+  }
+  const account2 = opts.walletClient?.account ?? opts.account ?? null;
+  const wallet = opts.walletClient ?? (account2 ? createWalletClient({ account: account2, chain: celo, transport: http(rpc) }) : null);
+  const base = (opts.functionsUrl ?? deployment.functions.base).replace(/\/+$/, "");
+  const appOrigin = opts.appOrigin ?? deployment.app.origin;
+  if (opts.coordinator && (!opts.store || !opts.remittanceStore || !opts.invoiceStore)) {
+    throw new RemessoError("invalid", "a shared coordinator needs shared journals too: pass store, remittanceStore and invoiceStore from the same storage (createPostgresStorage gives all four)");
+  }
+  const remittanceStore = opts.remittanceStore ?? memoryRemittanceStore();
+  const ctx = makeCtx({
+    pub: pub2,
+    wallet,
+    account: account2,
+    endpoints: {
+      requestPayment: opts.functionsUrl ? `${base}/request-payment` : deployment.functions["request-payment"],
+      paymentEvents: opts.functionsUrl ? `${base}/payment-events` : deployment.functions["payment-events"],
+      webhooks: opts.functionsUrl ? `${base}/webhooks` : deployment.functions.webhooks
+    },
+    appOrigin,
+    fetch: opts.fetch ?? globalThis.fetch.bind(globalThis),
+    dataSuffix: attributionFor(opts.builderCodes, opts.attribution !== false),
+    store: opts.store ?? memoryStore(),
+    remittanceStore,
+    coordinator: opts.coordinator,
+    fetchText: opts.fetchText
+  });
+  const policies = makePolicies(ctx);
+  const pay = makePay(ctx, policies);
+  const requests = makeRequests(ctx, { pay, policies });
+  const schedules = makeSchedules(ctx, { getRequest: requests.get, answer: requests.answer });
+  const walletRemittances = makeWalletRemittances(ctx, { store: remittanceStore, getRequest: requests.get, answer: requests.answer });
+  const sender = makeRemittances(ctx, { pay, policies, requests, wallet: walletRemittances });
+  const receipts = makeReceipts(ctx);
+  const quotes = makeQuotes(ctx, { policies, requests });
+  const lifecycle = makeLifecycle(ctx, { store: remittanceStore, wallet: walletRemittances, receipts, pay });
+  const remittances = {
+    ...sender,
+    ...quotes,
+    ...lifecycle,
+    async prepare(input, options) {
+      if (typeof input?.idempotencyKey !== "string" || !input.idempotencyKey.trim()) throw new RemessoError("invalid", "prepare requires a nonempty idempotencyKey");
+      if (input.validUntil !== void 0 && !Number.isSafeInteger(input.validUntil)) throw new RemessoError("invalid", "validUntil must be an integer Unix timestamp in seconds");
+      if (input.validUntil !== void 0 && input.validUntil <= Math.floor(Date.now() / 1e3)) throw new RemessoError("refused", "the payment's deadline has already passed");
+      const quote = await quotes.quote(input, options);
+      if (!quote.canSend) throw new RemessoError("refused", "this payment is not ready; review the quote issues", { quote });
+      const maximum = input.maxDebit ?? formatUnits(quote.grossDebit, quote.decimals);
+      if (toUnits(maximum, token(quote.token)) < quote.grossDebit) throw new RemessoError("refused", "the quote exceeds maxDebit", { quote });
+      const startBy = Math.min(input.startBy ?? Number.MAX_SAFE_INTEGER, Math.floor(quote.expiresAt.getTime() / 1e3));
+      if (startBy <= Math.floor(Date.now() / 1e3)) throw new RemessoError("refused", "the quote has expired; prepare the payment again");
+      const bounded = { token: quote.token, maxDebit: maximum, startBy };
+      if (input.funding === "policy") return { quote, input: { ...input, ...bounded, policyId: quote.selectedPolicyId ?? input.policyId } };
+      return { quote, input: { ...input, ...bounded } };
+    }
+  };
+  const invoices = makeInvoices(ctx, { requests, remittances, receipts, store: opts.invoiceStore });
+  return {
+    address: account2?.address ?? null,
+    publicClient: pub2,
+    deployment,
+    schedules,
+    pay,
+    policies,
+    remittances,
+    receipts,
+    invoices,
+    requests,
+    events: makeEvents(ctx),
+    webhooks: makeWebhooks(ctx),
+    agents: makeAgents(ctx, { send: remittances.send, getRequest: requests.get }),
+    payLink(p) {
+      const to = p.to ?? account2?.address;
+      if (!to) throw new Error("payLink needs to without an account");
+      return payLink({ ...p, to }, appOrigin);
+    }
+  };
+}
+
+// ../packages/remesso-sdk/src/node.ts
+import { chmodSync, closeSync, fsyncSync, mkdirSync, openSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+import { homedir } from "node:os";
+import { dirname, join } from "node:path";
+function durableJson(path, data) {
+  mkdirSync(dirname(path), { recursive: true, mode: 448 });
+  const tmp = `${path}.${process.pid}.tmp`;
+  const file = openSync(tmp, "w", 384);
+  try {
+    writeFileSync(file, JSON.stringify(data, null, 2));
+    fsyncSync(file);
+  } finally {
+    closeSync(file);
+  }
+  renameSync(tmp, path);
+  chmodSync(path, 384);
+  try {
+    const directory = openSync(dirname(path), "r");
+    try {
+      fsyncSync(directory);
+    } finally {
+      closeSync(directory);
+    }
+  } catch (e) {
+    if (!["EINVAL", "ENOTSUP", "EISDIR", "EPERM"].includes(e.code ?? "")) throw e;
+  }
+}
+function fileStore(path = join(homedir(), ".remesso-sdk", "payments.json")) {
+  const load = () => {
+    try {
+      const data = JSON.parse(readFileSync(path, "utf8"));
+      if (data.version !== 1 || !Array.isArray(data.payments)) throw new Error("invalid payment store format");
+      if (data.payments.some((p) => !p || typeof p.deployment !== "string" || !(p.key === null || typeof p.key === "string") || !/^\d+$/.test(p.policyId) || !/^\d+$/.test(p.units) || !/^0x[0-9a-f]{40}$/i.test(p.to) || !/^0x[0-9a-f]{40}$/i.test(p.token) || !/^0x[0-9a-f]{64}$/i.test(p.hash) || !/^0x[0-9a-f]{64}$/i.test(p.memo) || !/^0x(?:[0-9a-f]{2})*$/i.test(p.raw) || !Number.isSafeInteger(p.nonce) || p.nonce < 0 || !Number.isFinite(Date.parse(p.at)) || p.validUntil !== void 0 && (!Number.isSafeInteger(p.validUntil) || p.validUntil <= 0) || !["sent", "confirmed", "reverted", "unsent", "dropped", "expired"].includes(p.status) || p.cancel !== void 0 && (!/^0x[0-9a-f]{64}$/i.test(p.cancel?.hash) || !/^0x(?:[0-9a-f]{2})+$/i.test(p.cancel?.raw)))) throw new Error("invalid payment record");
+      return data.payments;
+    } catch (e) {
+      if (e.code === "ENOENT") return [];
+      throw new RemessoError("conflict", "the payment store cannot be read; restore it before paying so a retry cannot pay twice", { path, cause: String(e) });
+    }
+  };
+  return {
+    byKey: async (key, deployment2) => load().reverse().find((p) => p.key === key && p.deployment === deployment2),
+    since: async (since) => load().filter((p) => Date.parse(p.at) > since),
+    save: async (rec) => {
+      durableJson(path, { version: 1, payments: upsert(load(), rec) });
+    }
+  };
+}
+function fileRemittanceStore(path = join(homedir(), ".remesso-sdk", "remittances.json")) {
+  const address3 = (v) => typeof v === "string" && /^0x[\da-f]{40}$/i.test(v);
+  const hash4 = (v) => typeof v === "string" && /^0x[\da-f]{64}$/i.test(v);
+  const uint2 = (v) => typeof v === "string" && /^\d+$/.test(v);
+  const load = () => {
+    try {
+      const data = JSON.parse(readFileSync(path, "utf8"));
+      if (data.version !== 1 || !Array.isArray(data.remittances)) throw new Error("invalid remittance store format");
+      const keys = /* @__PURE__ */ new Set();
+      for (const r of data.remittances) {
+        if (!r || typeof r.key !== "string" || !r.key.trim() || typeof r.scope !== "string" || !r.scope || ![r.payer, r.to, r.token].every(address3) || ![r.amount, r.amountIn, r.fee].every(uint2) || r.approvalAmount !== void 0 && !uint2(r.approvalAmount) || r.approvalSkipped !== void 0 && r.approvalSkipped !== true || r.cancelReason !== void 0 && typeof r.cancelReason !== "string" || !Number.isSafeInteger(r.feeBps) || r.feeBps < 0 || r.feeBps > 1e4 || !Number.isSafeInteger(r.expiresAt) || !Number.isSafeInteger(r.firstRunAt) || r.firstRunAt <= 0 || !Number.isFinite(Date.parse(r.createdAt)) || r.validUntil !== void 0 && (!Number.isSafeInteger(r.validUntil) || r.validUntil <= 0) || r.scheduleId !== void 0 && !uint2(r.scheduleId) || r.creationBlock !== void 0 && !uint2(r.creationBlock) || r.paymentHash !== void 0 && !hash4(r.paymentHash) || r.requestId !== void 0 && (typeof r.requestId !== "string" || !/^[\da-f]{8}(?:-[\da-f]{4}){3}-[\da-f]{12}$/i.test(r.requestId)) || r.requestBound !== void 0 && typeof r.requestBound !== "boolean") throw new Error("invalid remittance record");
+        for (const step of [r.approval, r.creation, r.execution, r.cancellation]) if (step && (!hash4(step.hash) || typeof step.raw !== "string" || !/^0x(?:[\da-f]{2})+$/i.test(step.raw) || !Number.isSafeInteger(step.nonce) || step.nonce < 0)) throw new Error("invalid signed remittance step");
+        const key = JSON.stringify([r.scope, r.key]);
+        if (keys.has(key)) throw new Error("duplicate remittance key");
+        keys.add(key);
+      }
+      return data.remittances;
+    } catch (e) {
+      if (e.code === "ENOENT") return [];
+      throw new RemessoError("conflict", "the remittance store cannot be read; restore its history before sending", { path, cause: String(e) });
+    }
+  };
+  return {
+    get: async (key, scope) => load().find((r) => r.key === key && r.scope === scope),
+    list: async (scope) => load().filter((r) => r.scope === scope),
+    save: async (record) => durableJson(path, { version: 1, remittances: [...load().filter((r) => r.key !== record.key || r.scope !== record.scope), record] })
+  };
+}
+
+// ../packages/remesso-sdk/src/tools.ts
+var AGENT_TOOL_OUTPUT_SCHEMA = {
+  type: "object",
+  oneOf: [
+    { type: "object", properties: { ok: { const: true }, data: {}, sideEffects: { type: "string", enum: ["none", "possible"] } }, required: ["ok", "data", "sideEffects"], additionalProperties: false },
+    { type: "object", properties: { ok: { const: false }, error: { type: "object", properties: { code: { type: "string" }, message: { type: "string" }, retryable: { type: "boolean" }, sideEffects: { type: "string", enum: ["none", "unknown"] }, details: {} }, required: ["code", "message", "retryable", "sideEffects"], additionalProperties: false } }, required: ["ok", "error"], additionalProperties: false }
+  ]
+};
+var text = (maxLength = 256) => ({ type: "string", minLength: 1, maxLength });
+var address2 = { ...text(42), pattern: "^0x[0-9a-fA-F]{40}$" };
+var hash3 = { ...text(66), pattern: "^0x[0-9a-fA-F]{64}$" };
+var decimal = { ...text(100), pattern: "^\\d+(\\.\\d+)?$" };
+var uint = { ...text(78), pattern: "^[1-9]\\d*$" };
+var integer = { type: "integer", minimum: 1, maximum: Number.MAX_SAFE_INTEGER };
+var funding = { type: "string", enum: ["wallet", "policy"] };
+var object = (properties, required = []) => ({ type: "object", properties, required, additionalProperties: false });
+var invoiceSchema = object({
+  version: { const: 1 },
+  domain: object({ name: { const: "Remesso Invoice" }, version: { const: "1" }, chainId: { const: 42220 }, verifyingContract: address2 }, ["name", "version", "chainId", "verifyingContract"]),
+  message: object({
+    issuer: address2,
+    payer: address2,
+    recipient: address2,
+    token: address2,
+    amount: uint,
+    orderId: text(128),
+    nonce: hash3,
+    issuedAt: integer,
+    expiresAt: integer,
+    requestId: { type: "string", pattern: "^([0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12})?$" }
+  }, ["issuer", "payer", "recipient", "token", "amount", "orderId", "nonce", "issuedAt", "expiresAt", "requestId"]),
+  signature: { ...text(16386), pattern: "^0x([0-9a-fA-F]{2})+$" }
+}, ["version", "domain", "message", "signature"]);
+var terms = { funding, to: address2, amount: decimal, token: text(42), payer: address2, policyId: uint, requestId: text(36), idempotencyKey: text(128) };
+var proof = {
+  txHash: hash3,
+  from: address2,
+  to: address2,
+  token: text(42),
+  amount: decimal,
+  policyId: uint,
+  scheduleId: uint,
+  memo: { type: "string", maxLength: 32 },
+  finality: { type: "string", enum: ["included", "finalized"] }
+};
+function validate8(schema, value, path = "input") {
+  const fail2 = (why) => {
+    throw new RemessoError("invalid", `${path} ${why}`);
+  };
+  if ("const" in schema && value !== schema.const) fail2(`must equal ${schema.const}`);
+  if (schema.enum && !schema.enum.includes(value)) fail2("is not an accepted value");
+  if (schema.type === "object") {
+    if (!value || typeof value !== "object" || Array.isArray(value)) fail2("must be an object");
+    const v = value, fields = schema.properties;
+    for (const key of schema.required) if (!(key in v) || v[key] === void 0) fail2(`requires ${key}`);
+    for (const key of Object.keys(v)) {
+      if (!Object.hasOwn(fields, key)) fail2(`contains unknown field ${key}`);
+      validate8(fields[key], v[key], `${path}.${key}`);
+    }
+  } else if (schema.type === "string") {
+    if (typeof value !== "string") fail2("must be a string");
+    const s = value;
+    if (schema.minLength !== void 0 && s.length < Number(schema.minLength) || schema.maxLength !== void 0 && s.length > Number(schema.maxLength)) fail2("has an invalid length");
+    if (schema.pattern && !new RegExp(String(schema.pattern)).test(s)) fail2("has an invalid format");
+  } else if (schema.type === "integer") {
+    if (typeof value !== "number" || !Number.isSafeInteger(value) || value < Number(schema.minimum) || value > Number(schema.maximum)) fail2("must be an integer within the allowed bounds");
+  }
+}
+var PUBLIC_HOSTS = /* @__PURE__ */ new Set([new URL(deployment.app.origin).host, new URL(deployment.functions.base).host, "remesso.xyz", "remesso.crackedstudios.xyz", "celoscan.io"]);
+function redactUrls(text2) {
+  return text2.replace(/\bhttps?:\/\/[^\s"'<>)\]]+/gi, (url) => {
+    try {
+      const u = new URL(url);
+      if (PUBLIC_HOSTS.has(u.host) && !u.username && !u.password) return url;
+      const hidden = u.pathname !== "/" && u.pathname !== "" || u.search || u.hash || u.username || u.password;
+      return `${u.protocol}//${u.host}${hidden ? "/[redacted]" : ""}`;
+    } catch {
+      return "[redacted url]";
+    }
+  });
+}
+function toolJson(value) {
+  const secrets = /* @__PURE__ */ new Set(["account", "walletclient", "publicclient", "transport", "privatekey", "apikey", "secret", "password", "mnemonic", "seed", "authorization", "accesstoken", "refreshtoken", "raw", "serializedtransaction"]);
+  return value === void 0 ? null : JSON.parse(JSON.stringify(value, (key, item) => {
+    if (secrets.has(key.toLowerCase().replace(/[_-]/g, ""))) return void 0;
+    if (typeof item === "bigint") return item.toString();
+    if (typeof item === "string") return redactUrls(item).replace(/0x[0-9a-f]{200,}/gi, "[redacted bytes]");
+    return item;
+  }));
+}
+function toolError(error, attemptedWrite) {
+  const known = error instanceof RemessoError;
+  const code = known ? error.code : "internal";
+  const details = {};
+  if (known && error.details) {
+    for (const key of ["hash", "txHash", "nonce", "status", "policyId", "scheduleId"]) if (error.details[key] !== void 0) details[key] = error.details[key];
+  }
+  return { ok: false, error: {
+    code,
+    message: known ? toolJson(error.message) : "SDK operation failed; inspect the host's private logs for details",
+    retryable: ["http", "timeout", "no_gas"].includes(code),
+    sideEffects: attemptedWrite ? "unknown" : "none",
+    ...Object.keys(details).length ? { details: toolJson(details) } : {}
+  } };
+}
+function createAgentTools(client2, options = {}) {
+  function define(name, description, inputSchema, write2, execute) {
+    return {
+      name,
+      description,
+      inputSchema,
+      outputSchema: AGENT_TOOL_OUTPUT_SCHEMA,
+      annotations: { readOnlyHint: !write2, destructiveHint: write2, idempotentHint: true },
+      async execute(input) {
+        let attemptedWrite = false;
+        try {
+          validate8(inputSchema, input);
+          const args = structuredClone(input);
+          if (write2) {
+            const authorized = options.authorizeWrite ? await options.authorizeWrite({ name, input: structuredClone(args) }) : options.enableWrites === true;
+            if (authorized !== true) throw new RemessoError("refused", "the host has not authorized this payment operation");
+            attemptedWrite = true;
+          }
+          return { ok: true, data: toolJson(await execute(args)), sideEffects: write2 ? "possible" : "none" };
+        } catch (error) {
+          return toolError(error, attemptedWrite);
+        }
+      }
+    };
+  }
+  const tools = [
+    define(
+      "remesso_quote",
+      "Read-only quote and simulation. Amounts in the result are base-unit decimal strings; a quote reserves no funds.",
+      object(terms, ["funding", "to", "amount", "token"]),
+      false,
+      async (i) => await client2.remittances.quote(i)
+    ),
+    define(
+      "remesso_status",
+      "Read the durable operation for an existing key and verify its current chain state. Does not broadcast.",
+      object({ key: text(128), funding }, ["key"]),
+      false,
+      async (i) => await client2.remittances.get(i.key, { funding: i.funding })
+    ),
+    define(
+      "remesso_pending",
+      "Read saved unfinished payments for this signer. Does not create or broadcast payments.",
+      object({ funding }),
+      false,
+      async (i) => await client2.remittances.listPending(i)
+    ),
+    define(
+      "remesso_verify",
+      "Independently verify exact payment terms and canonical on-chain evidence; finalized is recommended for fulfillment.",
+      object(proof, ["txHash", "from", "to", "token", "amount"]),
+      false,
+      async (i) => await client2.receipts.verify(i)
+    ),
+    define(
+      "remesso_invoice_verify",
+      "Verify a signed invoice's recipient identity, terms, domain and expiry. This does not pay it.",
+      object({ invoice: invoiceSchema }, ["invoice"]),
+      false,
+      async (i) => await client2.invoices.verify(i.invoice)
+    ),
+    define(
+      "remesso_send",
+      "Pay exact terms from wallet or policy using one stable idempotency key. Retries MUST keep the same key and terms; requires host authorization.",
+      object({ ...terms, maxDebit: decimal, validUntil: integer, waitMs: { type: "integer", minimum: 1, maximum: 12e4 } }, ["funding", "to", "amount", "token", "idempotencyKey"]),
+      true,
+      async (i) => await client2.remittances.send(i)
+    ),
+    define(
+      "remesso_invoice_pay",
+      "Verify and pay a signed invoice. Its immutable reservation pins the signer and funding route; requires host authorization.",
+      object({ invoice: invoiceSchema, funding, policyId: uint, maxDebit: decimal, waitMs: { type: "integer", minimum: 1, maximum: 12e4 } }, ["invoice", "funding"]),
+      true,
+      async ({ invoice, ...i }) => await client2.invoices.pay(invoice, i)
+    ),
+    define(
+      "remesso_reconcile",
+      "Resume only an existing saved payment key; may rebroadcast signed bytes or continue saved steps. Requires host authorization.",
+      object({ key: text(128), funding, waitMs: { type: "integer", minimum: 1, maximum: 12e4 } }, ["key"]),
+      true,
+      async ({ key, ...i }) => await client2.remittances.reconcile(key, i)
+    )
+  ];
+  return {
+    tools,
+    list: () => tools.map(({ execute: _execute, ...definition }) => definition),
+    async call(name, input) {
+      const tool = tools.find((candidate) => candidate.name === name);
+      if (!tool) return toolError(new RemessoError("not_found", "unknown Remesso tool"), false);
+      return await tool.execute(input);
+    }
+  };
+}
+
+// src/payee-profile.mjs
+var IPFS_GATEWAY2 = "https://ipfs.io/ipfs/";
+function uriSource2(uri) {
+  const u = String(uri).trim();
+  if (u.startsWith("data:")) {
+    const comma = u.indexOf(",");
+    if (comma < 0) return { kind: "unsupported", reason: "a data: URI without data" };
+    const meta = u.slice(5, comma);
+    const body = u.slice(comma + 1);
+    try {
+      const json = /;base64$/i.test(meta) ? Buffer.from(body, "base64").toString("utf8") : decodeURIComponent(body);
+      return { kind: "inline", json };
+    } catch {
+      return { kind: "unsupported", reason: "a data: URI that doesn't decode" };
+    }
+  }
+  if (u.startsWith("https://")) return { kind: "fetch", url: u };
+  if (u.startsWith("ipfs://")) {
+    const path = u.slice(7).replace(/^ipfs\//, "");
+    if (!/^[a-zA-Z0-9]+(\/[^\s?#]*)?$/.test(path)) return { kind: "unsupported", reason: "an ipfs: URI that isn't a CID" };
+    return { kind: "fetch", url: `${IPFS_GATEWAY2}${path}` };
+  }
+  return { kind: "unsupported", reason: `${u.split(":")[0] || "an empty"} URIs aren't read` };
+}
+var CAIP22 = /^eip155:\d{1,12}$/;
+var ADDRESS2 = /^0x[0-9a-fA-F]{40}$/;
+function payeeProfile2(doc) {
+  if (!doc || typeof doc !== "object") return { profile: null, note: "the registration file isn't a JSON object" };
+  const list = Array.isArray(doc.services) ? doc.services : Array.isArray(doc.endpoints) ? doc.endpoints : [];
+  const entry = list.find((s) => s && typeof s === "object" && s.name === "remesso");
+  if (!entry) return { profile: null, note: "no remesso entry in its services" };
+  if (String(entry.version ?? "") !== "1") {
+    return { profile: null, note: `a remesso entry of version ${String(entry.version ?? "none")}, which this reader doesn't implement` };
+  }
+  const assets = (Array.isArray(entry.assets) ? entry.assets : []).filter((a) => a && typeof a === "object" && CAIP22.test(String(a.network)) && ADDRESS2.test(String(a.asset))).map((a) => ({ network: a.network, asset: a.asset }));
+  const ref = entry.reference;
+  return {
+    profile: {
+      version: "1",
+      endpoint: typeof entry.endpoint === "string" && entry.endpoint.startsWith("https://") ? entry.endpoint : null,
+      assets,
+      reference: ref && typeof ref.required === "boolean" ? { required: ref.required } : null
+    }
+  };
+}
+
+// src/safe-fetch.mjs
+import { lookup } from "node:dns/promises";
+import { request } from "node:https";
+import { isIP } from "node:net";
+function v4Octets(ip) {
+  const parts = ip.split(".");
+  if (parts.length !== 4 || !parts.every((p) => /^\d{1,3}$/.test(p))) return null;
+  const o = parts.map(Number);
+  return o.every((n) => n <= 255) ? o : null;
+}
+function v4Public([a, b, c]) {
+  if (a === 0 || a === 10 || a === 127) return false;
+  if (a === 100 && b >= 64 && b <= 127) return false;
+  if (a === 169 && b === 254) return false;
+  if (a === 172 && b >= 16 && b <= 31) return false;
+  if (a === 192 && b === 0 && (c === 0 || c === 2)) return false;
+  if (a === 192 && b === 88 && c === 99) return false;
+  if (a === 192 && b === 168) return false;
+  if (a === 198 && (b === 18 || b === 19)) return false;
+  if (a === 198 && b === 51 && c === 100) return false;
+  if (a === 203 && b === 0 && c === 113) return false;
+  return a < 224;
+}
+function v6Groups(raw) {
+  let s = raw.split("%")[0].toLowerCase();
+  const last = s.lastIndexOf(":");
+  const tail = s.slice(last + 1);
+  if (tail.includes(".")) {
+    const o = v4Octets(tail);
+    if (!o) return null;
+    s = `${s.slice(0, last + 1)}${(o[0] << 8 | o[1]).toString(16)}:${(o[2] << 8 | o[3]).toString(16)}`;
+  }
+  const halves = s.split("::");
+  if (halves.length > 2) return null;
+  const head = halves[0] ? halves[0].split(":") : [];
+  const rest = halves.length === 2 && halves[1] ? halves[1].split(":") : [];
+  const fill = halves.length === 2 ? 8 - head.length - rest.length : 0;
+  if (fill < 0 || halves.length === 2 && fill < 1) return null;
+  const groups = [...head, ...Array(fill).fill("0"), ...rest];
+  if (groups.length !== 8 || !groups.every((g) => /^[0-9a-f]{1,4}$/.test(g))) return null;
+  return groups.map((g) => parseInt(g, 16));
+}
+function v6Public(g) {
+  const zero = (n) => g.slice(0, n).every((x) => x === 0);
+  const inner = () => [g[6] >> 8, g[6] & 255, g[7] >> 8, g[7] & 255];
+  if (zero(8)) return false;
+  if (zero(7) && g[7] === 1) return false;
+  if (zero(5) && g[5] === 65535) return v4Public(inner());
+  if (zero(6)) return v4Public(inner());
+  if (g[0] === 100 && g[1] === 65435 && g.slice(2, 6).every((x) => x === 0)) return v4Public(inner());
+  if (g[0] === 256 && g.slice(1, 4).every((x) => x === 0)) return false;
+  if (g[0] === 8193 && (g[1] === 3512 || g[1] === 0)) return false;
+  if (g[0] === 8194) return false;
+  if ((g[0] & 65024) === 64512) return false;
+  if ((g[0] & 65472) === 65152 || (g[0] & 65472) === 65216) return false;
+  return (g[0] & 65280) !== 65280;
+}
+function isPublicIp(ip) {
+  if (ip.includes(":")) {
+    const g = v6Groups(ip.replace(/^\[|\]$/g, ""));
+    return g !== null && v6Public(g);
+  }
+  const o = v4Octets(ip);
+  return o !== null && v4Public(o);
+}
+var MAX_BYTES = 256 * 1024;
+var TIMEOUT_MS = 5e3;
+async function safeFetchText(raw) {
+  const url = new URL(raw);
+  if (url.protocol !== "https:") throw new Error("only https URLs are fetched");
+  if (url.username || url.password) throw new Error("a URL with credentials in it is refused");
+  if (url.port && url.port !== "443") throw new Error("only the default HTTPS port is fetched");
+  const host = url.hostname.replace(/^\[|\]$/g, "");
+  const found = isIP(host) ? [{ address: host, family: isIP(host) }] : await lookup(host, { all: true, verbatim: true });
+  if (!found.length) throw new Error(`${host} doesn't resolve`);
+  const bad = found.find((a) => !isPublicIp(a.address));
+  if (bad) throw new Error(`${host} resolves to ${bad.address}, which isn't a public address`);
+  const pinned = found[0];
+  const pin = (_name, opts, cb) => opts?.all ? cb(null, [pinned]) : cb(null, pinned.address, pinned.family);
+  return await new Promise((resolve, reject) => {
+    const req = request(url, { method: "GET", headers: { accept: "application/json, text/plain;q=0.5", "user-agent": "remesso-wallet" }, lookup: pin }, (res) => {
+      const status = res.statusCode ?? 0;
+      if (status < 200 || status >= 300) {
+        res.resume();
+        reject(new Error(`${host} answered ${status}${status >= 300 && status < 400 ? ", a redirect, which isn't followed" : ""}`));
+        return;
+      }
+      const chunks = [];
+      let size5 = 0;
+      res.on("data", (c) => {
+        size5 += c.length;
+        if (size5 > MAX_BYTES) req.destroy(new Error(`${host} sent more than ${MAX_BYTES / 1024} KB`));
+        else chunks.push(c);
+      });
+      res.on("end", () => resolve(Buffer.concat(chunks).toString("utf8")));
+      res.on("error", reject);
+    });
+    const timer = setTimeout(() => req.destroy(new Error(`${host} didn't answer within ${TIMEOUT_MS / 1e3}s`)), TIMEOUT_MS);
+    req.on("error", (e) => {
+      clearTimeout(timer);
+      reject(e);
+    });
+    req.on("close", () => clearTimeout(timer));
+    req.end();
+  });
+}
+
+// node_modules/viem/_esm/accounts/generatePrivateKey.js
+init_secp256k1();
+init_toHex();
+function generatePrivateKey() {
+  return toHex(secp256k1.utils.randomPrivateKey());
+}
+
+// node_modules/viem/_esm/accounts/privateKeyToAccount.js
+init_secp256k1();
+init_toHex();
+
+// node_modules/viem/_esm/accounts/toAccount.js
+init_address();
+init_isAddress();
+function toAccount(source) {
+  if (typeof source === "string") {
+    if (!isAddress(source, { strict: false }))
+      throw new InvalidAddressError({ address: source });
+    return {
+      address: source,
+      type: "json-rpc"
+    };
+  }
+  if (!isAddress(source.address, { strict: false }))
+    throw new InvalidAddressError({ address: source.address });
+  return {
+    address: source.address,
+    nonceManager: source.nonceManager,
+    sign: source.sign,
+    signAuthorization: source.signAuthorization,
+    signMessage: source.signMessage,
+    signTransaction: source.signTransaction,
+    signTypedData: source.signTypedData,
+    source: "custom",
+    type: "local"
+  };
+}
+
+// node_modules/viem/_esm/accounts/privateKeyToAccount.js
+init_publicKeyToAddress();
+
+// node_modules/viem/_esm/accounts/utils/sign.js
+init_secp256k1();
+init_isHex();
+init_toBytes();
+init_toHex();
+var extraEntropy = false;
+async function sign({ hash: hash4, privateKey, to = "object" }) {
+  const { r, s, recovery } = secp256k1.sign(hash4.slice(2), privateKey.slice(2), {
+    lowS: true,
+    extraEntropy: isHex(extraEntropy, { strict: false }) ? hexToBytes(extraEntropy) : extraEntropy
+  });
+  const signature = {
+    r: numberToHex(r, { size: 32 }),
+    s: numberToHex(s, { size: 32 }),
+    v: recovery ? 28n : 27n,
+    yParity: recovery
+  };
+  return (() => {
+    if (to === "bytes" || to === "hex")
+      return serializeSignature({ ...signature, to });
+    return signature;
+  })();
+}
+
+// node_modules/viem/_esm/accounts/utils/signAuthorization.js
+init_hashAuthorization();
+async function signAuthorization2(parameters) {
+  const { chainId, nonce, privateKey, to = "object" } = parameters;
+  const address3 = parameters.contractAddress ?? parameters.address;
+  const signature = await sign({
+    hash: hashAuthorization({ address: address3, chainId, nonce }),
+    privateKey,
+    to
+  });
+  if (to === "object")
+    return {
+      address: address3,
+      chainId,
+      nonce,
+      ...signature
+    };
+  return signature;
+}
+
+// node_modules/viem/_esm/accounts/utils/signMessage.js
+init_hashMessage();
+async function signMessage2({ message, privateKey }) {
+  return await sign({ hash: hashMessage(message), privateKey, to: "hex" });
+}
+
+// node_modules/viem/_esm/accounts/utils/signTransaction.js
+init_keccak256();
+init_serializeTransaction();
+async function signTransaction2(parameters) {
+  const { privateKey, transaction, serializer = serializeTransaction } = parameters;
+  const signableTransaction = (() => {
+    if (transaction.type === "eip4844")
+      return {
+        ...transaction,
+        sidecars: false
+      };
+    return transaction;
+  })();
+  const signature = await sign({
+    hash: keccak256(await serializer(signableTransaction)),
+    privateKey
+  });
+  return await serializer(transaction, signature);
+}
+
+// node_modules/viem/_esm/accounts/utils/signTypedData.js
+init_hashTypedData();
+async function signTypedData2(parameters) {
+  const { privateKey, ...typedData } = parameters;
+  return await sign({
+    hash: hashTypedData(typedData),
+    privateKey,
+    to: "hex"
+  });
+}
+
+// node_modules/viem/_esm/accounts/privateKeyToAccount.js
+function privateKeyToAccount(privateKey, options = {}) {
+  const { nonceManager } = options;
+  const publicKey = toHex(secp256k1.getPublicKey(privateKey.slice(2), false));
+  const address3 = publicKeyToAddress(publicKey);
+  const account2 = toAccount({
+    address: address3,
+    nonceManager,
+    async sign({ hash: hash4 }) {
+      return sign({ hash: hash4, privateKey, to: "hex" });
+    },
+    async signAuthorization(authorization) {
+      return signAuthorization2({ ...authorization, privateKey });
+    },
+    async signMessage({ message }) {
+      return signMessage2({ message, privateKey });
+    },
+    async signTransaction(transaction, { serializer } = {}) {
+      return signTransaction2({ privateKey, transaction, serializer });
+    },
+    async signTypedData(typedData) {
+      return signTypedData2({ ...typedData, privateKey });
+    }
+  });
+  return {
+    ...account2,
+    publicKey,
+    source: "privateKey"
+  };
+}
+
 // node_modules/zod/v3/external.js
 var external_exports = {};
 __export(external_exports, {
@@ -19948,10 +26640,10 @@ var util;
       return obj[e];
     });
   };
-  util2.objectKeys = typeof Object.keys === "function" ? (obj) => Object.keys(obj) : (object) => {
+  util2.objectKeys = typeof Object.keys === "function" ? (obj) => Object.keys(obj) : (object2) => {
     const keys = [];
-    for (const key in object) {
-      if (Object.prototype.hasOwnProperty.call(object, key)) {
+    for (const key in object2) {
+      if (Object.prototype.hasOwnProperty.call(object2, key)) {
         keys.push(key);
       }
     }
@@ -22182,9 +28874,9 @@ var ZodObject = class _ZodObject extends ZodType {
   _getCached() {
     if (this._cached !== null)
       return this._cached;
-    const shape = this._def.shape();
-    const keys = util.objectKeys(shape);
-    this._cached = { shape, keys };
+    const shape2 = this._def.shape();
+    const keys = util.objectKeys(shape2);
+    this._cached = { shape: shape2, keys };
     return this._cached;
   }
   _parse(input) {
@@ -22199,7 +28891,7 @@ var ZodObject = class _ZodObject extends ZodType {
       return INVALID;
     }
     const { status, ctx } = this._processInputParams(input);
-    const { shape, keys: shapeKeys } = this._getCached();
+    const { shape: shape2, keys: shapeKeys } = this._getCached();
     const extraKeys = [];
     if (!(this._def.catchall instanceof ZodNever && this._def.unknownKeys === "strip")) {
       for (const key in ctx.data) {
@@ -22210,7 +28902,7 @@ var ZodObject = class _ZodObject extends ZodType {
     }
     const pairs = [];
     for (const key of shapeKeys) {
-      const keyValidator = shape[key];
+      const keyValidator = shape2[key];
       const value = ctx.data[key];
       pairs.push({
         key: { status: "valid", value: key },
@@ -22416,27 +29108,27 @@ var ZodObject = class _ZodObject extends ZodType {
     });
   }
   pick(mask) {
-    const shape = {};
+    const shape2 = {};
     for (const key of util.objectKeys(mask)) {
       if (mask[key] && this.shape[key]) {
-        shape[key] = this.shape[key];
+        shape2[key] = this.shape[key];
       }
     }
     return new _ZodObject({
       ...this._def,
-      shape: () => shape
+      shape: () => shape2
     });
   }
   omit(mask) {
-    const shape = {};
+    const shape2 = {};
     for (const key of util.objectKeys(this.shape)) {
       if (!mask[key]) {
-        shape[key] = this.shape[key];
+        shape2[key] = this.shape[key];
       }
     }
     return new _ZodObject({
       ...this._def,
-      shape: () => shape
+      shape: () => shape2
     });
   }
   /**
@@ -22483,27 +29175,27 @@ var ZodObject = class _ZodObject extends ZodType {
     return createZodEnum(util.objectKeys(this.shape));
   }
 };
-ZodObject.create = (shape, params) => {
+ZodObject.create = (shape2, params) => {
   return new ZodObject({
-    shape: () => shape,
+    shape: () => shape2,
     unknownKeys: "strip",
     catchall: ZodNever.create(),
     typeName: ZodFirstPartyTypeKind.ZodObject,
     ...processCreateParams(params)
   });
 };
-ZodObject.strictCreate = (shape, params) => {
+ZodObject.strictCreate = (shape2, params) => {
   return new ZodObject({
-    shape: () => shape,
+    shape: () => shape2,
     unknownKeys: "strict",
     catchall: ZodNever.create(),
     typeName: ZodFirstPartyTypeKind.ZodObject,
     ...processCreateParams(params)
   });
 };
-ZodObject.lazycreate = (shape, params) => {
+ZodObject.lazycreate = (shape2, params) => {
   return new ZodObject({
-    shape,
+    shape: shape2,
     unknownKeys: "strip",
     catchall: ZodNever.create(),
     typeName: ZodFirstPartyTypeKind.ZodObject,
@@ -25816,14 +32508,14 @@ var ExactEvmSchemeV1 = class {
   async createPaymentPayload(x402Version2, paymentRequirements) {
     const selectedV1 = paymentRequirements;
     const nonce = createNonce();
-    const now = Math.floor(Date.now() / 1e3);
+    const now2 = Math.floor(Date.now() / 1e3);
     const authorization = {
       from: this.signer.address,
       to: getAddress(selectedV1.payTo),
       value: selectedV1.maxAmountRequired,
-      validAfter: (now - 600).toString(),
+      validAfter: (now2 - 600).toString(),
       // 10 minutes before
-      validBefore: (now + selectedV1.maxTimeoutSeconds).toString(),
+      validBefore: (now2 + selectedV1.maxTimeoutSeconds).toString(),
       nonce
     };
     const signature = await this.signAuthorization(authorization, selectedV1);
@@ -25878,10 +32570,10 @@ var ExactEvmSchemeV1 = class {
 
 // node_modules/@x402/evm/dist/esm/chunk-XP6HEYCL.mjs
 async function createPermit2PayloadForProxy(proxyAddress, signer, x402Version2, paymentRequirements) {
-  const now = Math.floor(Date.now() / 1e3);
+  const now2 = Math.floor(Date.now() / 1e3);
   const nonce = createPermit2Nonce();
   const validAfter = "0";
-  const deadline = (now + paymentRequirements.maxTimeoutSeconds).toString();
+  const deadline = (now2 + paymentRequirements.maxTimeoutSeconds).toString();
   const permit2Authorization = {
     from: signer.address,
     permitted: {
@@ -25942,13 +32634,13 @@ async function createPermit2Payload(signer, x402Version2, paymentRequirements) {
 // node_modules/@x402/evm/dist/esm/chunk-DLPUE5VK.mjs
 async function createEIP3009Payload(signer, x402Version2, paymentRequirements) {
   const nonce = createNonce();
-  const now = Math.floor(Date.now() / 1e3);
+  const now2 = Math.floor(Date.now() / 1e3);
   const authorization = {
     from: signer.address,
     to: getAddress(paymentRequirements.payTo),
     value: paymentRequirements.amount,
     validAfter: "0",
-    validBefore: (now + paymentRequirements.maxTimeoutSeconds).toString(),
+    validBefore: (now2 + paymentRequirements.maxTimeoutSeconds).toString(),
     nonce
   };
   const signature = await signEIP3009Authorization(signer, authorization, paymentRequirements);
@@ -26079,15 +32771,15 @@ function registerExactEvmScheme(client2, config) {
 }
 
 // src/server.mjs
-import { mkdirSync, readFileSync, writeFileSync, existsSync, chmodSync } from "node:fs";
-import { homedir } from "node:os";
-import { join } from "node:path";
+import { mkdirSync as mkdirSync2, readFileSync as readFileSync2, writeFileSync as writeFileSync2, existsSync, chmodSync as chmodSync2, openSync as openSync2, closeSync as closeSync2, fsyncSync as fsyncSync2, renameSync as renameSync2 } from "node:fs";
+import { homedir as homedir2 } from "node:os";
+import { join as join2 } from "node:path";
 var RPC = process.env.REMESSO_RPC_URL || "https://forno.celo.org";
 var FUNCTIONS = process.env.REMESSO_FUNCTIONS_URL || "https://engaboljiqudghvzmebq.supabase.co/functions/v1";
 var APP = "https://remesso.xyz";
-var ALLOWANCE = process.env.REMESSO_ALLOWANCE_ADDRESS || "0xA6351fAeEb097698289586C4D6188530300DB209";
+var ALLOWANCE2 = process.env.REMESSO_ALLOWANCE_ADDRESS || "0xA6351fAeEb097698289586C4D6188530300DB209";
 var ERC8004 = "0x8004A169FB4a3325136EB29fA0ceB6D2e539a432";
-var HOME = process.env.REMESSO_AGENT_HOME || join(homedir(), ".remesso-agent");
+var HOME = process.env.REMESSO_AGENT_HOME || join2(homedir2(), ".remesso-agent");
 var TOKENS = {
   USDT: { address: "0x48065fbBE25f71C9282ddf5e1cD6D6A887483D5e", decimals: 6, feeCurrency: "0x0E2A3e05bc9A16F5292A6170456A710cb89C6f72", label: "USD\u20AE" },
   USDC: { address: "0xcebA9300f2b948710d2653dD7B07f33A8B32118C", decimals: 6, feeCurrency: "0x2F25deB3848C207fc8E0c34035B3Ba7fC157602B", label: "USDC" },
@@ -26095,7 +32787,6 @@ var TOKENS = {
 };
 var tokenKey = (s) => String(s || "").toUpperCase().replace("\u20AE", "T").replace("USD T", "USDT");
 var tokenByAddress = (a) => Object.entries(TOKENS).find(([, t]) => t.address.toLowerCase() === String(a).toLowerCase());
-var ATTRIBUTION = "0x72656d6573736f2c63656c6f5f356364333563613535626166190080218021802180218021802180218021";
 var ERC20 = parseAbi([
   "function balanceOf(address) view returns (uint256)",
   "function allowance(address,address) view returns (uint256)"
@@ -26120,13 +32811,12 @@ var AA = parseAbi([
   "error RecipientNotAllowed()",
   "error SafeERC20FailedOperation(address token)"
 ]);
-var [PAID] = parseAbi(["event Paid(uint256 indexed id, address indexed to, uint256 amount, bytes32 memo)"]);
-var REGISTRY = parseAbi([
+var REGISTRY2 = parseAbi([
   "function getAgentWallet(uint256) view returns (address)",
   "function tokenURI(uint256) view returns (string)"
 ]);
-var DECLINE_DOMAIN = { name: "Remesso", version: "1", chainId: 42220 };
-var DECLINE_TYPES = {
+var DECLINE_DOMAIN2 = { name: "Remesso", version: "1", chainId: 42220 };
+var DECLINE_TYPES2 = {
   PaymentRequestAction: [
     { name: "request", type: "string" },
     { name: "action", type: "string" },
@@ -26134,25 +32824,25 @@ var DECLINE_TYPES = {
   ]
 };
 function ensureHome() {
-  mkdirSync(HOME, { recursive: true, mode: 448 });
+  mkdirSync2(HOME, { recursive: true, mode: 448 });
 }
 function loadKey() {
   ensureHome();
-  const f = join(HOME, "agent-key.json");
+  const f = join2(HOME, "agent-key.json");
   if (!existsSync(f)) {
-    writeFileSync(f, JSON.stringify({ privateKey: generatePrivateKey(), createdAt: (/* @__PURE__ */ new Date()).toISOString() }), { mode: 384 });
+    writeFileSync2(f, JSON.stringify({ privateKey: generatePrivateKey(), createdAt: (/* @__PURE__ */ new Date()).toISOString() }), { mode: 384 });
   }
-  chmodSync(f, 384);
-  return JSON.parse(readFileSync(f, "utf8")).privateKey;
+  chmodSync2(f, 384);
+  return JSON.parse(readFileSync2(f, "utf8")).privateKey;
 }
-var DEPLOYMENT = `${celo.id}:${ALLOWANCE.toLowerCase()}`;
+var DEPLOYMENT2 = `${celo.id}:${ALLOWANCE2.toLowerCase()}`;
 var MAINNET_ALLOWANCE = "0xa6351faeeb097698289586c4d6188530300db209";
-var cfgFile = () => join(HOME, "config.json");
+var cfgFile = () => join2(HOME, "config.json");
 function loadState() {
   ensureHome();
   let s = {};
   try {
-    s = JSON.parse(readFileSync(cfgFile(), "utf8"));
+    s = JSON.parse(readFileSync2(cfgFile(), "utf8"));
   } catch {
   }
   if (s.version === 2) return s;
@@ -26160,24 +32850,24 @@ function loadState() {
   if (Array.isArray(s.policies)) {
     v2.deployments[`${celo.id}:${MAINNET_ALLOWANCE}`] = { policies: s.policies, ...s.scannedTo != null ? { scannedTo: s.scannedTo } : {} };
   }
-  writeFileSync(cfgFile(), JSON.stringify(v2, null, 2), { mode: 384 });
+  writeFileSync2(cfgFile(), JSON.stringify(v2, null, 2), { mode: 384 });
   return v2;
 }
 function loadConfig() {
-  return loadState().deployments[DEPLOYMENT] ?? { policies: [] };
+  return loadState().deployments[DEPLOYMENT2] ?? { policies: [] };
 }
 function saveConfig(c) {
   const s = loadState();
-  s.deployments[DEPLOYMENT] = c;
-  writeFileSync(cfgFile(), JSON.stringify(s, null, 2), { mode: 384 });
+  s.deployments[DEPLOYMENT2] = c;
+  writeFileSync2(cfgFile(), JSON.stringify(s, null, 2), { mode: 384 });
 }
 var account = privateKeyToAccount(loadKey());
 var client = createClient({ chain: celo, transport: http(RPC), account });
 var pub = {
   readContract: (a) => readContract(client, a),
   getBalance: (a) => getBalance(client, a),
-  simulateContract: (a) => simulateContract(client, a),
-  waitForTransactionReceipt: (a) => waitForTransactionReceipt(client, a)
+  getGasPrice: () => getGasPrice(client),
+  simulateContract: (a) => simulateContract(client, a)
 };
 var chainCheck = null;
 function assertChain() {
@@ -26189,25 +32879,23 @@ function assertChain() {
   });
   return chainCheck;
 }
-function memo32(memo) {
-  if (!memo) return `0x${"0".repeat(64)}`;
-  const bytes = new TextEncoder().encode(memo);
-  if (bytes.length > 32) {
-    throw new Error(`the memo is ${bytes.length} bytes and the limit is 32 (a plain letter is 1 byte, an accented letter 2, an emoji 4)`);
-  }
-  return `0x${Buffer.from(bytes).toString("hex").padEnd(64, "0")}`;
-}
 var ok = (obj) => ({ content: [{ type: "text", text: typeof obj === "string" ? obj : JSON.stringify(obj, null, 2) }] });
-var fail = (msg) => ({ isError: true, content: [{ type: "text", text: msg }] });
+var fail = (msg) => ({ isError: true, content: [{ type: "text", text: redactUrls(String(msg)) }] });
 var fmt = (units, t) => `${formatUnits(units, t.decimals)} ${t.label}`;
 function needAllowance() {
-  if (!ALLOWANCE) return "RemessoAgentAllowance is not deployed yet (REMESSO_ALLOWANCE_ADDRESS is unset), so this agent cannot spend. It can still receive and ask to be paid.";
+  if (!ALLOWANCE2) return "RemessoAgentAllowance is not deployed yet (REMESSO_ALLOWANCE_ADDRESS is unset), so this agent cannot spend. It can still receive and ask to be paid.";
+  return null;
+}
+function needSpending() {
+  const missing = needAllowance();
+  if (missing) return missing;
+  if (ALLOWANCE2.toLowerCase() !== ALLOWANCE.toLowerCase()) return `SDK spending requires the canonical allowance contract ${ALLOWANCE}; REMESSO_ALLOWANCE_ADDRESS=${ALLOWANCE2} is unsupported. No transaction was signed.`;
   return null;
 }
 async function readPolicy(id) {
   const [p, remaining] = await Promise.all([
-    pub.readContract({ address: ALLOWANCE, abi: AA, functionName: "policy", args: [BigInt(id)] }),
-    pub.readContract({ address: ALLOWANCE, abi: AA, functionName: "remainingToday", args: [BigInt(id)] })
+    pub.readContract({ address: ALLOWANCE2, abi: AA, functionName: "policy", args: [BigInt(id)] }),
+    pub.readContract({ address: ALLOWANCE2, abi: AA, functionName: "remainingToday", args: [BigInt(id)] })
   ]);
   return { ...p, remaining };
 }
@@ -26217,10 +32905,10 @@ async function describePolicy(id) {
   const t = entry ? entry[1] : { decimals: 6, label: p.token };
   const [bal, allow] = await Promise.all([
     pub.readContract({ address: p.token, abi: ERC20, functionName: "balanceOf", args: [p.owner] }),
-    pub.readContract({ address: p.token, abi: ERC20, functionName: "allowance", args: [p.owner, ALLOWANCE] })
+    pub.readContract({ address: p.token, abi: ERC20, functionName: "allowance", args: [p.owner, ALLOWANCE2] })
   ]);
-  const now = BigInt(Math.floor(Date.now() / 1e3));
-  const active = !p.revoked && now < p.expiresAt && p.agent.toLowerCase() === account.address.toLowerCase();
+  const now2 = BigInt(Math.floor(Date.now() / 1e3));
+  const active = !p.revoked && now2 < p.expiresAt && p.agent.toLowerCase() === account.address.toLowerCase();
   let spendable = p.remaining;
   if (p.perPayment < spendable) spendable = p.perPayment;
   if (bal < spendable) spendable = bal;
@@ -26245,13 +32933,13 @@ var strip = ({ _raw, ...rest }) => rest;
 var SCAN_LIMIT = 500;
 async function discoverPolicies() {
   const cfg = loadConfig();
-  const next = Number(await pub.readContract({ address: ALLOWANCE, abi: AA, functionName: "nextPolicyId" }));
+  const next = Number(await pub.readContract({ address: ALLOWANCE2, abi: AA, functionName: "nextPolicyId" }));
   const start = (cfg.scannedTo ?? 0) + 1;
   const end = Math.min(next - 1, start + SCAN_LIMIT - 1);
   const found = [];
   for (let i = start; i <= end; i += 25) {
     const ids = Array.from({ length: Math.min(25, end - i + 1) }, (_, k) => i + k);
-    const ps = await Promise.all(ids.map((id) => pub.readContract({ address: ALLOWANCE, abi: AA, functionName: "policy", args: [BigInt(id)] })));
+    const ps = await Promise.all(ids.map((id) => pub.readContract({ address: ALLOWANCE2, abi: AA, functionName: "policy", args: [BigInt(id)] })));
     ps.forEach((p, k) => {
       if (p.agent.toLowerCase() === account.address.toLowerCase()) found.push(ids[k]);
     });
@@ -26273,7 +32961,7 @@ async function policyFor(symbol) {
   }
   throw new Error(`no active policy for ${want.label}. Run the "wallet" tool: it gives the setup link for your human and says what is missing.`);
 }
-function refusal(e) {
+function refusal2(e) {
   const name = e?.cause?.data?.errorName ?? e?.data?.errorName ?? e?.cause?.cause?.data?.errorName;
   return {
     NotAgent: "the policy names a different agent",
@@ -26313,7 +33001,7 @@ async function readiness() {
     const { p, t: t2 } = d._raw;
     const owner = await Promise.all([
       pub.readContract({ address: p.token, abi: ERC20, functionName: "balanceOf", args: [p.owner] }),
-      pub.readContract({ address: p.token, abi: ERC20, functionName: "allowance", args: [p.owner, ALLOWANCE] })
+      pub.readContract({ address: p.token, abi: ERC20, functionName: "allowance", args: [p.owner, ALLOWANCE2] })
     ]);
     const canMove = owner[0] < owner[1] ? owner[0] : owner[1];
     add(
@@ -26325,21 +33013,22 @@ async function readiness() {
     const left = Number(p.expiresAt) - Math.floor(Date.now() / 1e3);
     if (left < 3 * DAY) warnings.push(`The policy ends ${d.expires}; your human can create a new one on the setup page before then.`);
   }
-  const celoBal = await pub.getBalance({ address: account.address });
+  const [celoBal, gasPrice] = await Promise.all([pub.getBalance({ address: account.address }), pub.getGasPrice()]);
   const sym = d ? d.token : "USDT";
   const t = TOKENS[sym] ?? TOKENS.USDT;
   const tokBal = await pub.readContract({ address: t.address, abi: ERC20, functionName: "balanceOf", args: [account.address] });
-  const gas = celoBal > parseUnits("0.002", 18) ? `${formatUnits(celoBal, 18)} CELO` : tokBal >= 10000n ? `paid in ${t.label} (${fmt(tokBal, t)} held)` : null;
+  const perPayment = gasNeeded(PAY_GAS, gasPrice, "payment");
+  const gas = celoBal >= perPayment ? `${formatUnits(celoBal, 18)} CELO, about ${celoBal / (perPayment > 0n ? perPayment : 1n)} payments at today's gas price` : tokBal >= 10000n ? `paid in ${t.label} (${fmt(tokBal, t)} held)` : null;
   add(
     Boolean(gas),
     "Network fees",
-    gas ?? "the agent holds no CELO and almost no tokens",
-    `Send the agent (${account.address}) 0.10 ${t.label}, or 0.05 CELO. It pays fees in either.`
+    gas ?? `the agent holds ${formatUnits(celoBal, 18)} CELO, under the ${formatUnits(perPayment, 18)} a payment needs, and almost no ${t.label}`,
+    `Send the agent (${account.address}) 0.10 CELO, or 0.10 ${t.label}. It pays fees in either.`
   );
   if (d) {
     try {
       await pub.simulateContract({
-        address: ALLOWANCE,
+        address: ALLOWANCE2,
         abi: AA,
         functionName: "pay",
         args: [BigInt(d.policyId), account.address, 1n, `0x${"0".repeat(64)}`],
@@ -26347,7 +33036,7 @@ async function readiness() {
       });
       add(true, "Test payment", "a 1-unit payment simulates cleanly (nothing was sent)");
     } catch (e) {
-      const why = refusal(e);
+      const why = refusal2(e);
       const allowlistOnly = e?.cause?.data?.errorName === "RecipientNotAllowed";
       add(
         allowlistOnly,
@@ -26367,33 +33056,110 @@ async function readiness() {
     _policies: all.map(strip)
   };
 }
-var sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-async function gasOptions(tokenSym) {
-  const celoBal = await pub.getBalance({ address: account.address });
-  if (celoBal > parseUnits("0.002", 18)) return {};
-  const t = TOKENS[tokenKey(tokenSym)];
-  const bal = await pub.readContract({ address: t.address, abi: ERC20, functionName: "balanceOf", args: [account.address] });
-  if (bal >= 10000n) return { feeCurrency: t.feeCurrency };
-  throw new Error(`the agent wallet ${account.address} has no gas: send it about 0.05 CELO, or 0.10 ${t.label}.`);
-}
-var payFile = () => join(HOME, "payments.json");
-var KEEP_MS = 30 * 864e5;
+var sleep3 = (ms) => new Promise((r) => setTimeout(r, ms));
 var WAIT_MS = 45e3;
-var REPEAT_MS = 10 * 6e4;
-var REPEAT_BLOCKS = 600n;
-function loadPayments() {
+var legacyPayFile = () => join2(HOME, "payments.json");
+var sdkStore = fileStore(join2(HOME, "sdk-payments.json"));
+function legacyPayments() {
+  let data;
   try {
-    return JSON.parse(readFileSync(payFile(), "utf8")).payments ?? [];
-  } catch {
-    return [];
+    data = JSON.parse(readFileSync2(legacyPayFile(), "utf8"));
+  } catch (e) {
+    if (e.code === "ENOENT") return [];
+    throw new RemessoError("conflict", "The legacy payment history cannot be read; restore it before paying so earlier keys cannot pay twice.");
   }
+  if (data.version !== 1 || !Array.isArray(data.payments)) throw new RemessoError("conflict", "The legacy payment journal has an invalid format; restore it before paying.");
+  return data.payments.map((p) => {
+    try {
+      const t = token(TOKENS[p.token]?.address ?? p.token);
+      if (!p || typeof p.deployment !== "string" || !(p.key === null || typeof p.key === "string") || !/^\d+$/.test(String(p.policyId)) || !/^\d+$/.test(p.units) || !/^0x[\da-f]{40}$/i.test(p.to) || !/^0x[\da-f]{64}$/i.test(p.hash) || !/^0x[\da-f]{64}$/i.test(p.memo) || !/^0x(?:[\da-f]{2})+$/i.test(p.raw) || !Number.isSafeInteger(p.nonce) || p.nonce < 0 || !Number.isFinite(Date.parse(p.at)) || !["sent", "confirmed", "reverted", "unsent", "dropped"].includes(p.status)) throw new Error("invalid record");
+      return { ...p, policyId: String(p.policyId), to: getAddress(p.to), token: getAddress(t.address) };
+    } catch {
+      throw new RemessoError("conflict", "A legacy payment record is invalid; preserve and restore the journal before spending.");
+    }
+  });
 }
-function recordPayment(rec) {
-  const cutoff = Date.now() - KEEP_MS;
-  const rest = loadPayments().filter((p) => p.hash !== rec.hash && !(rec.key && p.key === rec.key && p.deployment === rec.deployment) && Date.parse(p.at) > cutoff);
-  ensureHome();
-  writeFileSync(payFile(), JSON.stringify({ version: 1, payments: [...rest, rec].slice(-1e3) }, null, 2), { mode: 384 });
+async function compatibleHistory() {
+  const old = legacyPayments(), scoped = [], policies = /* @__PURE__ */ new Map();
+  for (const record of old) {
+    if (record.deployment.toLowerCase() === `${celo.id}:${ALLOWANCE.toLowerCase()}`) {
+      if (!policies.has(record.policyId)) policies.set(record.policyId, readContract(client, { address: ALLOWANCE, abi: AA, functionName: "policy", args: [BigInt(record.policyId)] }));
+      const policy = await policies.get(record.policyId);
+      if (policy.agent.toLowerCase() === account.address.toLowerCase()) scoped.push({
+        ...record,
+        owner: policy.owner,
+        deployment: `${celo.id}:${ALLOWANCE.toLowerCase()}:${account.address.toLowerCase()}`
+      });
+    }
+    scoped.push(record);
+  }
+  return scoped;
 }
+var compatibleStore = {
+  async byKey(key, deployment2) {
+    const current = await sdkStore.byKey(key, deployment2);
+    if (current) return current;
+    return (await compatibleHistory()).reverse().find((r) => r.key === key && r.deployment.toLowerCase() === deployment2.toLowerCase());
+  },
+  async since(since) {
+    const current = await sdkStore.since(since), hashes = new Set(current.map((r) => r.hash.toLowerCase()));
+    return [...current, ...(await compatibleHistory()).filter((r) => Date.parse(r.at) > since && !hashes.has(r.hash.toLowerCase()))];
+  },
+  async save(record) {
+    legacyPayments();
+    await sdkStore.save(record);
+  }
+};
+var invoiceStore = {
+  async reserve(invoiceId, reservation) {
+    const path = join2(HOME, "sdk-invoices.json");
+    let data;
+    try {
+      data = JSON.parse(readFileSync2(path, "utf8"));
+    } catch (error) {
+      if (error.code !== "ENOENT") throw new RemessoError("conflict", "Invoice reservations cannot be read; restore them before paying.");
+      data = { version: 1, reservations: {} };
+    }
+    if (data.version !== 1 || !data.reservations || typeof data.reservations !== "object" || Array.isArray(data.reservations)) throw new RemessoError("conflict", "The invoice reservation store has an invalid format.");
+    const canonical = {
+      funding: reservation.funding,
+      signer: getAddress(reservation.signer).toLowerCase(),
+      payer: getAddress(reservation.payer).toLowerCase(),
+      key: reservation.key,
+      ...reservation.policyId === void 0 ? {} : { policyId: reservation.policyId }
+    };
+    const old = data.reservations[invoiceId];
+    if (old && JSON.stringify(old) !== JSON.stringify(canonical)) throw new RemessoError("key_reused", "This invoice is reserved to another funding route, signer or policy.");
+    if (old) return;
+    data.reservations[invoiceId] = canonical;
+    const temporary = `${path}.${process.pid}.tmp`;
+    const file = openSync2(temporary, "w", 384);
+    try {
+      writeFileSync2(file, JSON.stringify(data, null, 2));
+      fsyncSync2(file);
+    } finally {
+      closeSync2(file);
+    }
+    renameSync2(temporary, path);
+    chmodSync2(path, 384);
+    const directory = openSync2(HOME, "r");
+    try {
+      fsyncSync2(directory);
+    } catch (error) {
+      if (!["EINVAL", "ENOTSUP", "EISDIR", "EPERM"].includes(error.code)) throw error;
+    } finally {
+      closeSync2(directory);
+    }
+  }
+};
+var sdk = createRemesso({
+  account,
+  rpcUrl: RPC,
+  functionsUrl: FUNCTIONS,
+  store: compatibleStore,
+  invoiceStore,
+  remittanceStore: fileRemittanceStore(join2(HOME, "sdk-remittances.json"))
+});
 var queue = Promise.resolve();
 function serial(fn) {
   const run = queue.then(fn, fn);
@@ -26401,165 +33167,54 @@ function serial(fn) {
   });
   return run;
 }
-var explorer = (h) => `https://celoscan.io/tx/${h}`;
-var sentLine = (rec) => {
-  const t = TOKENS[rec.token];
-  return { sent: `${formatUnits(BigInt(rec.units), t.decimals)} ${t.label}`, to: rec.to, policyId: rec.policyId, tx: rec.hash, explorer: explorer(rec.hash) };
-};
-async function signPay(d, to, units, memoHex) {
-  const gas = await gasOptions(d.token);
-  const args = [BigInt(d.policyId), to, units, memoHex];
-  await pub.simulateContract({ address: ALLOWANCE, abi: AA, functionName: "pay", args, account, ...gas });
-  const request2 = await prepareTransactionRequest(client, {
-    account,
-    to: ALLOWANCE,
-    data: concat([encodeFunctionData({ abi: AA, functionName: "pay", args }), ATTRIBUTION]),
-    ...gas
+var explorer2 = (h) => `https://celoscan.io/tx/${h}`;
+function paymentReply(paid, keyed = true) {
+  if (paid.status !== "confirmed") return ok({
+    status: "pending",
+    tx: paid.hash,
+    explorer: paid.explorer,
+    next: keyed ? "Not confirmed yet. Retry with the SAME idempotency_key and terms; never use a new key for this payment." : "Not confirmed yet. Check this transaction before paying again: without an idempotency_key, a new call is a new payment. Pass one next time so a retry can't pay twice."
   });
-  const raw = await signTransaction(client, { ...request2, account });
-  return { hash: keccak256(raw), raw, nonce: request2.nonce };
+  const entry = tokenByAddress(paid.token), label = entry?.[1].label ?? token(paid.token).symbol;
+  return ok({
+    sent: `${formatUnits(paid.amount, token(paid.token).decimals)} ${label}`,
+    to: paid.to,
+    policyId: paid.policyId <= BigInt(Number.MAX_SAFE_INTEGER) ? Number(paid.policyId) : String(paid.policyId),
+    tx: paid.hash,
+    explorer: paid.explorer,
+    ...paid.repeat ? { repeat: "this key had already paid; nothing new was sent" } : {}
+  });
 }
-function newRecord(key, d, to, units, memoHex, signed) {
+function paymentFailure(error) {
+  const code = error instanceof RemessoError ? error.code : "internal";
   return {
-    key: key ?? null,
-    deployment: DEPLOYMENT,
-    policyId: d.policyId,
-    to,
-    units: units.toString(),
-    token: d.token,
-    memo: memoHex,
-    hash: signed.hash,
-    nonce: signed.nonce,
-    raw: signed.raw,
-    status: "sent",
-    at: (/* @__PURE__ */ new Date()).toISOString()
+    ...fail(`Payment operation needs attention (${code}): ${error instanceof RemessoError ? error.message : refusal2(error)}. Keep the SAME key and inspect its original transaction before retrying.`),
+    structuredContent: { ok: false, error: { code, retryable: ["http", "timeout", "no_gas"].includes(code), sideEffects: "unknown" } }
   };
 }
-async function broadcastAndWait(rec) {
-  try {
-    await sendRawTransaction(client, { serializedTransaction: rec.raw });
-  } catch {
-  }
-  try {
-    const receipt = await pub.waitForTransactionReceipt({ hash: rec.hash, timeout: WAIT_MS });
-    const done = { ...rec, status: receipt.status === "success" ? "confirmed" : "reverted" };
-    recordPayment(done);
-    return done;
-  } catch {
-    return rec;
-  }
-}
-async function reconcile(rec) {
-  try {
-    const r = await getTransactionReceipt(client, { hash: rec.hash });
-    return { ...rec, status: r.status === "success" ? "confirmed" : "reverted" };
-  } catch {
-  }
-  try {
-    await getTransaction(client, { hash: rec.hash });
-    return { ...rec, status: "sent" };
-  } catch {
-  }
-  const used = await getTransactionCount(client, { address: account.address, blockTag: "latest" });
-  if (used <= rec.nonce) return { ...rec, status: "unsent" };
-  const head = await getBlockNumber(client);
-  const logs = await getLogs(client, {
-    address: ALLOWANCE,
-    event: PAID,
-    args: { id: BigInt(rec.policyId), to: rec.to },
-    fromBlock: head > 4999n ? head - 4999n : 0n,
-    toBlock: head
-  });
-  const hit = logs.find((l) => l.args.amount === BigInt(rec.units) && l.args.memo === rec.memo);
-  return hit ? { ...rec, status: "confirmed", hash: hit.transactionHash } : { ...rec, status: "dropped" };
-}
-async function recentRepeat(d, to, units, memoHex) {
-  const since = Date.now() - REPEAT_MS;
-  const local = loadPayments().find((p) => p.deployment === DEPLOYMENT && p.policyId === d.policyId && p.to === to && p.units === units.toString() && p.memo === memoHex && Date.parse(p.at) > since && (p.status === "sent" || p.status === "confirmed"));
-  if (local) return local;
-  const head = await getBlockNumber(client);
-  const logs = await getLogs(client, {
-    address: ALLOWANCE,
-    event: PAID,
-    args: { id: BigInt(d.policyId), to },
-    fromBlock: head > REPEAT_BLOCKS ? head - REPEAT_BLOCKS : 0n,
-    toBlock: head
-  });
-  const hit = logs.find((l) => l.args.amount === units && l.args.memo === memoHex);
-  return hit ? { hash: hit.transactionHash } : null;
-}
 async function payInternal(d, to, units, memo) {
-  await assertChain();
-  const memoHex = memo32(memo);
-  const rec = newRecord(null, d, to, units, memoHex, await signPay(d, to, units, memoHex));
-  recordPayment(rec);
-  const done = await broadcastAndWait(rec);
-  if (done.status !== "confirmed") throw new Error(`top-up ${done.status === "reverted" ? "reverted" : "not confirmed yet"}: ${explorer(rec.hash)}`);
-  return rec.hash;
+  const missing = needSpending();
+  if (missing) throw new RemessoError("refused", missing);
+  const scope = `${celo.id}:${ALLOWANCE.toLowerCase()}:${account.address.toLowerCase()}`;
+  const open = (await sdkStore.since(0)).filter((r) => r.deployment === scope && r.key?.startsWith("x402-topup:") && (r.status === "sent" || r.status === "unsent")).at(-1);
+  const paid = open ? await sdk.pay({ policyId: open.policyId, to: open.to, amount: formatUnits(BigInt(open.units), token(open.token).decimals), token: open.token, memo, idempotencyKey: open.key, waitMs: WAIT_MS }) : await sdk.pay({ policyId: d.policyId, to, amount: formatUnits(units, d._raw.t.decimals), token: TOKENS[d.token].address, memo, idempotencyKey: `x402-topup:${Date.now()}`, waitMs: WAIT_MS });
+  if (paid.status !== "confirmed") throw new RemessoError("timeout", `top-up is pending: ${explorer2(paid.hash)}. Call pay_x402 again to resume it; it won't top up twice.`, { hash: paid.hash });
+  return paid.hash;
 }
-async function payTool({ to, amount, token, memo, idempotency_key: key, allow_repeat }) {
-  const missing = needAllowance();
+async function payTool({ to, amount, token: token2, memo, idempotency_key, allow_repeat }) {
+  const missing = needSpending();
   if (missing) return fail(missing);
-  if (!isAddress(to, { strict: false })) return fail(`not an address: ${to}`);
-  if (key === "") return fail("idempotency_key can't be empty: leave it out, or give one per payment. Nothing sent.");
-  const dest = getAddress(to);
-  const t = TOKENS[token];
-  let units, memoHex;
   try {
-    units = parseUnits(amount, t.decimals);
-    memoHex = memo32(memo);
-    await assertChain();
-  } catch (e) {
-    return fail(`Nothing sent: ${String(e?.shortMessage || e?.message || e)}`);
-  }
-  let prior = key ? loadPayments().find((p) => p.key === key && p.deployment === DEPLOYMENT) : null;
-  if (prior) {
-    if (prior.to !== dest || prior.units !== units.toString() || prior.token !== token || prior.memo !== memoHex) {
-      return fail(`idempotency_key "${key}" was already used for a different payment (${sentLine(prior).sent} to ${prior.to}). Use a new key for a new payment. Nothing sent.`);
-    }
-    try {
-      prior = await reconcile(prior);
-    } catch (e) {
-      return fail(`Couldn't check this key's earlier payment (${explorer(prior.hash)}): ${String(e?.shortMessage || e?.message || e)}. Nothing new was sent; try again shortly.`);
-    }
-    recordPayment(prior);
-    if (prior.status === "unsent") {
-      prior = await broadcastAndWait(prior);
-      if (prior.status === "confirmed") return ok({ ...sentLine(prior), note: "sent now: this key's first attempt never reached the network" });
-    }
-    if (prior.status === "confirmed") return ok({ ...sentLine(prior), repeat: "this key had already paid; nothing new was sent" });
-    if (prior.status === "reverted") return fail(`This key's payment reverted on-chain, so nothing was paid: ${explorer(prior.hash)}. To try again, use a new key.`);
-    if (prior.status === "sent") return ok({ status: "pending", tx: prior.hash, explorer: explorer(prior.hash), next: "Not confirmed yet. Call pay again with the same idempotency_key in a minute; don't use a new key." });
-  }
-  try {
-    const d = await policyFor(token);
-    if (!key && !allow_repeat) {
-      const dup = await recentRepeat(d, dest, units, memoHex);
-      if (dup) {
-        return fail(`An identical payment (${amount} ${t.label} to ${dest}${memo ? `, memo "${memo}"` : ""}) went out in the last 10 minutes: ${explorer(dup.hash)}. Nothing sent. If you really mean to pay again, call pay with allow_repeat: true; to make retries safe, pass an idempotency_key.`);
-      }
-    }
-    if (units > d._raw.spendable) return fail(`${amount} ${t.label} is over what this policy allows right now (${d.largestPaymentNow}). Nothing sent.`);
-    const rec = newRecord(key, d, dest, units, memoHex, await signPay(d, dest, units, memoHex));
-    recordPayment(rec);
-    const done = await broadcastAndWait(rec);
-    if (done.status === "reverted") return fail(`The transaction reverted on-chain, so nothing was paid: ${explorer(done.hash)}`);
-    if (done.status !== "confirmed") {
-      return ok({
-        status: "pending",
-        tx: done.hash,
-        explorer: explorer(done.hash),
-        next: key ? "Not confirmed yet. Call pay again with the same idempotency_key to get the outcome; don't use a new key." : "Not confirmed yet. Check the explorer link before paying again, and pass an idempotency_key next time."
-      });
-    }
-    return ok(sentLine(done));
-  } catch (e) {
-    return fail(`Nothing sent: ${refusal(e)}`);
+    const t = TOKENS[tokenKey(token2)];
+    if (!t) throw new RemessoError("invalid", "token must be USDT, USDC or USA\u20AE");
+    return paymentReply(await sdk.pay({ to, amount, token: t.address, memo, idempotencyKey: idempotency_key, allowRepeat: allow_repeat, waitMs: WAIT_MS }), idempotency_key != null);
+  } catch (error) {
+    return paymentFailure(error);
   }
 }
 var server = new McpServer({
   name: "remesso-wallet",
-  version: "0.5.0",
+  version: "0.6.0",
   icons: [{ src: `${APP}/icon.png`, mimeType: "image/png", sizes: ["512x512"] }]
 });
 server.tool(
@@ -26609,7 +33264,7 @@ server.tool(
       } catch {
       }
       if (Date.now() + 5e3 > deadline) break;
-      await sleep(5e3);
+      await sleep3(5e3);
     }
     return ok({
       found: false,
@@ -26649,7 +33304,7 @@ server.tool(
     return ok(list.length ? list : "no policy names this agent yet: run the wallet tool for the setup link");
   }
 );
-var UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+var UUID3 = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 async function requestPayment(body) {
   const res = await fetch(`${FUNCTIONS}/request-payment`, {
     method: "POST",
@@ -26669,45 +33324,23 @@ async function payingWallets() {
   return [...byOwner.values()];
 }
 async function payRequestTool(args) {
+  const missing = needSpending();
+  if (missing) return fail(missing);
   const id = String(args.request_id).trim().toLowerCase();
-  if (!UUID.test(id)) return fail("request_id must be a payment request's id, from payment_requests. Nothing sent.");
-  if (args.memo) return fail("A request's payment carries the request's reference as its memo, so leave memo out. Nothing sent.");
-  let r;
+  if (!UUID3.test(id)) return fail("request_id must be a payment request UUID. Nothing signed.");
+  if (args.memo) return fail("A request payment carries its own reference; leave memo out. Nothing signed.");
   try {
-    r = await requestPayment({ action: "status", id });
-  } catch (e) {
-    return fail(`Couldn't read request ${id}: ${String(e?.message || e)}. Nothing sent.`);
+    const req = await sdk.requests.get(id);
+    if (args.to && getAddress(args.to) !== getAddress(req.requested.to)) throw new RemessoError("refused", "the recipient differs from the request");
+    const chosen = args.token !== void 0 ? token(TOKENS[tokenKey(args.token)]?.address ?? args.token) : null;
+    const t = req.requested.token ? token(req.requested.token) : chosen ?? token("USDT");
+    if (args.amount !== void 0 && req.requested.amount !== null && parseUnits(args.amount, t.decimals) !== parseUnits(req.requested.amount, t.decimals)) throw new RemessoError("refused", "the amount differs from the request");
+    if (chosen && chosen.address.toLowerCase() !== t.address.toLowerCase()) throw new RemessoError("refused", "the token differs from the request");
+    if (req.requested.intervalSeconds != null || req.requested.runs != null && req.requested.runs !== 1) throw new RemessoError("refused", "recurring requests require a payer-signed schedule, not a one-off policy payment");
+    return paymentReply(await sdk.requests.pay(id, { amount: args.amount, token: t.address, idempotencyKey: args.idempotency_key ?? `request:${id}`, allowRepeat: args.allow_repeat, waitMs: WAIT_MS }));
+  } catch (error) {
+    return paymentFailure(error);
   }
-  if (!r.ok) return fail(`Couldn't read request ${id} (${r.status}): ${JSON.stringify(r.out).slice(0, 200)}. Nothing sent.`);
-  const req = r.out;
-  if (!["pending", "accepted", "accepted_with_changes"].includes(req.status)) return fail(`Request ${id} is ${req.status}, so it isn't paid. Nothing sent.`);
-  const asked = req.requested ?? {};
-  if (args.to && String(args.to).toLowerCase() !== String(asked.to).toLowerCase()) {
-    return fail(`Request ${id} asks to be paid at ${asked.to}, not ${args.to}. Nothing sent.`);
-  }
-  const amount = args.amount ?? asked.amount;
-  if (!amount) return fail(`Request ${id} names no amount, so pass one.`);
-  const token = args.token ?? (asked.token ? tokenKey(asked.token) : "USDT");
-  if (!TOKENS[token]) return fail(`Request ${id} asks for ${asked.token}; this wallet pays USDT, USDC or USA\u20AE. Nothing sent.`);
-  if (req.payer) {
-    let d;
-    try {
-      d = await policyFor(token);
-    } catch (e) {
-      return fail(`Nothing sent: ${refusal(e)}`);
-    }
-    if (d._raw.p.owner.toLowerCase() !== String(req.payer).toLowerCase()) {
-      return fail(`Request ${id} was sent to ${req.payer}, not to the wallet this agent pays from (${d._raw.p.owner}). Nothing sent.`);
-    }
-  }
-  return payTool({
-    to: asked.to,
-    amount,
-    token,
-    memo: req.reference,
-    idempotency_key: args.idempotency_key ?? `request:${id}`,
-    allow_repeat: args.allow_repeat
-  });
 }
 server.tool(
   "pay",
@@ -26757,7 +33390,7 @@ server.tool(
     const missing = needAllowance();
     if (missing) return fail(missing);
     const id = String(request_id).trim().toLowerCase();
-    if (!UUID.test(id)) return fail("request_id must be a payment request's id, from payment_requests.");
+    if (!UUID3.test(id)) return fail("request_id must be a payment request's id, from payment_requests.");
     try {
       let under = null;
       for (const w of await payingWallets()) {
@@ -26770,8 +33403,8 @@ server.tool(
       if (!under) return fail(`Request ${id} isn't waiting for any wallet this agent pays from.`);
       const expiry = Math.floor(Date.now() / 1e3) + 600;
       const signature = await account.signTypedData({
-        domain: DECLINE_DOMAIN,
-        types: DECLINE_TYPES,
+        domain: DECLINE_DOMAIN2,
+        types: DECLINE_TYPES2,
         primaryType: "PaymentRequestAction",
         message: { request: id, action: "decline", expiry: BigInt(expiry) }
       });
@@ -26793,8 +33426,8 @@ server.tool(
     token: z.enum(["USDT", "USDC", "USAT"]).default("USAT")
   },
   // Serial with pay: a top-up signs with the same key and nonce sequence.
-  ({ url, method, body, max_amount, token }) => serial(async () => {
-    const t = TOKENS[token];
+  ({ url, method, body, max_amount, token: token2 }) => serial(async () => {
+    const t = TOKENS[token2];
     const maxUnits = parseUnits(max_amount, t.decimals);
     const init = { method, headers: { "content-type": "application/json" }, body: method === "POST" ? body ?? "{}" : void 0 };
     try {
@@ -26810,9 +33443,9 @@ server.tool(
       const float = await pub.readContract({ address: t.address, abi: ERC20, functionName: "balanceOf", args: [account.address] });
       let topUp = null;
       if (float < price) {
-        const missing = needAllowance();
+        const missing = needSpending();
         if (missing) return fail(`the agent holds ${fmt(float, t)}, the price is ${fmt(price, t)}, and ${missing}`);
-        const d = await policyFor(token);
+        const d = await policyFor(token2);
         let want = price - float + 20000n;
         if (want > d._raw.spendable) want = price - float;
         if (want > d._raw.spendable) return fail(`needs ${fmt(price - float, t)} from the policy; it allows ${d.largestPaymentNow} right now.`);
@@ -26853,12 +33486,12 @@ server.tool(
     every: z.enum(["week", "fortnight", "month", "quarter"]).optional(),
     note: z.string().max(120).optional()
   },
-  async ({ payer, amount, token, every, note }) => {
+  async ({ payer, amount, token: token2, every, note }) => {
     if (!isAddress(payer, { strict: false })) return fail(`not an address: ${payer}`);
     const res = await fetch(`${FUNCTIONS}/request-payment`, {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ payer, to: account.address, amount, token, every, note, from: `${hostName()} agent` })
+      body: JSON.stringify({ payer, to: account.address, amount, token: token2, every, note, from: `${hostName()} agent` })
     });
     const out = await res.json().catch(() => ({}));
     return res.ok ? ok(out) : fail(`request-payment answered ${res.status}: ${JSON.stringify(out)}`);
@@ -26866,11 +33499,11 @@ server.tool(
 );
 async function readPayeeProfile(agentId) {
   try {
-    const uri = await pub.readContract({ address: ERC8004, abi: REGISTRY, functionName: "tokenURI", args: [BigInt(agentId)] });
-    const src = uriSource(uri);
+    const uri = await pub.readContract({ address: ERC8004, abi: REGISTRY2, functionName: "tokenURI", args: [BigInt(agentId)] });
+    const src = uriSource2(uri);
     if (src.kind === "unsupported") return { profile: null, note: `its registration URI is ${src.reason}` };
     const json = src.kind === "inline" ? src.json : await safeFetchText(src.url);
-    return payeeProfile(JSON.parse(json));
+    return payeeProfile2(JSON.parse(json));
   } catch (e) {
     return { profile: null, note: `its registration file couldn't be read: ${String(e?.shortMessage || e?.message || e).slice(0, 160)}` };
   }
@@ -26881,7 +33514,7 @@ server.tool(
   { agent_id: z.number().int().nonnegative() },
   async ({ agent_id }) => {
     const [w, read] = await Promise.all([
-      pub.readContract({ address: ERC8004, abi: REGISTRY, functionName: "getAgentWallet", args: [BigInt(agent_id)] }),
+      pub.readContract({ address: ERC8004, abi: REGISTRY2, functionName: "getAgentWallet", args: [BigInt(agent_id)] }),
       readPayeeProfile(agent_id)
     ]);
     if (/^0x0{40}$/i.test(w)) return fail(`agent ${agent_id} has no agentWallet set, so don't pay it`);
@@ -26895,6 +33528,19 @@ server.tool(
     });
   }
 );
+var agentTools = createAgentTools(sdk, { enableWrites: process.env.REMESSO_ENABLE_AGENT_TOOLS_WRITES === "1" });
+for (const definition of agentTools.tools) {
+  const schema = definition.inputSchema;
+  const shape2 = Object.fromEntries(Object.entries(schema.properties).map(([key, json]) => [key, {
+    json,
+    required: schema.required.includes(key),
+    check: () => null
+  }]));
+  server.tool(definition.name, definition.description, shape2, async (args) => {
+    const result = await definition.execute(args);
+    return { ...ok(result), structuredContent: result, ...result.ok ? {} : { isError: true } };
+  }, { outputSchema: definition.outputSchema, annotations: definition.annotations });
+}
 await server.connect();
 /*! Bundled license information:
 

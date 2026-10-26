@@ -5,6 +5,7 @@
 #   skills/{remesso,remesso-x402,remesso-wallet}  ->  plugin/skills/
 #   mcp/dist/server.mjs (npm run build in mcp/)   ->  plugin/mcp/server.mjs
 #   mcp/src, scripts, package.json, lockfile      ->  plugin/mcp/ (readable source, to rebuild and compare)
+#   the SDK source the wallet's bundle reads      ->  plugin/packages/remesso-sdk/src/ (same relative path)
 #   web/app/icon.png, LICENSE                     ->  plugin/
 #
 # and the npm package for Codex, Cursor and other MCP hosts from the same files:
@@ -24,6 +25,18 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
+# The SDK files the wallet's bundle is built from, as esbuild resolves them:
+# the dev tool, CLI and Postgres adapter aren't among them and don't ship.
+sdk_inputs() {
+  local meta
+  meta="$(mktemp)"
+  (cd mcp && node_modules/.bin/esbuild src/server.mjs --bundle --alias:viem=viem --platform=node --format=esm \
+    --target=node20 --metafile="$meta" --outfile=/dev/null --log-level=error)
+  node -e 'const m = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8"));
+    for (const p of Object.keys(m.inputs).sort()) if (p.startsWith("../packages/remesso-sdk/src/")) console.log(p.slice(3));' "$meta"
+  rm -f "$meta"
+}
+
 assemble() {
   local out="$1"
   mkdir -p "$out/skills" "$out/mcp/src" "$out/.claude-plugin"
@@ -35,7 +48,16 @@ assemble() {
     [ -d "skills/$s/scripts" ] && cp -R "skills/$s/scripts" "$out/skills/$s/"
   done
   cp mcp/dist/server.mjs "$out/mcp/server.mjs"
-  cp mcp/src/server.mjs mcp/src/mcp.mjs "$out/mcp/src/"
+  rm -rf "$out/mcp/src" && mkdir -p "$out/mcp/src" && cp mcp/src/*.mjs "$out/mcp/src/"
+  # The wallet imports the SDK's source by relative path; this keeps that
+  # path working in plugin/, so `npm ci && npm run build` there is complete.
+  rm -rf "$out/packages"
+  for f in $(sdk_inputs); do
+    mkdir -p "$out/$(dirname "$f")"
+    cp "$f" "$out/$f"
+  done
+  # Its "sideEffects": false is what lets esbuild leave unused SDK modules out.
+  cp packages/remesso-sdk/package.json "$out/packages/remesso-sdk/package.json"
   cp mcp/package.json mcp/package-lock.json "$out/mcp/"
   mkdir -p "$out/mcp/scripts" && cp mcp/scripts/strip-bytecode.mjs "$out/mcp/scripts/"
   cp web/app/icon.png "$out/.claude-plugin/icon.png"
