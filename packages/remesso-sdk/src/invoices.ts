@@ -1,7 +1,7 @@
 /// Signed, exact one-off invoices. Their signature authorizes invoice terms,
 /// never a transfer: paying still needs a wallet or a delegated policy.
 import { formatUnits, hashTypedData, parseAbi, toHex, verifyTypedData, zeroAddress, type Address, type Hex } from "viem";
-import type { Ctx } from "./context.js";
+import { atBlock, type Ctx } from "./context.js";
 import { CHAIN_ID, checksum, EXECUTOR, token as tokenOf, toUnits } from "./deployment.js";
 import { RemessoError } from "./errors.js";
 import { memo32, priorPayment } from "./payments.js";
@@ -277,7 +277,7 @@ export function makeInvoices(ctx: Ctx, deps: { requests: Requests; remittances: 
         // to it: a subscription's run of the same amount is not this invoice.
         throw new RemessoError("conflict", "an invoice without a request is settled only by a policy payment carrying its reference (invoiceReference)");
       }
-      const block = await ctx.pub.getBlock({ blockNumber: payment.blockNumber });
+      const block = await atBlock(() => ctx.pub.getBlock({ blockNumber: payment.blockNumber }));
       if (!block.hash || !same(block.hash, payment.blockHash)) throw new RemessoError("conflict", "the invoice payment block is no longer canonical");
       if (block.timestamp + BigInt(SKEW_S) < BigInt(expected.issuedAt) || block.timestamp >= BigInt(expected.expiresAt)) throw new RemessoError("refused", "the payment was not included during the invoice's validity window");
       return { invoiceId: expected.id, orderId: expected.orderId, payment };

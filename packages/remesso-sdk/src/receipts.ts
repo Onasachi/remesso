@@ -7,7 +7,7 @@ import {
   zeroAddress,
 } from "viem";
 import { allowanceAbi, executorAbi } from "./abi.js";
-import { type Ctx, receiptOf } from "./context.js";
+import { atBlock, type Ctx, receiptOf } from "./context.js";
 import { ALLOWANCE, CHAIN_ID, checksum, EXECUTOR, token as tokenOf, toUnits } from "./deployment.js";
 import { RemessoError } from "./errors.js";
 import { memo32 } from "./payments.js";
@@ -107,13 +107,14 @@ export function makeReceipts(ctx: Ctx) {
     if (!hashOf(receipt.blockHash) || typeof receipt.blockNumber !== "bigint") throw new RemessoError("conflict", "the receipt is not included in a block");
 
     const assertCanonical = async () => {
-      const block = await ctx.pub.getBlock({ blockNumber: receipt.blockNumber });
+      // The receipt can come from a node ahead of the one answering these.
+      const block = await atBlock(() => ctx.pub.getBlock({ blockNumber: receipt.blockNumber }));
       if (block.number !== receipt.blockNumber || !hashOf(block.hash) || !same(block.hash, receipt.blockHash)) throw new RemessoError("conflict", "the payment's block is no longer canonical; verify it again", { txHash: input.txHash });
     };
     await assertCanonical();
     const proofs: PaymentProof[] = [];
-    const readPolicy = (id: bigint) => ctx.pub.readContract({ address: ALLOWANCE, abi: allowanceAbi, functionName: "policy", args: [id], blockNumber: receipt.blockNumber });
-    const readSchedule = (id: bigint) => ctx.pub.readContract({ address: EXECUTOR, abi: executorAbi, functionName: "getSchedule", args: [id], blockNumber: receipt.blockNumber });
+    const readPolicy = (id: bigint) => atBlock(() => ctx.pub.readContract({ address: ALLOWANCE, abi: allowanceAbi, functionName: "policy", args: [id], blockNumber: receipt.blockNumber }));
+    const readSchedule = (id: bigint) => atBlock(() => ctx.pub.readContract({ address: EXECUTOR, abi: executorAbi, functionName: "getSchedule", args: [id], blockNumber: receipt.blockNumber }));
     const policies = new Map<bigint, ReturnType<typeof readPolicy>>();
     const schedules = new Map<bigint, ReturnType<typeof readSchedule>>();
 

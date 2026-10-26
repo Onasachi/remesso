@@ -62,3 +62,4 @@ The payer's signature is the authority. The contract checks every payment agains
 - **[Core concepts](./concepts.md):** schedules, the executor, policies, requests, events and finality.
 - **[Use cases](./use-cases/index.md):** subscriptions, payroll, remittances, an allowance and an AI agent's budget, built end to end.
 - **[API reference](./reference/client.md):** every option, method and return value.
+- **[Build with AI](./build-with-ai.md):** these docs as a skill for Claude Code, Codex and Cursor, or as one text file for any chat.

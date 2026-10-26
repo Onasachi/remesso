@@ -71,6 +71,8 @@ function chain() {
       runsExecuted: 0, active: true, cancelled: false, expiresAt: BigInt(now() + 80_000) },
     allowance: 0n,
     runs: [] as unknown[],
+    /// How many reads pinned to a block reach a node that hasn't got it yet.
+    behind: 0,
   };
   const pub = createPublicClient({ chain: celo, transport: custom({ request: async ({ method, params }) => {
     const p = params as unknown[];
@@ -97,7 +99,11 @@ function chain() {
     getBlockNumber: async () => state.head,
     getContractEvents: async () => state.runs,
     simulateContract: async ({ functionName }: { functionName: string }) => { state.simulate(functionName); return {}; },
-    readContract: async ({ functionName }: { functionName: string }) => {
+    readContract: async ({ functionName, blockNumber }: { functionName: string; blockNumber?: bigint }) => {
+      if (blockNumber !== undefined && state.behind > 0) {
+        state.behind--;
+        throw new Error("RPC Request failed. Details: block is out of range");
+      }
       switch (functionName) {
         case "getSchedule": return state.schedule;
         case "allowance": return state.allowance;
@@ -427,4 +433,25 @@ Deno.test("schedule state from before a receipt we hold is no basis for cancelli
   // Before: it decided from block 100 and signed a cancellation.
   assertEquals([result.status, result.stage], ["pending", "execution"]);
   assertEquals([(await wallets.get(r.key, r.scope))?.cancellation, c.state.prepared.length], [undefined, 0]);
+});
+
+// From the first wallet-funded run on mainnet (2026-10-26): forno answered the
+// head from one node and the call pinned to it from another, a block behind.
+
+Deno.test("a schedule read that reaches a node behind its block is read again, not thrown", async () => {
+  const c = chain(), wallets = memoryRemittanceStore(), ctx = context(c, memoryStore(), wallets);
+  const r = walletRecord(remittanceScope(ctx), { scheduleId: "7", creationBlock: "100" });
+  await wallets.save(r); mineWallet(c, r);
+  c.state.allowance = 2n ** 256n - 1n;
+  c.state.behind = 2;
+  const wallet = makeWalletRemittances(ctx, { store: wallets, ...unusedRequests });
+  const input = { to: recipient, amount: "1", token: "USDT", idempotencyKey: r.key, waitMs: 50 };
+  // Before: send() threw "block is out of range" just after creating the
+  // schedule, and with a memory journal the payment was left half done.
+  const first = await wallet.send(input);
+  // The reads were retried within this call, which spent its wait doing so.
+  assertEquals([first.status, c.state.behind], ["pending", 0]);
+  const again = await wallet.send(input);
+  assertEquals(again.stage, "execution");
+  assert(Boolean((await wallets.get(r.key, r.scope))?.execution));
 });

@@ -325,6 +325,30 @@ export async function untilVisible<T>(read: () => Promise<T>, ready: (v: T) => b
   }
 }
 
+/// A read pinned to a block can reach a node that hasn't got that block yet:
+/// forno spreads calls across nodes, and one behind answers a call at that
+/// block with "block is out of range" and a lookup of it with nothing. The
+/// first wallet-funded mainnet run (2026-10-26) stopped that way, between a
+/// head read and a call pinned to it. Such a node catches up within seconds,
+/// so the read is tried again before the error is passed on.
+export async function atBlock<T>(read: () => Promise<T>, waitMs = 8_000): Promise<T> {
+  const until = Date.now() + waitMs;
+  for (;;) {
+    try {
+      return await read();
+    } catch (e) {
+      if (!behind(e) || Date.now() >= until) throw e;
+      await new Promise((r) => setTimeout(r, 1_000));
+    }
+  }
+}
+
+/// What a node answers about a block it hasn't reached.
+export function behind(e: unknown): boolean {
+  const { name, message } = (e ?? {}) as { name?: string; message?: string };
+  return name === "BlockNotFoundError" || /block is out of range|header not found|unknown block/i.test(message ?? String(e));
+}
+
 /// The gas a policy payment is budgeted at. Measured at about 85,000 to
 /// 105,000 (the most for a recipient's first payment).
 export const PAY_GAS = 120_000n;

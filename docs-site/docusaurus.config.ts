@@ -94,6 +94,7 @@ const config: Config = {
         { to: "/docs/guides/schedules", label: "Guides", position: "left", activeBaseRegex: "/docs/guides/" },
         { to: "/docs/use-cases", label: "Use cases", position: "left", activeBaseRegex: "/docs/use-cases" },
         { to: "/docs/reference/client", label: "API reference", position: "left", activeBaseRegex: "/docs/reference/" },
+        { to: "/docs/build-with-ai", label: "Build with AI", position: "left" },
         { href: "https://www.npmjs.com/package/remesso-sdk", label: "npm", position: "right" },
         { href: REPO, label: "Source", position: "right" },
         { href: "https://remesso.xyz", label: "Remesso app", position: "right" },
@@ -116,6 +117,7 @@ const config: Config = {
             { label: "Guides", to: "/docs/guides/schedules" },
             { label: "Use cases", to: "/docs/use-cases" },
             { label: "API reference", to: "/docs/reference/client" },
+            { label: "Build with AI", to: "/docs/build-with-ai" },
           ],
         },
         {

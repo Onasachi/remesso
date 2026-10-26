@@ -109,7 +109,8 @@ deno run --allow-all --config packages/remesso-sdk/deno.json --unstable-sloppy-i
 deno run --allow-all --config packages/remesso-sdk/deno.json --unstable-sloppy-imports scripts/fork-sdk-agent-to-agent.ts
 # buyer/seller developer example; `pay` previews, --send signs on mainnet (ask first)
 deno check --config examples/sdk.deno.json --unstable-sloppy-imports examples/agent-to-agent.ts
-# the whole loop on mainnet with the test wallet: a dry run unless --send (ask first)
+# the whole loop on mainnet with the test wallet: a dry run unless --send (ask first).
+# --token USDC pays in USDC; --wallet-only runs just the wallet-funded payment (~1 token)
 deno run --allow-all --config packages/remesso-sdk/deno.json --unstable-sloppy-imports scripts/e2e-sdk.ts
 # Publishing remesso-sdk to npm is done by hand: cd packages/remesso-sdk && npm publish
 
@@ -119,6 +120,10 @@ deno run --allow-all --config packages/remesso-sdk/deno.json --unstable-sloppy-i
 deno run --allow-read --allow-write --allow-run --allow-env docs-site/scripts/check-snippets.ts
 deno run --allow-read --allow-write scripts/build-docs-data.ts --check
 (cd docs-site && npm install && npm run build)   # fails on any broken link or anchor
+# the same pages for AI assistants: llms.txt, llms-full.txt, each page as .md, and
+# the remesso-sdk skill's references. Re-run without --check after any docs change
+# or SDK version bump, then scripts/build-plugin.sh, which copies the skill.
+deno run --allow-read --allow-write scripts/build-ai-docs.ts --check
 
 # builder codes (Phase 6): an integrator's ERC-8021 code rides on every run
 deno test --allow-env supabase/functions/_shared/attribution.test.ts   # read and write, pinned to Celo's SDK
@@ -997,6 +1002,19 @@ an API reference. Like the SDK, it is held to the source:
 So a change to the SDK's API or to the deployment shows up as a failing check
 there until the pages follow.
 
+**AI assistants read the same pages (Build with AI, 2026-10-26).**
+`scripts/build-ai-docs.ts` writes them from `docs-site/docs`, so an assistant
+can't be told something the site doesn't say:
+- `llms.txt`, `llms-full.txt` and each page as `.md` at its URL, in
+  `docs-site/static/`;
+- the `remesso-sdk` skill's `references/`, listed in its `SKILL.md` between
+  markers. The rest of that `SKILL.md` is written by hand.
+
+The skill ships in the plugin and in `remesso-wallet`'s `skills`
+(`build-plugin.sh`), and `skills/manifest.json` lists it. MDX becomes
+Markdown: the deployment tables come from `src/components/deployment-rows.ts`,
+the rows the site renders too. A component the script doesn't know stops it.
+
 **Nothing in it about the deployment is typed by hand.** People believe an SDK
 that describes something we no longer serve.
 - `src/generated/` is written by `scripts/build-sdk.ts`: the deployment comes
@@ -1039,7 +1057,7 @@ reconcile.
 - `scripts/fork-sdk.ts` covers a broadcast lost on the way: it goes out later
   with its own bytes, paid once.
 
-**The agent-to-agent platform: 0.3.0, not yet published.** Written with Codex
+**The agent-to-agent platform: remesso-sdk 0.3.0** (0.3.0-rc.1 before it). Written with Codex
 on 2026-10-26, then reviewed and fixed the same day: Codex's version passed
 every test it had and still had ways to pay twice and to stall a signer.
 
@@ -1102,7 +1120,7 @@ every test it had and still had ways to pay twice and to stall a signer.
 - **`managedSigner`** refuses high-s signatures. **`remesso-sdk/tools`** keeps
   only scheme and host of URLs in what a model reads (RPC keys sit in paths),
   except Remesso's hosts and Celoscan.
-- **The MCP wallet is 0.6.0** and pays through the SDK. Its x402 top-ups are
+- **The MCP wallet is 0.6.1** and pays through the SDK. Its x402 top-ups are
   keyed `x402-topup:<ms>` and a pending one is resumed, not repeated; `pay`
   with a request uses the agent's token when the request names none; its
   readiness uses the SDK's `gasNeeded(PAY_GAS, price, "payment")`; read tools
@@ -1139,7 +1157,19 @@ every test it had and still had ways to pay twice and to stall a signer.
   ones, `npx remesso-sdk dev --smoke` (19), `fork-wallet-pay.ts` (25),
   `fork-sdk.ts`, `fork-sdk-agent-to-agent.ts` (59), `sdk-production-e2e.ts`
   (17), 105 doc samples, the docs build. `test/review.test.ts` holds one
-  regression per finding. Nothing published, deployed or sent on mainnet.
+  regression per finding. Published the same day as remesso-sdk 0.3.0-rc.1
+  (npm `latest`) and remesso-wallet 0.6.0, and merged.
+- **Then on mainnet (`e2e-sdk.ts --token USDC`, 2026-10-26)**, where a fork
+  can't reach: every stage passed except the wallet-funded one.
+  - Forno answered the head from one node and a call pinned to it from another,
+    a block behind, which said "block is out of range", and rc.1 threw.
+  - Every read pinned to a block now goes through `atBlock` (`context.ts`),
+    which retries that. A wallet payment whose state stays unreadable answers
+    `pending`.
+  - Re-run with `--wallet-only`, it passed: schedule #8 is the first
+    wallet-funded payment on mainnet.
+  - remesso-sdk 0.3.0 and remesso-wallet 0.6.1 carry the fix; the wallet
+    and the plugin also ship the `remesso-sdk` skill.
 - **Still open:** each wallet payment uses a schedule id, and `sync-schedules`
   scans ids 25 at a time every 5 minutes; past roughly 7,000 completed ones,
   new schedules stop being discovered. `index-events` already records every

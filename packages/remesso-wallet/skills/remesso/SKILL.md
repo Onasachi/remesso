@@ -41,8 +41,11 @@ Codex, Cursor or any MCP host.
 
 An agent or app you write in TypeScript can use `remesso-sdk` (`npm install
 remesso-sdk viem`): schedules, agent payments that pay once per idempotency
-key, payment requests, payment events and signed webhooks, with the
-deployment's addresses, tokens, fee and per-payment limits built in.
+key, one-off payments between agents, payment requests, payment events and
+signed webhooks, with the deployment's addresses, tokens, fee and per-payment
+limits built in. To write or review code with it, load the `remesso-sdk`
+skill: it holds every page of the documentation at `https://docs.remesso.xyz`,
+which is also one file at `https://docs.remesso.xyz/llms-full.txt`.
 `https://remesso.xyz/developers` gets you from install to a small payment
 and its webhook.
 

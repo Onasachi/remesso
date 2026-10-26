@@ -24103,6 +24103,21 @@ async function untilVisible(read, ready, waitMs = 6e3) {
     await new Promise((r) => setTimeout(r, 1e3));
   }
 }
+async function atBlock(read, waitMs = 8e3) {
+  const until = Date.now() + waitMs;
+  for (; ; ) {
+    try {
+      return await read();
+    } catch (e) {
+      if (!behind(e) || Date.now() >= until) throw e;
+      await new Promise((r) => setTimeout(r, 1e3));
+    }
+  }
+}
+function behind(e) {
+  const { name, message } = e ?? {};
+  return name === "BlockNotFoundError" || /block is out of range|header not found|unknown block/i.test(message ?? String(e));
+}
 var PAY_GAS = 120000n;
 function gasNeeded(gas, price, headroom = "write") {
   return headroom === "payment" ? gas * price * 5n / 4n : gas * price * 2n;
@@ -25146,13 +25161,13 @@ function makeReceipts(ctx) {
     if (receipt.status !== "success") throw new RemessoError("reverted", "the transaction reverted; it is not payment evidence", { txHash: input.txHash });
     if (!hashOf(receipt.blockHash) || typeof receipt.blockNumber !== "bigint") throw new RemessoError("conflict", "the receipt is not included in a block");
     const assertCanonical = async () => {
-      const block = await ctx.pub.getBlock({ blockNumber: receipt.blockNumber });
+      const block = await atBlock(() => ctx.pub.getBlock({ blockNumber: receipt.blockNumber }));
       if (block.number !== receipt.blockNumber || !hashOf(block.hash) || !same(block.hash, receipt.blockHash)) throw new RemessoError("conflict", "the payment's block is no longer canonical; verify it again", { txHash: input.txHash });
     };
     await assertCanonical();
     const proofs = [];
-    const readPolicy2 = (id) => ctx.pub.readContract({ address: ALLOWANCE, abi: allowanceAbi, functionName: "policy", args: [id], blockNumber: receipt.blockNumber });
-    const readSchedule = (id) => ctx.pub.readContract({ address: EXECUTOR, abi: executorAbi, functionName: "getSchedule", args: [id], blockNumber: receipt.blockNumber });
+    const readPolicy2 = (id) => atBlock(() => ctx.pub.readContract({ address: ALLOWANCE, abi: allowanceAbi, functionName: "policy", args: [id], blockNumber: receipt.blockNumber }));
+    const readSchedule = (id) => atBlock(() => ctx.pub.readContract({ address: EXECUTOR, abi: executorAbi, functionName: "getSchedule", args: [id], blockNumber: receipt.blockNumber }));
     const policies = /* @__PURE__ */ new Map();
     const schedules = /* @__PURE__ */ new Map();
     for (const log of receipt.logs) {
@@ -25410,10 +25425,13 @@ function makeWalletRemittances(ctx, deps) {
     const { s, at, fresh } = await untilVisible(async () => {
       const head = await ctx.pub.getBlock();
       const block = head.number !== null && head.number >= atLeast ? head : await ctx.pub.getBlock({ blockNumber: atLeast }).catch(() => head);
-      const s2 = await ctx.pub.readContract({ address: EXECUTOR, abi: executorAbi, functionName: "getSchedule", args: [BigInt(r.scheduleId)], blockNumber: block.number });
-      return { s: s2, at: block.timestamp, fresh: block.number !== null && block.number >= atLeast };
-    }, (v) => v.fresh && !same2(v.s.sender, zeroAddress));
-    if (!fresh || same2(s.sender, zeroAddress)) return null;
+      const s2 = await atBlock(async () => await ctx.pub.readContract({ address: EXECUTOR, abi: executorAbi, functionName: "getSchedule", args: [BigInt(r.scheduleId)], blockNumber: block.number })).catch((e) => {
+        if (behind(e)) return null;
+        throw e;
+      });
+      return { s: s2, at: block.timestamp, fresh: s2 !== null && block.number !== null && block.number >= atLeast };
+    }, (v) => v.fresh && v.s !== null && !same2(v.s.sender, zeroAddress));
+    if (!fresh || !s || same2(s.sender, zeroAddress)) return null;
     if (!same2(s.sender, r.payer) || !same2(s.destination, r.to) || !same2(s.token, r.token) || s.amountIn !== BigInt(r.amountIn) || s.interval !== INTERVAL || s.maxRuns !== 1 || s.payoutType !== 2) {
       throw conflict("the created schedule's immutable terms do not match this exact remittance; no payment is sent");
     }
@@ -25789,7 +25807,7 @@ function makeLifecycle(ctx, deps) {
     const found = await receiptOf(ctx.pub, hash4);
     if (!found) return null;
     if (!same3(found.transactionHash, hash4)) throw conflict2("a replacement receipt is not proof this operation succeeded");
-    const block = await ctx.pub.getBlock({ blockNumber: found.blockNumber });
+    const block = await atBlock(() => ctx.pub.getBlock({ blockNumber: found.blockNumber }));
     if (block.number !== found.blockNumber || !block.hash || !same3(block.hash, found.blockHash)) throw conflict2("the saved transaction's block was reorganized");
     return found;
   }
@@ -25859,7 +25877,7 @@ function makeLifecycle(ctx, deps) {
     base.hash = r.execution?.hash ?? r.approval?.hash ?? r.creation.hash;
     const now2 = await ctx.pub.getBlock();
     if (now2.number === null || now2.number < created.blockNumber) throw conflict2("the RPC hasn't reached the payment's creation block yet; read it again");
-    const s = await ctx.pub.readContract({ address: EXECUTOR, abi: executorAbi, functionName: "getSchedule", args: [event.args.id], blockNumber: now2.number });
+    const s = await atBlock(() => ctx.pub.readContract({ address: EXECUTOR, abi: executorAbi, functionName: "getSchedule", args: [event.args.id], blockNumber: now2.number }));
     if (!same3(s.sender, r.payer) || !same3(s.destination, r.to) || !same3(s.token, r.token) || s.amountIn !== BigInt(r.amountIn) || s.interval !== 3600n || s.maxRuns !== 1 || s.payoutType !== 2) throw conflict2("the schedule's immutable terms differ from this wallet remittance");
     let candidateError;
     for (const hash4 of [...new Set([r.paymentHash, r.execution?.hash].filter((v) => v != null))]) {
@@ -26133,7 +26151,7 @@ function makeQuotes(ctx, deps) {
       };
       const simulate = async (step, address3, abi2, functionName, args) => {
         try {
-          await ctx.pub.simulateContract({ address: address3, abi: abi2, functionName, args, account: account2, blockNumber: block.number });
+          await atBlock(() => ctx.pub.simulateContract({ address: address3, abi: abi2, functionName, args, account: account2, blockNumber: block.number }));
           simulation.push({ step, success: true });
           return true;
         } catch (e) {
@@ -26145,7 +26163,7 @@ function makeQuotes(ctx, deps) {
       };
       const estimate = async (step, address3, abi2, functionName, args, fallback) => {
         try {
-          const gas = await ctx.pub.estimateContractGas({ address: address3, abi: abi2, functionName, args, account: account2, blockNumber: block.number });
+          const gas = await atBlock(() => ctx.pub.estimateContractGas({ address: address3, abi: abi2, functionName, args, account: account2, blockNumber: block.number }));
           if (gas <= 0n) throw new Error("empty gas estimate");
           steps.push({ step, gas: (gas * 125n + 99n) / 100n, basis: "rpc_estimate" });
         } catch {
@@ -26155,11 +26173,11 @@ function makeQuotes(ctx, deps) {
       };
       if (input.funding === "wallet") {
         const [allowed, fee, current, held, lifetime] = await Promise.all([
-          ctx.pub.readContract({ address: EXECUTOR, abi: executorAbi, functionName: "directTokenAllowed", args: [t.address], blockNumber: block.number }),
-          ctx.pub.readContract({ address: EXECUTOR, abi: executorAbi, functionName: "feeBps", blockNumber: block.number }),
-          ctx.pub.readContract({ address: t.address, abi: erc20Abi2, functionName: "allowance", args: [account2.address, EXECUTOR], blockNumber: block.number }),
-          ctx.pub.readContract({ address: t.address, abi: erc20Abi2, functionName: "balanceOf", args: [account2.address], blockNumber: block.number }),
-          ctx.pub.readContract({ address: EXECUTOR, abi: executorAbi, functionName: "MAX_LIFETIME", blockNumber: block.number })
+          atBlock(() => ctx.pub.readContract({ address: EXECUTOR, abi: executorAbi, functionName: "directTokenAllowed", args: [t.address], blockNumber: block.number })),
+          atBlock(() => ctx.pub.readContract({ address: EXECUTOR, abi: executorAbi, functionName: "feeBps", blockNumber: block.number })),
+          atBlock(() => ctx.pub.readContract({ address: t.address, abi: erc20Abi2, functionName: "allowance", args: [account2.address, EXECUTOR], blockNumber: block.number })),
+          atBlock(() => ctx.pub.readContract({ address: t.address, abi: erc20Abi2, functionName: "balanceOf", args: [account2.address], blockNumber: block.number })),
+          atBlock(() => ctx.pub.readContract({ address: EXECUTOR, abi: executorAbi, functionName: "MAX_LIFETIME", blockNumber: block.number }))
         ]);
         feeBps = Number(fee);
         if (!Number.isSafeInteger(feeBps) || feeBps < 0 || feeBps >= 1e4) throw new RemessoError("refused", "the live protocol fee is outside the supported range");
@@ -26195,7 +26213,7 @@ function makeQuotes(ctx, deps) {
       } else {
         const acceptable = async (p) => {
           if (!p.active || !same4(p.agent, account2.address) || !same4(p.token, t.address) || payer && !same4(p.owner, payer) || p.spendable < amount || same4(p.owner, to)) return false;
-          return !p.allowlistOnly || await ctx.pub.readContract({ address: ALLOWANCE, abi: allowanceAbi, functionName: "allowed", args: [p.id, to], blockNumber: block.number });
+          return !p.allowlistOnly || await atBlock(() => ctx.pub.readContract({ address: ALLOWANCE, abi: allowanceAbi, functionName: "allowed", args: [p.id, to], blockNumber: block.number }));
         };
         if (explicitPolicy != null) {
           try {
@@ -26238,7 +26256,7 @@ function makeQuotes(ctx, deps) {
           if (amount > p.remainingToday) issue("policy_daily_limit", "the amount exceeds the remaining fixed 24-hour policy window");
           if (amount > p.ownerBalance) issue("insufficient_balance", "the policy owner's balance is too low");
           if (amount > p.ownerAllowance) issue("approval_required", "the policy owner must increase their token approval before this payment can proceed");
-          if (p.allowlistOnly && !await ctx.pub.readContract({ address: ALLOWANCE, abi: allowanceAbi, functionName: "allowed", args: [p.id, to], blockNumber: block.number })) issue("recipient_not_allowed", "the recipient is not on the policy allowlist");
+          if (p.allowlistOnly && !await atBlock(() => ctx.pub.readContract({ address: ALLOWANCE, abi: allowanceAbi, functionName: "allowed", args: [p.id, to], blockNumber: block.number }))) issue("recipient_not_allowed", "the recipient is not on the policy allowlist");
           if (issues.length === 0) {
             const args = [p.id, to, amount, memo32(request2?.reference)];
             await simulate("policy_payment", ALLOWANCE, allowanceAbi, "pay", args);
@@ -26253,7 +26271,7 @@ function makeQuotes(ctx, deps) {
       let feeCurrency;
       if (native < estimatedNativeCost * 2n) {
         if (t.feeCurrency) {
-          const signerTokens = input.funding === "wallet" ? balance ?? 0n : await ctx.pub.readContract({ address: t.address, abi: erc20Abi2, functionName: "balanceOf", args: [account2.address], blockNumber: block.number });
+          const signerTokens = input.funding === "wallet" ? balance ?? 0n : await atBlock(() => ctx.pub.readContract({ address: t.address, abi: erc20Abi2, functionName: "balanceOf", args: [account2.address], blockNumber: block.number }));
           let headroom = 1n;
           try {
             headroom = runLimits(t).min * (input.funding === "wallet" ? 3n : 1n) / 100n || 1n;
@@ -26522,7 +26540,7 @@ function makeInvoices(ctx, deps) {
       } else if (payment.kind !== "policy_payment" || !same5(payment.memo, memo32(reference))) {
         throw new RemessoError("conflict", "an invoice without a request is settled only by a policy payment carrying its reference (invoiceReference)");
       }
-      const block = await ctx.pub.getBlock({ blockNumber: payment.blockNumber });
+      const block = await atBlock(() => ctx.pub.getBlock({ blockNumber: payment.blockNumber }));
       if (!block.hash || !same5(block.hash, payment.blockHash)) throw new RemessoError("conflict", "the invoice payment block is no longer canonical");
       if (block.timestamp + BigInt(SKEW_S) < BigInt(expected.issuedAt) || block.timestamp >= BigInt(expected.expiresAt)) throw new RemessoError("refused", "the payment was not included during the invoice's validity window");
       return { invoiceId: expected.id, orderId: expected.orderId, payment };
@@ -34022,7 +34040,7 @@ async function payTool({ to, amount, token: token2, memo, idempotency_key, allow
 }
 var server = new McpServer({
   name: "remesso-wallet",
-  version: "0.6.0",
+  version: "0.6.1",
   icons: [{ src: `${APP}/icon.png`, mimeType: "image/png", sizes: ["512x512"] }]
 });
 server.tool(

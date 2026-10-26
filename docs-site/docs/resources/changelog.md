@@ -7,7 +7,7 @@ Releases of [`remesso-sdk`](https://www.npmjs.com/package/remesso-sdk) on npm.
 
 ## 0.3.0
 
-Not yet released.
+Released 26 October 2026, after 0.3.0-rc.1 the same day.
 
 - **Agent-to-agent payments.** `remittances.send` pays one exact amount from this agent's own wallet or from a spending policy, optionally answering a one-off request. A retry with the same key continues the same payment. See [Build an agent-to-agent app](../guides/agent-to-agent.md).
 - **`agents.pay`** pays an agent registered in ERC-8004, at the wallet the registry names.
@@ -19,6 +19,7 @@ Not yet released.
 - **Local development.** `npx remesso-sdk dev` runs both funding models against a local fork of Celo.
 - **Managed signers and agent tools.** `remesso-sdk/signers` and `remesso-sdk/tools`.
 - **Safer journals.** Before signing anything, the SDK sends again any saved transaction the chain hasn't mined, or cancels one past its deadline at its nonce, so one lost broadcast can't hold up the transactions after it. A failed broadcast is retried at once.
+- **Since 0.3.0-rc.1:** a read pinned to a block is tried again while the RPC's node catches up to that block, instead of failing with "block is out of range". An RPC that spreads calls across nodes, as `forno.celo.org` does, can answer the latest block from one node and the next call from another a block behind.
 
 ## 0.2.0
 

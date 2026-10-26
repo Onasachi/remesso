@@ -1,0 +1,54 @@
+# Remesso SDK
+
+> Recurring and agent payments on Celo, in TypeScript.
+
+`remesso-sdk` is a TypeScript library for payments in stablecoins on Celo, between people and between agents. A payer signs once and Remesso's executor sends each payment when it is due; an agent pays from its own wallet or within a policy a person set; and the recipient checks every payment on the chain and hears about it from a signed webhook.
+
+These are the pages of https://docs.remesso.xyz for remesso-sdk 0.3.0, each as Markdown. All of them in one file: https://docs.remesso.xyz/llms-full.txt. Coding assistants can load them as the remesso-sdk skill: https://docs.remesso.xyz/docs/build-with-ai
+
+## Get started
+
+- [Introduction](https://docs.remesso.xyz/docs/intro.md): What remesso-sdk is, what you can build with it, and how a payment moves from a signature to a webhook.
+- [Quickstart](https://docs.remesso.xyz/docs/quickstart.md): Send a 1 USDT payment on a schedule and receive its signed webhook, from an empty folder, in about 15 minutes.
+- [Installation](https://docs.remesso.xyz/docs/installation.md): Install remesso-sdk, create a client for a server, a browser wallet or read-only use, and keep its keys safe.
+- [Build with AI](https://docs.remesso.xyz/docs/build-with-ai.md): Give Claude Code, Codex, Cursor or any AI assistant the whole Remesso documentation, as a skill or as one text file.
+- [Core concepts](https://docs.remesso.xyz/docs/concepts.md): Schedules, the executor, triggers, fees, agent policies, payment requests, payment events, finality and webhooks, and how they fit together.
+
+## Guides
+
+- [Build an agent-to-agent app](https://docs.remesso.xyz/docs/guides/agent-to-agent.md): One agent asks another to pay, gets paid from a wallet or a spending policy, and checks the payment on the chain before it delivers.
+- [Run an agent service in production](https://docs.remesso.xyz/docs/guides/production-sdk.md): Workers that share one key, quotes, deadlines, signed invoices, recovery after a crash, local development, managed signers and agent tools.
+- [Pay on a schedule](https://docs.remesso.xyz/docs/guides/schedules.md): Create a schedule the payer signs once, read it back, and pause, resume or cancel it.
+- [Agent payments](https://docs.remesso.xyz/docs/guides/agent-payments.md): Let an agent pay from a person's wallet within limits the person sets on-chain, and pay exactly once per idempotency key.
+- [Payment requests](https://docs.remesso.xyz/docs/guides/payment-requests.md): Ask a wallet to pay you, follow the request until it is paid, and answer or decline requests sent to you.
+- [Payment events](https://docs.remesso.xyz/docs/guides/payment-events.md): Read every payment to or from an address, as Remesso's indexer records it from the chain, and follow new ones as they arrive.
+- [Webhooks](https://docs.remesso.xyz/docs/guides/webhooks.md): Have Remesso announce every payment to your address at your own server, signed, retried, and verified by the SDK.
+- [Builder codes](https://docs.remesso.xyz/docs/guides/builder-codes.md): Put your own ERC-8021 code on the schedules you create, so Celo credits their volume to you on every payment.
+- [Find agents](https://docs.remesso.xyz/docs/guides/find-agents.md): Look up an agent in the ERC-8004 registry on Celo, get the only address it can safely be paid at, and read what it accepts.
+- [Fees, limits and gas](https://docs.remesso.xyz/docs/guides/fees-and-gas.md): What each payment costs, the amounts Remesso's executor sends, and who pays gas for what.
+
+## Use cases
+
+- [Use cases](https://docs.remesso.xyz/docs/use-cases/index.md): Six worked examples of building on remesso-sdk, from a freelancer's monthly invoice to an AI agent with a spending budget.
+- [Bill a client monthly](https://docs.remesso.xyz/docs/use-cases/freelancer-retainer.md): A freelancer's agent asks a client for a monthly retainer, then writes a receipt for every payment as it arrives and becomes final.
+- [Subscriptions](https://docs.remesso.xyz/docs/use-cases/subscriptions.md): Bill each customer monthly in stablecoins, grant access when a payment arrives, and notice when a customer pauses or cancels.
+- [Payroll](https://docs.remesso.xyz/docs/use-cases/payroll.md): Sign one schedule per contractor so each receives an exact monthly amount, budget the total, check funding before payday, and stop a schedule when a contract ends.
+- [Remittances](https://docs.remesso.xyz/docs/use-cases/remittances.md): Pay a family member in USDT every month from one signature, and tell them each time money arrives, with a link to cash it out.
+- [Family allowance](https://docs.remesso.xyz/docs/use-cases/family-allowance.md): A child's agent asks a parent for cNGN every week; the parent's agent shows the request and signs a weekly schedule after a yes.
+- [AI agent budget](https://docs.remesso.xyz/docs/use-cases/ai-agent-budget.md): Cap what an agent's key can spend from a person's wallet, pay with idempotency keys so a retry never pays twice, and let the person review and revoke.
+
+## API reference
+
+- [Client API](https://docs.remesso.xyz/docs/reference/client.md): createRemesso and every method on the client it returns, with parameters, return values and the errors each can raise.
+- [Utilities](https://docs.remesso.xyz/docs/reference/utilities.md): The functions and constants remesso-sdk exports besides the client - tokens, amounts, fees, limits, memos, pay links, webhook verification, stores, ABIs and the deployment.
+- [Webhook payloads](https://docs.remesso.xyz/docs/reference/webhook-payloads.md): The exact format of Remesso's webhook deliveries, how each one is signed, and the rules for retries and duplicates.
+- [Errors](https://docs.remesso.xyz/docs/reference/errors.md): Every RemessoError code the SDK throws, what causes it, and what to do about it.
+- [Tokens and limits](https://docs.remesso.xyz/docs/reference/tokens-and-limits.md): The tokens a schedule can pay in, their decimals and addresses, the executor's per-payment limits, and which tokens can pay gas.
+- [Contracts and endpoints](https://docs.remesso.xyz/docs/reference/contracts.md): The chain, contracts and HTTP endpoints remesso-sdk talks to, and how to check each one yourself.
+- [HTTP API](https://docs.remesso.xyz/docs/reference/http-api.md): Remesso's public endpoints over plain HTTP, for any language: payment requests, payment events, webhooks and the capability document.
+
+## Resources
+
+- [FAQ](https://docs.remesso.xyz/docs/resources/faq.md): Answers to the questions developers ask most, and what to check when a payment doesn't arrive.
+- [Security](https://docs.remesso.xyz/docs/resources/security.md): What the contracts guarantee, what Remesso operates and can't do, and how to handle keys, approvals and webhooks safely.
+- [Changelog](https://docs.remesso.xyz/docs/resources/changelog.md): What changed in each release of remesso-sdk.

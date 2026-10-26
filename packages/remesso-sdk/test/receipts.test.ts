@@ -1,5 +1,5 @@
 import { assertEquals, assertRejects } from "@std/assert";
-import { encodeAbiParameters, encodeEventTopics, toHex, TransactionNotFoundError, TransactionReceiptNotFoundError, type Address, type Hex, type PublicClient, type TransactionReceipt } from "viem";
+import { BlockNotFoundError, encodeAbiParameters, encodeEventTopics, toHex, TransactionNotFoundError, TransactionReceiptNotFoundError, type Address, type Hex, type PublicClient, type TransactionReceipt } from "viem";
 import { allowanceAbi, executorAbi } from "../src/abi.ts";
 import { makeCtx } from "../src/context.ts";
 import { ALLOWANCE, EXECUTOR, token } from "../src/deployment.ts";
@@ -249,4 +249,24 @@ Deno.test("receipt verification ignores nonpayment events emitted by the allowan
   const proof = await fixture({ receipt: receipt([revoked, paid(7n, 2)]) }).api.verify(expected);
   assertEquals([proof.kind, proof.logIndex], ["policy_payment", 2]);
   await rejects(expected, { receipt: receipt([revoked]) });
+});
+
+Deno.test("receipt verification reads again when a node hasn't reached the receipt's block", async () => {
+  const { api, pub } = fixture();
+  const getBlock = pub.getBlock.bind(pub), readContract = pub.readContract.bind(pub);
+  let blockLag = 1, readLag = 1;
+  // The receipt came from a node ahead of the ones answering the reads that
+  // follow, as forno's can: the first wallet-funded mainnet run hit this.
+  Object.assign(pub, {
+    getBlock: async (args: Parameters<typeof getBlock>[0]) => {
+      if (blockLag-- > 0) throw new BlockNotFoundError({ blockNumber: 100n });
+      return await getBlock(args);
+    },
+    readContract: async (args: Parameters<typeof readContract>[0]) => {
+      if (readLag-- > 0) throw new Error("RPC Request failed. Details: block is out of range");
+      return await readContract(args);
+    },
+  });
+  const proof = await api.verify({ ...expected, policyId: 7 });
+  assertEquals([proof.kind, proof.amount, blockLag < 0, readLag < 0], ["policy_payment", 1_000_000n, true, true]);
 });

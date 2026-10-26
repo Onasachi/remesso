@@ -16,6 +16,12 @@
       "skill": "https://bitbucket.org/crackedstudios/remesso/raw/main/skills/remesso-x402/SKILL.md",
       "manifest": "https://bitbucket.org/crackedstudios/remesso/raw/main/skills/remesso-x402/manifest.json",
       "install": "npx -y remesso-wallet skills"
+    },
+    {
+      "name": "remesso-sdk",
+      "description": "Write and review code that uses remesso-sdk, the TypeScript SDK for Remesso's stablecoin payments on Celo mainnet. Use when building recurring payments (schedules), payments an agent makes within a person's spending policy, one-off agent-to-agent payments with remittances.send (funded by a wallet or a policy), payment requests and signed invoices, payment events, webhooks, on-chain receipt verification, or a production setup with journals, Postgres and recovery. Carries every page of the docs.remesso.xyz documentation as references.",
+      "skill": "https://bitbucket.org/crackedstudios/remesso/raw/main/skills/remesso-sdk/SKILL.md",
+      "install": "npx -y remesso-wallet skills"
     }
   ]
 }

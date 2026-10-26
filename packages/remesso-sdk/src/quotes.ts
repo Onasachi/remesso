@@ -2,7 +2,7 @@
 /// atomic price guarantee: send() must check its debit and expiry bounds again.
 import { type Address, zeroAddress } from "viem";
 import { allowanceAbi, erc20Abi, executorAbi } from "./abi.js";
-import { type Ctx, refusal } from "./context.js";
+import { atBlock, type Ctx, refusal } from "./context.js";
 import { ALLOWANCE, CHAIN_ID, EXECUTOR, checksum, runLimits, token as tokenOf, toUnits } from "./deployment.js";
 import { RemessoError } from "./errors.js";
 import { memo32 } from "./payments.js";
@@ -131,7 +131,8 @@ export function makeQuotes(ctx: Ctx, deps: { policies: Policies; requests: Reque
       };
       const simulate = async (step: RemittanceQuote["simulation"][number]["step"], address: Address, abi: typeof allowanceAbi | typeof executorAbi | typeof erc20Abi, functionName: string, args: readonly unknown[]) => {
         try {
-          await ctx.pub.simulateContract({ address, abi, functionName, args, account, blockNumber: block.number } as never);
+          // A node behind the quoted block isn't a failed simulation: retried.
+          await atBlock(() => ctx.pub.simulateContract({ address, abi, functionName, args, account, blockNumber: block.number } as never));
           simulation.push({ step, success: true });
           return true;
         } catch (e) {
@@ -143,7 +144,7 @@ export function makeQuotes(ctx: Ctx, deps: { policies: Policies; requests: Reque
       };
       const estimate = async (step: QuoteGasStep["step"], address: Address, abi: typeof allowanceAbi | typeof executorAbi | typeof erc20Abi, functionName: string, args: readonly unknown[], fallback: bigint) => {
         try {
-          const gas = await ctx.pub.estimateContractGas({ address, abi, functionName, args, account, blockNumber: block.number } as never);
+          const gas: bigint = await atBlock(() => ctx.pub.estimateContractGas({ address, abi, functionName, args, account, blockNumber: block.number } as never));
           if (gas <= 0n) throw new Error("empty gas estimate");
           // Leave headroom; this still is a hint, not a promised upper bound.
           steps.push({ step, gas: (gas * 125n + 99n) / 100n, basis: "rpc_estimate" });
@@ -155,11 +156,11 @@ export function makeQuotes(ctx: Ctx, deps: { policies: Policies; requests: Reque
 
       if (input.funding === "wallet") {
         const [allowed, fee, current, held, lifetime] = await Promise.all([
-          ctx.pub.readContract({ address: EXECUTOR, abi: executorAbi, functionName: "directTokenAllowed", args: [t.address], blockNumber: block.number }),
-          ctx.pub.readContract({ address: EXECUTOR, abi: executorAbi, functionName: "feeBps", blockNumber: block.number }),
-          ctx.pub.readContract({ address: t.address, abi: erc20Abi, functionName: "allowance", args: [account.address, EXECUTOR], blockNumber: block.number }),
-          ctx.pub.readContract({ address: t.address, abi: erc20Abi, functionName: "balanceOf", args: [account.address], blockNumber: block.number }),
-          ctx.pub.readContract({ address: EXECUTOR, abi: executorAbi, functionName: "MAX_LIFETIME", blockNumber: block.number }),
+          atBlock(() => ctx.pub.readContract({ address: EXECUTOR, abi: executorAbi, functionName: "directTokenAllowed", args: [t.address], blockNumber: block.number })),
+          atBlock(() => ctx.pub.readContract({ address: EXECUTOR, abi: executorAbi, functionName: "feeBps", blockNumber: block.number })),
+          atBlock(() => ctx.pub.readContract({ address: t.address, abi: erc20Abi, functionName: "allowance", args: [account.address, EXECUTOR], blockNumber: block.number })),
+          atBlock(() => ctx.pub.readContract({ address: t.address, abi: erc20Abi, functionName: "balanceOf", args: [account.address], blockNumber: block.number })),
+          atBlock(() => ctx.pub.readContract({ address: EXECUTOR, abi: executorAbi, functionName: "MAX_LIFETIME", blockNumber: block.number })),
         ]);
         feeBps = Number(fee);
         if (!Number.isSafeInteger(feeBps) || feeBps < 0 || feeBps >= 10_000) throw new RemessoError("refused", "the live protocol fee is outside the supported range");
@@ -199,7 +200,7 @@ export function makeQuotes(ctx: Ctx, deps: { policies: Policies; requests: Reque
       } else {
         const acceptable = async (p: Policy) => {
           if (!p.active || !same(p.agent, account.address) || !same(p.token, t.address) || (payer && !same(p.owner, payer)) || p.spendable < amount || same(p.owner, to)) return false;
-          return !p.allowlistOnly || await ctx.pub.readContract({ address: ALLOWANCE, abi: allowanceAbi, functionName: "allowed", args: [p.id, to], blockNumber: block.number });
+          return !p.allowlistOnly || await atBlock(() => ctx.pub.readContract({ address: ALLOWANCE, abi: allowanceAbi, functionName: "allowed", args: [p.id, to], blockNumber: block.number }));
         };
         if (explicitPolicy != null) {
           try { selected = await deps.policies.get(explicitPolicy); }
@@ -234,7 +235,7 @@ export function makeQuotes(ctx: Ctx, deps: { policies: Policies; requests: Reque
           if (amount > p.remainingToday) issue("policy_daily_limit", "the amount exceeds the remaining fixed 24-hour policy window");
           if (amount > p.ownerBalance) issue("insufficient_balance", "the policy owner's balance is too low");
           if (amount > p.ownerAllowance) issue("approval_required", "the policy owner must increase their token approval before this payment can proceed");
-          if (p.allowlistOnly && !await ctx.pub.readContract({ address: ALLOWANCE, abi: allowanceAbi, functionName: "allowed", args: [p.id, to], blockNumber: block.number })) issue("recipient_not_allowed", "the recipient is not on the policy allowlist");
+          if (p.allowlistOnly && !await atBlock(() => ctx.pub.readContract({ address: ALLOWANCE, abi: allowanceAbi, functionName: "allowed", args: [p.id, to], blockNumber: block.number }))) issue("recipient_not_allowed", "the recipient is not on the policy allowlist");
           if (issues.length === 0) {
             const args = [p.id, to, amount, memo32(request?.reference)] as const;
             await simulate("policy_payment", ALLOWANCE, allowanceAbi, "pay", args);
@@ -249,7 +250,7 @@ export function makeQuotes(ctx: Ctx, deps: { policies: Policies; requests: Reque
       let feeCurrency: Address | undefined;
       if (native < estimatedNativeCost * 2n) {
         if (t.feeCurrency) {
-          const signerTokens = input.funding === "wallet" ? balance ?? 0n : await ctx.pub.readContract({ address: t.address, abi: erc20Abi, functionName: "balanceOf", args: [account.address], blockNumber: block.number });
+          const signerTokens = input.funding === "wallet" ? balance ?? 0n : await atBlock(() => ctx.pub.readContract({ address: t.address, abi: erc20Abi, functionName: "balanceOf", args: [account.address], blockNumber: block.number }));
           // Fees paid in the token come out of the balance that pays: a cent
           // covers one policy payment, three cents a wallet send's three
           // transactions, with room for the gas price to rise.
