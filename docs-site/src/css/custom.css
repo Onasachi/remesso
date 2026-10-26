@@ -48,7 +48,6 @@
   --ifm-link-decoration: none;
 
   --docusaurus-highlighted-code-line-bg: rgba(0, 135, 135, 0.1);
-  --docusaurus-announcement-bar-height: auto;
 }
 
 [data-theme="dark"] {
@@ -139,19 +138,6 @@
 .menu__list-item-collapsible > .menu__link--sublist,
 .theme-doc-sidebar-item-category-level-1 > .menu__list-item-collapsible > .menu__link {
   font-weight: 650;
-}
-
-/* Docusaurus paints the bar white inline; the theme's colours win here so it
-   follows light and dark mode. */
-.theme-announcement-bar {
-  background-color: var(--rm-teal-soft) !important;
-  color: var(--rm-ink) !important;
-  border-bottom: 1px solid var(--rm-line);
-  font-size: 0.9rem;
-}
-
-.theme-announcement-bar button {
-  color: var(--rm-ink-2) !important;
 }
 
 .footer {
