@@ -109,7 +109,8 @@ deno run --allow-all --config packages/remesso-sdk/deno.json --unstable-sloppy-i
 deno run --allow-all --config packages/remesso-sdk/deno.json --unstable-sloppy-imports scripts/fork-sdk-agent-to-agent.ts
 # buyer/seller developer example; `pay` previews, --send signs on mainnet (ask first)
 deno check --config examples/sdk.deno.json --unstable-sloppy-imports examples/agent-to-agent.ts
-# the whole loop on mainnet with the test wallet: a dry run unless --send (ask first)
+# the whole loop on mainnet with the test wallet: a dry run unless --send (ask first).
+# --token USDC pays in USDC; --wallet-only runs just the wallet-funded payment (~1 token)
 deno run --allow-all --config packages/remesso-sdk/deno.json --unstable-sloppy-imports scripts/e2e-sdk.ts
 # Publishing remesso-sdk to npm is done by hand: cd packages/remesso-sdk && npm publish
 
@@ -1039,7 +1040,7 @@ reconcile.
 - `scripts/fork-sdk.ts` covers a broadcast lost on the way: it goes out later
   with its own bytes, paid once.
 
-**The agent-to-agent platform: 0.3.0, not yet published.** Written with Codex
+**The agent-to-agent platform: 0.3.0, published as 0.3.0-rc.1.** Written with Codex
 on 2026-10-26, then reviewed and fixed the same day: Codex's version passed
 every test it had and still had ways to pay twice and to stall a signer.
 
@@ -1139,7 +1140,18 @@ every test it had and still had ways to pay twice and to stall a signer.
   ones, `npx remesso-sdk dev --smoke` (19), `fork-wallet-pay.ts` (25),
   `fork-sdk.ts`, `fork-sdk-agent-to-agent.ts` (59), `sdk-production-e2e.ts`
   (17), 105 doc samples, the docs build. `test/review.test.ts` holds one
-  regression per finding. Nothing published, deployed or sent on mainnet.
+  regression per finding. Published the same day as remesso-sdk 0.3.0-rc.1
+  (npm `latest`) and remesso-wallet 0.6.0, and merged.
+- **Then on mainnet (`e2e-sdk.ts --token USDC`, 2026-10-26)**, where a fork
+  can't reach: every stage passed except the wallet-funded one.
+  - Forno answered the head from one node and a call pinned to it from another,
+    a block behind, which said "block is out of range", and rc.1 threw.
+  - Every read pinned to a block now goes through `atBlock` (`context.ts`),
+    which retries that. A wallet payment whose state stays unreadable answers
+    `pending`.
+  - Re-run with `--wallet-only`, it passed: schedule #8 is the first
+    wallet-funded payment on mainnet.
+  - The fix isn't in a published SDK yet.
 - **Still open:** each wallet payment uses a schedule id, and `sync-schedules`
   scans ids 25 at a time every 5 minutes; past roughly 7,000 completed ones,
   new schedules stop being discovered. `index-events` already records every

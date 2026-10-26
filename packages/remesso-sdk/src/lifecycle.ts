@@ -2,7 +2,7 @@
 /// existing durable keys. Reads never sign, broadcast or change the journals.
 import { formatUnits, hexToString, parseAbi, parseEventLogs, type Address, type Hex, type TransactionReceipt } from "viem";
 import { allowanceAbi, executorAbi } from "./abi.js";
-import { type Ctx, receiptOf } from "./context.js";
+import { atBlock, type Ctx, receiptOf } from "./context.js";
 import { ALLOWANCE, EXECUTOR, token as tokenOf } from "./deployment.js";
 import { RemessoError } from "./errors.js";
 import { DEPLOYMENT, memo32, paymentScope, priorPayment, type PayInput, type PaymentResult } from "./payments.js";
@@ -88,7 +88,7 @@ export function makeLifecycle(ctx: Ctx, deps: { store: RemittanceStore; wallet: 
     const found = await receiptOf(ctx.pub, hash);
     if (!found) return null;
     if (!same(found.transactionHash, hash)) throw conflict("a replacement receipt is not proof this operation succeeded");
-    const block = await ctx.pub.getBlock({ blockNumber: found.blockNumber });
+    const block = await atBlock(() => ctx.pub.getBlock({ blockNumber: found.blockNumber }));
     if (block.number !== found.blockNumber || !block.hash || !same(block.hash, found.blockHash)) throw conflict("the saved transaction's block was reorganized");
     return found;
   }
@@ -158,7 +158,7 @@ export function makeLifecycle(ctx: Ctx, deps: { store: RemittanceStore; wallet: 
     // as expired.
     const now = await ctx.pub.getBlock();
     if (now.number === null || now.number < created.blockNumber) throw conflict("the RPC hasn't reached the payment's creation block yet; read it again");
-    const s = await ctx.pub.readContract({ address: EXECUTOR, abi: executorAbi, functionName: "getSchedule", args: [event.args.id], blockNumber: now.number }) as unknown as Schedule;
+    const s = await atBlock(() => ctx.pub.readContract({ address: EXECUTOR, abi: executorAbi, functionName: "getSchedule", args: [event.args.id], blockNumber: now.number! })) as unknown as Schedule;
     if (!same(s.sender, r.payer) || !same(s.destination, r.to) || !same(s.token, r.token) || s.amountIn !== BigInt(r.amountIn) || s.interval !== 3600n || s.maxRuns !== 1 || s.payoutType !== 2) throw conflict("the schedule's immutable terms differ from this wallet remittance");
     let candidateError: unknown;
     for (const hash of [...new Set([r.paymentHash, r.execution?.hash].filter((v): v is Hex => v != null))]) {

@@ -13,7 +13,7 @@ import {
 } from "viem";
 import { getTransactionCount, prepareTransactionRequest, signTransaction } from "viem/actions";
 import { erc20Abi, executorAbi } from "./abi.js";
-import { type Ctx, gasFor, type OpenTx, receiptOf, refusal, untilVisible } from "./context.js";
+import { atBlock, behind, type Ctx, gasFor, type OpenTx, receiptOf, refusal, untilVisible } from "./context.js";
 import { CHAIN_ID, EXECUTOR, checksum, runLimits, token as tokenOf, toUnits } from "./deployment.js";
 import { RemessoError } from "./errors.js";
 import type { RequestStatus } from "./requests.js";
@@ -229,10 +229,15 @@ export function makeWalletRemittances(ctx: Ctx, deps: Deps) {
       const head = await ctx.pub.getBlock();
       // A receipt can come from a node ahead of the one answering now.
       const block = head.number !== null && head.number >= atLeast ? head : await ctx.pub.getBlock({ blockNumber: atLeast }).catch(() => head);
-      const s = await ctx.pub.readContract({ address: EXECUTOR, abi: executorAbi, functionName: "getSchedule", args: [BigInt(r.scheduleId!)], blockNumber: block.number! }) as unknown as Schedule;
-      return { s, at: block.timestamp, fresh: block.number !== null && block.number >= atLeast };
-    }, (v) => v.fresh && !same(v.s.sender, zeroAddress));
-    if (!fresh || same(s.sender, zeroAddress)) return null;
+      // The call can reach a node behind the one that gave the head: not yet.
+      const s = await atBlock(async () => await ctx.pub.readContract({ address: EXECUTOR, abi: executorAbi, functionName: "getSchedule", args: [BigInt(r.scheduleId!)], blockNumber: block.number! }) as unknown as Schedule)
+        .catch((e: unknown) => {
+          if (behind(e)) return null;
+          throw e;
+        });
+      return { s, at: block.timestamp, fresh: s !== null && block.number !== null && block.number >= atLeast };
+    }, (v) => v.fresh && v.s !== null && !same(v.s.sender, zeroAddress));
+    if (!fresh || !s || same(s.sender, zeroAddress)) return null;
     if (!same(s.sender, r.payer) || !same(s.destination, r.to) || !same(s.token, r.token) || s.amountIn !== BigInt(r.amountIn) ||
       s.interval !== INTERVAL || s.maxRuns !== 1 || s.payoutType !== 2) {
       throw conflict("the created schedule's immutable terms do not match this exact remittance; no payment is sent");
