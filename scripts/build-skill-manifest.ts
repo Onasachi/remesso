@@ -120,6 +120,10 @@ const x402Manifest = {
   snapshotOf: { rateService402: `${FUNCTIONS}/rate-service`, capabilities: `${FUNCTIONS}/agent` },
 };
 
+// The SDK skill describes itself; its pages are written by build-ai-docs.ts.
+const sdkDescription = (await Deno.readTextFile("skills/remesso-sdk/SKILL.md")).match(/^description: (.+)$/m)?.[1];
+if (!sdkDescription) throw new Error("skills/remesso-sdk/SKILL.md has no description");
+
 const index = {
   $schema: `${RAW}/skills/manifest.schema.json`,
   manifestVersion: 1,
@@ -140,6 +144,12 @@ const index = {
       skill: x402Manifest.skill.url,
       manifest: `${RAW}/skills/remesso-x402/manifest.json`,
       install: x402Manifest.install.npxSkills,
+    },
+    {
+      name: "remesso-sdk",
+      description: sdkDescription,
+      skill: `${RAW}/skills/remesso-sdk/SKILL.md`,
+      install: "npx -y remesso-wallet skills",
     },
   ],
 };

@@ -8,7 +8,7 @@ const sidebars: SidebarsConfig = {
       type: "category",
       label: "Get started",
       collapsed: false,
-      items: ["intro", "quickstart", "installation", "concepts"],
+      items: ["intro", "quickstart", "installation", "build-with-ai", "concepts"],
     },
     {
       type: "category",

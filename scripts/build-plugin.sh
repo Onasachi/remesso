@@ -2,7 +2,7 @@
 # Assemble plugin/ — the Claude plugin as the directory ships it — from the
 # files that are maintained elsewhere in the repo:
 #
-#   skills/{remesso,remesso-x402,remesso-wallet}  ->  plugin/skills/
+#   skills/{remesso,remesso-x402,remesso-wallet,remesso-sdk}  ->  plugin/skills/
 #   mcp/dist/server.mjs (npm run build in mcp/)   ->  plugin/mcp/server.mjs
 #   mcp/src, scripts, package.json, lockfile      ->  plugin/mcp/ (readable source, to rebuild and compare)
 #   the SDK source the wallet's bundle reads      ->  plugin/packages/remesso-sdk/src/ (same relative path)
@@ -40,12 +40,13 @@ sdk_inputs() {
 assemble() {
   local out="$1"
   mkdir -p "$out/skills" "$out/mcp/src" "$out/.claude-plugin"
-  for s in remesso remesso-x402 remesso-wallet; do
+  for s in remesso remesso-x402 remesso-wallet remesso-sdk; do
     rm -rf "$out/skills/$s"
     mkdir -p "$out/skills/$s"
     cp "skills/$s/SKILL.md" "$out/skills/$s/"
     [ -f "skills/$s/manifest.json" ] && cp "skills/$s/manifest.json" "$out/skills/$s/"
     [ -d "skills/$s/scripts" ] && cp -R "skills/$s/scripts" "$out/skills/$s/"
+    [ -d "skills/$s/references" ] && cp -R "skills/$s/references" "$out/skills/$s/"
   done
   cp mcp/dist/server.mjs "$out/mcp/server.mjs"
   rm -rf "$out/mcp/src" && mkdir -p "$out/mcp/src" && cp mcp/src/*.mjs "$out/mcp/src/"
@@ -67,12 +68,13 @@ assemble() {
 assemble_npm() {
   local out="$1"
   mkdir -p "$out/skills"
-  for s in remesso remesso-x402 remesso-wallet; do
+  for s in remesso remesso-x402 remesso-wallet remesso-sdk; do
     rm -rf "$out/skills/$s"
     mkdir -p "$out/skills/$s"
     cp "skills/$s/SKILL.md" "$out/skills/$s/"
     [ -f "skills/$s/manifest.json" ] && cp "skills/$s/manifest.json" "$out/skills/$s/"
     [ -d "skills/$s/scripts" ] && cp -R "skills/$s/scripts" "$out/skills/$s/"
+    [ -d "skills/$s/references" ] && cp -R "skills/$s/references" "$out/skills/$s/"
   done
   cp mcp/dist/server.mjs "$out/server.mjs"
   cp LICENSE "$out/LICENSE"

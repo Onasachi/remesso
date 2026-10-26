@@ -120,6 +120,9 @@ deno run --allow-all --config packages/remesso-sdk/deno.json --unstable-sloppy-i
 deno run --allow-read --allow-write --allow-run --allow-env docs-site/scripts/check-snippets.ts
 deno run --allow-read --allow-write scripts/build-docs-data.ts --check
 (cd docs-site && npm install && npm run build)   # fails on any broken link or anchor
+# the same pages for AI assistants: llms.txt, llms-full.txt, each page as .md, and
+# the remesso-sdk skill's references. Re-run without --check after any docs change.
+deno run --allow-read --allow-write scripts/build-ai-docs.ts --check
 
 # builder codes (Phase 6): an integrator's ERC-8021 code rides on every run
 deno test --allow-env supabase/functions/_shared/attribution.test.ts   # read and write, pinned to Celo's SDK
@@ -997,6 +1000,19 @@ an API reference. Like the SDK, it is held to the source:
 
 So a change to the SDK's API or to the deployment shows up as a failing check
 there until the pages follow.
+
+**AI assistants read the same pages (Build with AI, 2026-10-26).**
+`scripts/build-ai-docs.ts` writes them from `docs-site/docs`, so an assistant
+can't be told something the site doesn't say:
+- `llms.txt`, `llms-full.txt` and each page as `.md` at its URL, in
+  `docs-site/static/`;
+- the `remesso-sdk` skill's `references/`, listed in its `SKILL.md` between
+  markers. The rest of that `SKILL.md` is written by hand.
+
+The skill ships in the plugin and in `remesso-wallet`'s `skills`
+(`build-plugin.sh`), and `skills/manifest.json` lists it. MDX becomes
+Markdown: the deployment tables come from `src/components/deployment-rows.ts`,
+the rows the site renders too. A component the script doesn't know stops it.
 
 **Nothing in it about the deployment is typed by hand.** People believe an SDK
 that describes something we no longer serve.

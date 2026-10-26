@@ -43,7 +43,7 @@ yarn add remesso-sdk viem
 <TabItem value="deno" label="Deno">
 
 ```ts nocheck
-import { createRemesso } from "npm:remesso-sdk@0.2.0";
+import { createRemesso } from "npm:remesso-sdk";
 ```
 
 </TabItem>
