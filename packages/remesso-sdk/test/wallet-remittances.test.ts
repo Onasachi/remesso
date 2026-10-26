@@ -64,6 +64,7 @@ function mock(options: { receipts?: Record<string, unknown>; runs?: ReturnType<t
   Object.assign(pub, {
     readContract: async () => ({ sender: payer.address, destination: to, token: asset, amountIn: 1002507n, interval: 3600n, maxRuns: 1, payoutType: 2,
       feeBps: 25, runsExecuted: 1, active: false, cancelled: false, expiresAt: 2_000_000_000n, ...options.schedule }),
+    getBlock: async () => ({ number: 100n, hash: blockHash, timestamp: BigInt(Math.floor(Date.now() / 1000)) }),
     getBlockNumber: async () => 100n,
     getContractEvents: async () => options.runs ?? [runLog()],
     waitForTransactionReceipt: async () => { throw new Error("not mined yet"); },
@@ -119,25 +120,23 @@ Deno.test("the original creation receipt must identify this exact one-payment sc
   assertEquals(m.sent, []);
 });
 
-Deno.test("a changed pinned fee resumes durable cancellation of the same schedule before approval", async () => {
-  const m = mock({ schedule: { feeBps: 30, runsExecuted: 0 } }); const ctx = context(m.pub); const store = memoryRemittanceStore();
+Deno.test("a fee-mismatch cancellation reports nothing paid only once the schedule reads as cancelled and unrun", async () => {
+  const m = mock({ schedule: { feeBps: 30, runsExecuted: 0, cancelled: true } }); const ctx = context(m.pub); const store = memoryRemittanceStore();
   const cancelled = log(hashes.cancellation, EXECUTOR, encodeEventTopics({ abi: executorAbi, eventName: "ScheduleCancelled", args: { id: 7n } }) as Hex[], "0x");
   m.receipts[hashes.cancellation] = receipt(hashes.cancellation, [cancelled]);
-  await store.save(record(remittanceScope(ctx), { approval: undefined, cancellation: { hash: hashes.cancellation, raw: "0x04", nonce: 3 } }));
+  await store.save(record(remittanceScope(ctx), { approval: undefined, cancellation: { hash: hashes.cancellation, raw: "0x04", nonce: 3 }, cancelReason: "the contract's fee changed after this payment was quoted" }));
   const error = await assertRejects(() => makeWalletRemittances(ctx, { store, ...unusedRequests }).send(input), RemessoError);
-  assertEquals(error.code, "conflict");
-  assertEquals([error.details?.scheduleId, error.details?.cancellationHash, error.details?.cancellationConfirmed], ["7", hashes.cancellation, true]);
+  assertEquals(error.code, "refused");
+  assertEquals([error.details?.scheduleId, error.details?.cancellationHash, error.details?.cancelled], ["7", hashes.cancellation, true]);
   assertEquals((await store.get(input.idempotencyKey, remittanceScope(ctx)))?.approval, undefined);
   assertEquals(m.sent, []);
 });
 
-Deno.test("a pending fee-mismatch cancellation reports uncertainty and retains its original signed bytes", async () => {
+Deno.test("a cancellation whose nonce was used without its receipt fails closed and keeps its signed bytes", async () => {
   const m = mock({ schedule: { feeBps: 30, runsExecuted: 0 }, nonce: 4 }); const ctx = context(m.pub); const store = memoryRemittanceStore();
   await store.save(record(remittanceScope(ctx), { approval: undefined, cancellation: { hash: hashes.cancellation, raw: "0x04", nonce: 3 } }));
   const error = await assertRejects(() => makeWalletRemittances(ctx, { store, ...unusedRequests }).send(input), RemessoError);
-  assertEquals(error.code, "conflict");
-  assertEquals([error.details?.scheduleId, error.details?.cancellationHash, error.details?.cancellationConfirmed], ["7", hashes.cancellation, false]);
-  assertEquals(typeof error.details?.cancellationError, "string");
+  assertEquals([error.code, error.details?.hash], ["conflict", hashes.cancellation]);
   assertEquals((await store.get(input.idempotencyKey, remittanceScope(ctx)))?.cancellation?.raw, "0x04");
   assertEquals(m.sent, []);
 });
@@ -222,9 +221,15 @@ Deno.test("a custom journal entry must belong to the requested key, scope and pa
   assertEquals(m.sent, []);
 });
 
-Deno.test("a new key after restart signs above all journaled nonces when the RPC is stale", async () => {
+Deno.test("a new key after restart rebroadcasts unsent journaled steps in order and signs above them", async () => {
   const m = mock();
+  const broadcasts: string[] = [];
   Object.assign(m.pub, {
+    request: async ({ method, params }: { method: string; params: unknown[] }) => {
+      if (method === "eth_sendRawTransaction") { broadcasts.push(params[0] as string); return toHex(1, { size: 32 }); }
+      if (method === "eth_getTransactionByHash") return null;
+      throw new Error(`unexpected RPC ${method}`);
+    },
     readContract: async ({ functionName }: { functionName: string }) => {
       if (functionName === "directTokenAllowed") return true;
       if (functionName === "feeBps") return 25;
@@ -252,5 +257,8 @@ Deno.test("a new key after restart signs above all journaled nonces when the RPC
   };
   await assertRejects(() => makeWalletRemittances(ctx, { store, ...unusedRequests }).send({ ...input, idempotencyKey: "new-payment" }), Error, "crash before broadcast");
   assertEquals(captured, 50);
+  // Each saved step the node doesn't know goes out again with its own bytes,
+  // lowest nonce first, before anything new is signed.
+  assertEquals(broadcasts, ["0x01", "0x02", "0x04"]);
   assertEquals(m.sent, []);
 });

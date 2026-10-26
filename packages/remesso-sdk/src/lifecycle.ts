@@ -2,7 +2,7 @@
 /// existing durable keys. Reads never sign, broadcast or change the journals.
 import { formatUnits, hexToString, parseAbi, parseEventLogs, type Address, type Hex, type TransactionReceipt } from "viem";
 import { allowanceAbi, executorAbi } from "./abi.js";
-import type { Ctx } from "./context.js";
+import { type Ctx, receiptOf } from "./context.js";
 import { ALLOWANCE, EXECUTOR, token as tokenOf } from "./deployment.js";
 import { RemessoError } from "./errors.js";
 import { DEPLOYMENT, memo32, paymentScope, priorPayment, type PayInput, type PaymentResult } from "./payments.js";
@@ -32,6 +32,9 @@ const conflict = (message: string) => new RemessoError("conflict", message);
 const errorOf = (e: unknown) => ({ code: e instanceof RemessoError ? e.code : "rpc", message: String((e as Error)?.message ?? e) });
 const finalityError = (e: unknown) => new RemessoError(e instanceof RemessoError ? e.code : "conflict", String((e as Error)?.message ?? e), { lifecycleFinality: true });
 const stopped = new Set<PaymentStatus>(["failed", "cancelled", "expired"]);
+/// Older than this and settled, a saved payment is final: listing and
+/// recovery skip it rather than read the chain for it again.
+const SETTLED_MS = 2 * 3_600_000;
 function validate(options: LifecycleOptions) {
   if (options.funding !== undefined && options.funding !== "wallet" && options.funding !== "policy") throw new RemessoError("invalid", "funding must be wallet or policy");
 }
@@ -82,10 +85,7 @@ export function makeLifecycle(ctx: Ctx, deps: { store: RemittanceStore; wallet: 
     throw new RemessoError("not_found", "no saved payment owns this key; reconciliation never creates a new payment");
   }
   async function receipt(hash: Hex): Promise<TransactionReceipt | null> {
-    const found = await ctx.pub.getTransactionReceipt({ hash }).catch((e: unknown) => {
-      if ((e as { name?: string }).name === "TransactionReceiptNotFoundError") return null;
-      throw e;
-    });
+    const found = await receiptOf(ctx.pub, hash);
     if (!found) return null;
     if (!same(found.transactionHash, hash)) throw conflict("a replacement receipt is not proof this operation succeeded");
     const block = await ctx.pub.getBlock({ blockNumber: found.blockNumber });
@@ -155,6 +155,7 @@ export function makeLifecycle(ctx: Ctx, deps: { store: RemittanceStore; wallet: 
     base.hash = r.execution?.hash ?? r.approval?.hash ?? r.creation.hash;
     const s = await ctx.pub.readContract({ address: EXECUTOR, abi: executorAbi, functionName: "getSchedule", args: [event.args.id] }) as unknown as Schedule;
     if (!same(s.sender, r.payer) || !same(s.destination, r.to) || !same(s.token, r.token) || s.amountIn !== BigInt(r.amountIn) || s.interval !== 3600n || s.maxRuns !== 1 || s.payoutType !== 2) throw conflict("the schedule's immutable terms differ from this wallet remittance");
+    const now = await ctx.pub.getBlock();
     let candidateError: unknown;
     for (const hash of [...new Set([r.paymentHash, r.execution?.hash].filter((v): v is Hex => v != null))]) {
       try { return await proof(base, hash); }
@@ -181,34 +182,38 @@ export function makeLifecycle(ctx: Ctx, deps: { store: RemittanceStore; wallet: 
       throw candidateError ?? conflict("the schedule reports a run but its exact canonical payment event is unavailable");
     }
     if (r.paymentHash) throw candidateError ?? conflict("the stored payment is no longer canonical");
+    // Cancelled, or past its expiry, and never run: it never will be.
     if (s.cancelled) return { ...base, stage: "cancellation", status: "cancelled", ...(r.cancellation ? { hash: r.cancellation.hash } : {}) };
+    if (s.expiresAt !== 0n && now.timestamp > s.expiresAt) return { ...base, status: "expired" };
+    // A live schedule can still be paid, so a failed step is not a failed payment.
+    const live = (stage: PaymentStage, hash: Hex, message: string): PaymentOperation =>
+      ({ ...base, stage, hash, status: "needs_reconciliation", error: { code: "reverted", message } });
     if (r.cancellation) {
       base = { ...base, stage: "cancellation", hash: r.cancellation.hash };
       const cancelled = await receipt(r.cancellation.hash);
       if (!cancelled) return await pending(base, r.cancellation);
-      if (cancelled.status !== "success") return { ...base, status: "failed" };
+      if (cancelled.status !== "success") return live("cancellation", r.cancellation.hash, "the cancellation reverted while the schedule is live; reconcile this key");
       const matching = parseEventLogs({ abi: executorAbi, eventName: "ScheduleCancelled", logs: logs(cancelled) }).some((e) => same(e.address, EXECUTOR) && e.args.id === base.scheduleId);
       if (!matching) throw conflict("the cancellation receipt has no matching schedule event");
       return { ...base, status: "cancelled" };
     }
-    const block = await ctx.pub.getBlock();
-    if (s.expiresAt !== 0n && block.timestamp >= s.expiresAt) return { ...base, status: "expired" };
     if (!s.active) return { ...base, status: "paused" };
     if (Number(s.feeBps) !== r.feeBps) throw conflict("the schedule fee differs from the original remittance quote; reconcile to cancel safely");
     if (r.execution) {
       base = { ...base, stage: "execution", hash: r.execution.hash };
       const execution = await receipt(r.execution.hash);
       if (!execution) return await pending(base, r.execution);
-      if (execution.status !== "success") return { ...base, status: "failed" };
+      if (execution.status !== "success") return live("execution", r.execution.hash, "running the payment reverted while its schedule is live; reconcile this key to cancel it");
       throw candidateError ?? conflict("the execution receipt has no matching payment event");
     }
+    if (r.approvalSkipped) return { ...base, stage: "execution", status: "prepared" };
     base = { ...base, stage: "approval", status: "awaiting_approval" };
     if (!r.approval) return base;
     base.hash = r.approval.hash;
     const approved = await receipt(r.approval.hash);
     if (!approved) return await pending(base, r.approval);
-    if (approved.status !== "success") return { ...base, status: "failed" };
-    const matching = parseEventLogs({ abi: APPROVAL, eventName: "Approval", logs: logs(approved) }).some((e) => same(e.address, r.token) && same(e.args.owner, r.payer) && same(e.args.spender, EXECUTOR) && e.args.value === BigInt(r.approvalAmount));
+    if (approved.status !== "success") return live("approval", r.approval.hash, "the approval reverted while the schedule is live; reconcile this key to cancel it");
+    const matching = parseEventLogs({ abi: APPROVAL, eventName: "Approval", logs: logs(approved) }).some((e) => same(e.address, r.token) && same(e.args.owner, r.payer) && same(e.args.spender, EXECUTOR) && e.args.value === BigInt(r.approvalAmount ?? -1));
     if (!matching) throw conflict("the approval receipt has no matching token, owner, spender and amount event");
     return { ...base, stage: "execution", status: "prepared" };
   }
@@ -227,7 +232,11 @@ export function makeLifecycle(ctx: Ctx, deps: { store: RemittanceStore; wallet: 
     const base: PaymentOperation = { key: r.key!, funding: "policy", status: "signed", stage: "payment", payer: owner, to: r.to, token: r.token, amount: BigInt(r.units), createdAt: r.at, policyId: BigInt(r.policyId), hash: r.hash };
     try {
       const found = await receipt(r.hash);
-      if (!found) return await pending(base, r);
+      if (!found) {
+        // Its deadline passed unsent and the no-op at its nonce landed.
+        if (r.cancel && await receipt(r.cancel.hash)) return { ...base, status: "expired" };
+        return await pending(base, r);
+      }
       if (found.status !== "success") return { ...base, status: "failed" };
       return await proof(base, r.hash, originalMemo(r));
     } catch (e) { return { ...base, status: "needs_reconciliation", error: errorOf(e) }; }
@@ -235,10 +244,17 @@ export function makeLifecycle(ctx: Ctx, deps: { store: RemittanceStore; wallet: 
   async function get(key: string, options: LifecycleOptions = {}): Promise<PaymentOperation> {
     validate(options); await ctx.assertChain(); return await describe(await load(key, options));
   }
-  async function listPending(options: LifecycleOptions = {}): Promise<PaymentOperation[]> {
-    validate(options); await ctx.assertChain();
-    const result: PaymentOperation[] = [];
-    if (options.funding !== "policy") for (const r of await deps.store.list(remittanceScope(ctx))) result.push(await describe({ funding: "wallet", record: r }));
+  /// Saved payments that may still be unsettled, without reading the chain:
+  /// old ones that paid, or whose schedule expired long ago, are left out.
+  async function saved(options: LifecycleOptions): Promise<Stored[]> {
+    const out: Stored[] = [], now = Date.now();
+    if (options.funding !== "policy") {
+      for (const r of await deps.store.list(remittanceScope(ctx))) {
+        const old = now - Date.parse(r.createdAt) > SETTLED_MS;
+        if ((r.paymentHash && old) || r.expiresAt * 1000 < now - SETTLED_MS) continue;
+        out.push({ funding: "wallet", record: r });
+      }
+    }
     if (options.funding !== "wallet") {
       const records = await ctx.store.since(0);
       const policies = new Map<string, PaymentRecord>();
@@ -247,8 +263,17 @@ export function makeLifecycle(ctx: Ctx, deps: { store: RemittanceStore; wallet: 
         const owned = await priorPayment(ctx, r.key);
         if (owned) policies.set(r.key, owned);
       }
-      for (const record of policies.values()) result.push(await describe({ funding: "policy", record }));
+      for (const record of policies.values()) {
+        if (["confirmed", "reverted", "expired"].includes(record.status) && now - Date.parse(record.at) > SETTLED_MS) continue;
+        out.push({ funding: "policy", record });
+      }
     }
+    return out;
+  }
+  async function listPending(options: LifecycleOptions = {}): Promise<PaymentOperation[]> {
+    validate(options); await ctx.assertChain();
+    const result: PaymentOperation[] = [];
+    for (const stored of await saved(options)) result.push(await describe(stored));
     return result.filter((r) => r.status !== "finalized" && !stopped.has(r.status));
   }
   async function reconcile(key: string, options: LifecycleOptions & { waitMs?: number } = {}): Promise<PaymentOperation> {
@@ -257,10 +282,13 @@ export function makeLifecycle(ctx: Ctx, deps: { store: RemittanceStore; wallet: 
     const before = await describe(stored);
     if (["included", "finalized", "failed", "cancelled", "paused", "expired"].includes(before.status)) return before;
     if (before.error?.reason === "nonce_consumed") return before;
+    // A payment saved but never signed is started only by its own caller's
+    // retry: someone may have seen it fail and moved on.
+    if (stored.funding === "wallet" && !stored.record.creation) return before;
     try {
       if (stored.funding === "wallet") {
         const r = stored.record;
-        await deps.wallet.send({ to: r.to, amount: formatUnits(BigInt(r.amount), tokenOf(r.token).decimals), token: r.token, idempotencyKey: r.key, requestId: r.requestId, waitMs: options.waitMs, validUntil: r.validUntil });
+        await deps.wallet.resume({ to: r.to, amount: formatUnits(BigInt(r.amount), tokenOf(r.token).decimals), token: r.token, idempotencyKey: r.key, requestId: r.requestId, waitMs: options.waitMs, validUntil: r.validUntil });
       } else {
         const r = stored.record;
         await deps.pay({ to: r.to, amount: formatUnits(BigInt(r.units), tokenOf(r.token).decimals), token: r.token, policyId: r.policyId, payer: before.payer,
@@ -289,11 +317,15 @@ export function makeLifecycle(ctx: Ctx, deps: { store: RemittanceStore; wallet: 
     const limit = options.limit ?? 25;
     if (!Number.isSafeInteger(limit) || limit < 1 || limit > 1000) throw new RemessoError("invalid", "limit must be from 1 to 1000");
     if (options.signal?.aborted) throw aborted();
-    const pending = (await listPending(options)).filter((r) => r.status !== "paused").slice(0, limit);
+    await ctx.assertChain();
+    // Started payments only, chosen without reading the chain, so `limit`
+    // bounds the work as well as the result.
+    const started = (await saved(options)).filter((s) => s.funding === "policy" ? s.record.status === "sent" || s.record.status === "unsent" : s.record.creation && !s.record.paymentHash);
     const recovered: PaymentOperation[] = [];
-    for (const operation of pending) {
+    for (const stored of started.slice(0, limit)) {
       if (options.signal?.aborted) throw aborted();
-      recovered.push(await reconcile(operation.key, { funding: operation.funding, waitMs: options.waitMs }));
+      const key = stored.funding === "wallet" ? stored.record.key : stored.record.key!;
+      recovered.push(await reconcile(key, { funding: stored.funding, waitMs: options.waitMs }));
     }
     return recovered;
   }

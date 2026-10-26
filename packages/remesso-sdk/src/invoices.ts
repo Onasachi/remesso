@@ -4,10 +4,11 @@ import { formatUnits, hashTypedData, parseAbi, toHex, verifyTypedData, zeroAddre
 import type { Ctx } from "./context.js";
 import { CHAIN_ID, checksum, EXECUTOR, token as tokenOf, toUnits } from "./deployment.js";
 import { RemessoError } from "./errors.js";
-import { memo32 } from "./payments.js";
+import { memo32, priorPayment } from "./payments.js";
 import type { PaymentProof, Receipts } from "./receipts.js";
 import type { Remittances, RemittanceResult } from "./remittances.js";
 import type { Requests, RequestStatus } from "./requests.js";
+import { remittanceScope } from "./wallet-remittances.js";
 
 /** A separate domain from transaction and request-decline signatures. */
 export const INVOICE_DOMAIN = Object.freeze({ name: "Remesso Invoice", version: "1", chainId: CHAIN_ID, verifyingContract: EXECUTOR } as const);
@@ -89,6 +90,15 @@ export function memoryInvoiceStore(): InvoiceStore {
     rows.set(invoiceId, next);
   } };
 }
+/** The memo a policy payment carries to settle an invoice made without a backend
+ * request: the first 32 hex characters of its id, 128 bits of the signed terms. */
+export function invoiceReference(invoiceId: Hex): string {
+  if (!/^0x[\da-f]{64}$/i.test(invoiceId)) throw new RemessoError("invalid", "an invoice id is a 32-byte hex hash");
+  return invoiceId.slice(2, 34).toLowerCase();
+}
+/// Clocks differ: an invoice issued a few minutes "in the future" is someone's
+/// clock running fast, not a forgery.
+const SKEW_S = 300;
 const ERC1271 = parseAbi(["function isValidSignature(bytes32 hash, bytes signature) view returns (bytes4)"]);
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 const bytes32 = (v: unknown): v is Hex => typeof v === "string" && /^0x[\da-f]{64}$/i.test(v);
@@ -157,7 +167,7 @@ export function makeInvoices(ctx: Ctx, deps: { requests: Requests; remittances: 
   async function verify(invoice: SignedInvoice, opts: { allowExpired?: boolean } = {}): Promise<VerifiedInvoice> {
     validate(invoice, true);
     const now = Math.floor(Date.now() / 1000);
-    if (invoice.message.issuedAt > now) throw new RemessoError("refused", "the invoice has not been issued yet");
+    if (invoice.message.issuedAt > now + SKEW_S) throw new RemessoError("refused", "the invoice has not been issued yet");
     if (!opts.allowExpired && invoice.message.expiresAt <= now) throw new RemessoError("refused", "the invoice has expired");
     const typed = invoiceTypedData(invoice);
     let valid = false;
@@ -187,7 +197,7 @@ export function makeInvoices(ctx: Ctx, deps: { requests: Requests; remittances: 
     } };
     validate(unsigned, false);
     const info = details({ ...unsigned, signature: "0x01" }), now = Math.floor(Date.now() / 1000);
-    if (info.issuedAt > now || info.expiresAt <= now) throw new RemessoError("refused", "an invoice must be issued already and expire in the future");
+    if (info.issuedAt > now + SKEW_S || info.expiresAt <= now) throw new RemessoError("refused", "an invoice must be issued already and expire in the future");
     return unsigned;
   }
   async function sign(input: SignInvoiceInput): Promise<SignedInvoice> {
@@ -219,28 +229,48 @@ export function makeInvoices(ctx: Ctx, deps: { requests: Requests; remittances: 
       const account = ctx.requireAccount();
       if (options.funding === "wallet" && !same(account.address, expected.payer)) throw new RemessoError("refused", "this wallet is not the payer named in the invoice");
       if (options.funding === "wallet" && "policyId" in options && options.policyId != null) invalid("wallet invoices cannot select a policy");
+      // A schedule carries no memo, so nothing would tie its run to this
+      // invoice rather than to any other payment of the same amount.
+      if (options.funding === "wallet" && !expected.requestId) {
+        throw new RemessoError("refused", "an invoice without a request is paid from a policy, whose payment carries the invoice's reference. To pay from a wallet, the recipient makes the invoice with invoices.create, which adds a request");
+      }
       await requestMatches(expected);
+      const terms = { to: expected.recipient, amount: expected.amountDecimal, token: expected.token, idempotencyKey: expected.idempotencyKey, requestId: expected.requestId, validUntil: expected.expiresAt };
+      const memo = expected.requestId ? undefined : invoiceReference(expected.id);
+      // A payment that can't be made now is refused before the invoice is
+      // pinned to this route; a retry of a started one is answered as it is.
+      const started = options.funding === "policy" ? await priorPayment(ctx, expected.idempotencyKey) : await ctx.remittanceStore?.get(expected.idempotencyKey, remittanceScope(ctx));
+      if (!started) {
+        const quote = await deps.remittances.quote(options.funding === "policy"
+          ? { funding: "policy", to: terms.to, amount: terms.amount, token: terms.token, requestId: terms.requestId, idempotencyKey: terms.idempotencyKey, payer: expected.payer, ...(options.policyId === undefined ? {} : { policyId: options.policyId }) }
+          : { funding: "wallet", to: terms.to, amount: terms.amount, token: terms.token, requestId: terms.requestId, idempotencyKey: terms.idempotencyKey });
+        if (!quote.canSend) throw new RemessoError("refused", `this invoice can't be paid this way now: ${quote.issues.map((i) => i.message).join("; ")}`, { issues: quote.issues });
+      }
       await store.reserve(expected.id, { funding: options.funding, signer: account.address, payer: expected.payer, key: expected.idempotencyKey,
         ...(options.policyId === undefined ? {} : { policyId: String(options.policyId) }) });
-      const terms = { to: expected.recipient, amount: expected.amountDecimal, token: expected.token, idempotencyKey: expected.idempotencyKey, requestId: expected.requestId, validUntil: expected.expiresAt };
       const paid = await deps.remittances.send(options.funding === "policy"
-        ? { ...options, ...terms, payer: expected.payer } : { ...options, ...terms });
+        ? { ...options, ...terms, payer: expected.payer, ...(memo ? { memo } : {}) } : { ...options, ...terms });
       return { ...paid, invoiceId: expected.id };
     },
     /** Deduplicate BOTH invoiceId and payment.eventId atomically before fulfillment. */
     async verifyPayment(invoice: SignedInvoice, input: VerifyInvoicePaymentInput): Promise<InvoicePaymentProof> {
       const expected = await verify(invoice, { allowExpired: true }), request = await requestMatches(expected);
+      const reference = expected.requestId ? expected.requestId.replaceAll("-", "") : invoiceReference(expected.id);
       const payment = await deps.receipts.verify({ ...input, from: expected.payer, to: expected.recipient, token: expected.token,
         amount: expected.amountDecimal, finality: input.finality ?? "finalized",
-        ...(input.policyId !== undefined && expected.requestId ? { memo: expected.requestId.replaceAll("-", "") } : {}),
+        ...(input.policyId !== undefined ? { memo: reference } : {}),
       });
       if (request) {
         if (payment.kind === "policy_payment" && !same(payment.memo, memo32(request.reference))) throw new RemessoError("conflict", "the policy payment does not carry this invoice's request reference");
         if (payment.kind === "run" && (!request.payment?.schedule || !same(request.payment.schedule.contract, payment.contract) || request.payment.schedule.id !== String(payment.scheduleId))) throw new RemessoError("conflict", "the schedule has not been bound to this invoice's backend request");
+      } else if (payment.kind !== "policy_payment" || !same(payment.memo, memo32(reference))) {
+        // Without a request, only the invoice's own reference ties a payment
+        // to it: a subscription's run of the same amount is not this invoice.
+        throw new RemessoError("conflict", "an invoice without a request is settled only by a policy payment carrying its reference (invoiceReference)");
       }
       const block = await ctx.pub.getBlock({ blockNumber: payment.blockNumber });
       if (!block.hash || !same(block.hash, payment.blockHash)) throw new RemessoError("conflict", "the invoice payment block is no longer canonical");
-      if (block.timestamp < BigInt(expected.issuedAt) || block.timestamp >= BigInt(expected.expiresAt)) throw new RemessoError("refused", "the payment was not included during the invoice's validity window");
+      if (block.timestamp + BigInt(SKEW_S) < BigInt(expected.issuedAt) || block.timestamp >= BigInt(expected.expiresAt)) throw new RemessoError("refused", "the payment was not included during the invoice's validity window");
       return { invoiceId: expected.id, orderId: expected.orderId, payment };
     },
   };

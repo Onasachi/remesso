@@ -68,7 +68,10 @@ function fixture() {
     token: asset.address, amount: "1000000", amountIn: "1002507", fee: "2507", feeBps: 25, firstRunAt: 1_999_996_400, expiresAt: 2_000_000_000, approvalAmount: "1002507",
     createdAt: new Date().toISOString(), creation: { hash: hashes.creation, raw: "0x01", nonce: 1 }, ...change });
   const calls: { wallet: WalletRemittanceInput[]; policy: PayInput[] } = { wallet: [], policy: [] };
-  const wallet = { send: async (input: WalletRemittanceInput) => { calls.wallet.push(input); return { funding: "wallet", status: "pending" }; } } as unknown as WalletRemittances;
+  const wallet = {
+    send: async () => { throw new Error("lifecycle must never start a payment"); },
+    resume: async (input: WalletRemittanceInput) => { calls.wallet.push(input); return { funding: "wallet", status: "pending" }; },
+  } as unknown as WalletRemittances;
   const pay = async (input: PayInput): Promise<PaymentResult> => { calls.policy.push(input); return { status: "pending", hash: hashes.policy, policyId: 9n, to: recipient, amount: 1000000n, token: asset.address, sent: "1 USDT", explorer: "" }; };
   const api = (proofs: Receipts = makeReceipts(ctx)) => makeLifecycle(ctx, { store: walletStore, wallet, pay, receipts: proofs });
   return { api, ctx, state, receipts, store, walletStore, policy, walletRecord, calls, completedReads: () => completedReads, setDelay: (ms: number) => { receiptDelay = ms; } };
@@ -149,7 +152,10 @@ Deno.test("lifecycle reports external cancellation, pause and expiry without res
   f.state.schedule.cancelled = false; f.state.schedule.active = false;
   assertEquals((await f.api().get(r.key)).status, "paused");
   await assertRejects(() => f.api().wait(r.key, { timeoutMs: 1000 }), RemessoError);
+  // V5 still runs a schedule at exactly its expiry; only after it is final.
   f.state.schedule.active = true; f.state.now = 2_000_000_000n;
+  assert((await f.api().get(r.key)).status !== "expired");
+  f.state.now = 2_000_000_001n;
   assertEquals((await f.api().reconcile(r.key)).status, "expired");
   assertEquals(f.calls.wallet.length, 0);
 });
@@ -159,7 +165,11 @@ Deno.test("lifecycle reconciliation requires saved keys and preserves exact fund
   assertEquals(f.calls, { wallet: [], policy: [] });
   const p = f.policy({ validUntil: 2_000_000_000 }); await f.store.save(p); await f.api().reconcile(p.key!, { funding: "policy", waitMs: 12 });
   assertEquals(f.calls.policy, [{ to: recipient, amount: "1", token: asset.address, policyId: "9", payer: owner, memo: "order-9", idempotencyKey: "policy-key", waitMs: 12, validUntil: 2_000_000_000 }]);
-  const r = f.walletRecord({ creation: undefined, requestId: "request-7", validUntil: 2_000_000_000 }); await f.walletStore.save(r); await f.api().reconcile(r.key, { funding: "wallet", waitMs: 13 });
+  // A payment saved but never signed is left for its own caller to start.
+  const unstarted = f.walletRecord({ key: "unstarted", creation: undefined }); await f.walletStore.save(unstarted);
+  assertEquals((await f.api().reconcile(unstarted.key, { funding: "wallet" })).status, "prepared");
+  assertEquals(f.calls.wallet, []);
+  const r = f.walletRecord({ requestId: "request-7", validUntil: 2_000_000_000 }); await f.walletStore.save(r); await f.api().reconcile(r.key, { funding: "wallet", waitMs: 13 });
   assertEquals(f.calls.wallet, [{ to: recipient, amount: "1", token: asset.address, idempotencyKey: "wallet-key", requestId: "request-7", waitMs: 13, validUntil: 2_000_000_000 }]);
 });
 
@@ -200,7 +210,8 @@ Deno.test("lifecycle never confirms a schedule run counter without an independen
 
 Deno.test("lifecycle recovery visits saved operations sequentially and respects funding and limit", async () => {
   const f = fixture(); await f.store.save(f.policy());
-  await f.walletStore.save(f.walletRecord({ key: "one", creation: undefined })); await f.walletStore.save(f.walletRecord({ key: "two", creation: undefined }));
+  await f.walletStore.save(f.walletRecord({ key: "never-signed", creation: undefined }));
+  await f.walletStore.save(f.walletRecord({ key: "one" })); await f.walletStore.save(f.walletRecord({ key: "two" }));
   const recovered = await f.api().recoverPending({ funding: "wallet", limit: 1, waitMs: 1 });
   assertEquals(recovered.map((r) => [r.key, r.funding]), [["one", "wallet"]]);
   assertEquals([f.calls.wallet.length, f.calls.policy.length], [1, 0]);

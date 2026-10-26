@@ -39,7 +39,12 @@ export type RemessoOptions = {
   store?: PaymentStore;
   /** Durable wallet-funded send progress. See fileRemittanceStore in remesso-sdk/node. */
   remittanceStore?: RemittanceStore;
-  /** Shared lock and nonce floor for every process using this signer. */
+  /**
+   * Shared lock and nonce floor for every process using this signer. Requires
+   * `store`, `remittanceStore` and `invoiceStore` shared the same way: with
+   * journals in memory, each worker would keep its own keys and a retry on
+   * another worker would pay again.
+   */
   coordinator?: SignerCoordinator;
   /** Atomic invoice-route reservations across workers/restarts. */
   invoiceStore?: InvoiceStore;
@@ -103,6 +108,9 @@ export function createRemesso(opts: RemessoOptions = {}): Remesso {
   const wallet = opts.walletClient ?? (account ? createWalletClient({ account, chain: celo, transport: http(rpc) }) : null);
   const base = (opts.functionsUrl ?? deployment.functions.base).replace(/\/+$/, "");
   const appOrigin = opts.appOrigin ?? deployment.app.origin;
+  if (opts.coordinator && (!opts.store || !opts.remittanceStore || !opts.invoiceStore)) {
+    throw new RemessoError("invalid", "a shared coordinator needs shared journals too: pass store, remittanceStore and invoiceStore from the same storage (createPostgresStorage gives all four)");
+  }
   const remittanceStore = opts.remittanceStore ?? memoryRemittanceStore();
 
   const ctx = makeCtx({
@@ -137,13 +145,16 @@ export function createRemesso(opts: RemessoOptions = {}): Remesso {
     async prepare(input, options) {
       if (typeof input?.idempotencyKey !== "string" || !input.idempotencyKey.trim()) throw new RemessoError("invalid", "prepare requires a nonempty idempotencyKey");
       if (input.validUntil !== undefined && !Number.isSafeInteger(input.validUntil)) throw new RemessoError("invalid", "validUntil must be an integer Unix timestamp in seconds");
+      if (input.validUntil !== undefined && input.validUntil <= Math.floor(Date.now() / 1000)) throw new RemessoError("refused", "the payment's deadline has already passed");
       const quote = await quotes.quote(input, options);
       if (!quote.canSend) throw new RemessoError("refused", "this payment is not ready; review the quote issues", { quote });
       const maximum = input.maxDebit ?? formatUnits(quote.grossDebit, quote.decimals);
       if (toUnits(maximum, token(quote.token)) < quote.grossDebit) throw new RemessoError("refused", "the quote exceeds maxDebit", { quote });
-      const validUntil = Math.min(input.validUntil ?? Number.MAX_SAFE_INTEGER, Math.floor(quote.expiresAt.getTime() / 1000));
-      if (validUntil <= Math.floor(Date.now() / 1000)) throw new RemessoError("refused", "the payment intent has expired");
-      const bounded = { token: quote.token, maxDebit: maximum, validUntil };
+      // The quote bounds when the payment may start, not when it may finish:
+      // three transactions can outlast a 60-second quote.
+      const startBy = Math.min(input.startBy ?? Number.MAX_SAFE_INTEGER, Math.floor(quote.expiresAt.getTime() / 1000));
+      if (startBy <= Math.floor(Date.now() / 1000)) throw new RemessoError("refused", "the quote has expired; prepare the payment again");
+      const bounded = { token: quote.token, maxDebit: maximum, startBy };
       if (input.funding === "policy") return { quote, input: { ...input, ...bounded, policyId: quote.selectedPolicyId ?? input.policyId } };
       return { quote, input: { ...input, ...bounded } };
     },

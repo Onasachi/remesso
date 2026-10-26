@@ -15,15 +15,12 @@ import {
 import {
   getBlockNumber,
   getLogs,
-  getTransaction,
   getTransactionCount,
-  getTransactionReceipt,
   prepareTransactionRequest,
-  sendRawTransaction,
   signTransaction,
 } from "viem/actions";
 import { allowanceAbi } from "./abi.js";
-import { type Ctx, gasFor, refusal } from "./context.js";
+import { type Ctx, gasFor, type OpenTx, PAY_GAS, receiptOf, refusal } from "./context.js";
 import { ALLOWANCE, CHAIN_ID, checksum, findToken, formatAmount, toUnits } from "./deployment.js";
 import { RemessoError } from "./errors.js";
 import type { Policies, Policy } from "./policies.js";
@@ -50,7 +47,14 @@ export type PayInput = {
   allowRepeat?: boolean;
   /** How long to wait for the receipt before answering "pending". Default 45s. */
   waitMs?: number;
+  /**
+   * Unix second the payment must land before. Nothing starts within a minute
+   * of it, nothing is broadcast within 30 seconds of it, and bytes still
+   * unsent after it are cancelled at their nonce, so it can't land late.
+   */
   validUntil?: number;
+  /** Don't start this payment at or after this Unix second (a quote's expiry). Ignored once its key has a saved payment. */
+  startBy?: number;
 };
 
 export type PaymentResult = {
@@ -65,6 +69,8 @@ export type PaymentResult = {
   explorer: string;
   /** True when this key had already paid and nothing new was sent. */
   repeat?: boolean;
+  /** Its deadline passed before it went out, so this no-op was sent at its nonce. Retry the key to learn which landed. */
+  cancellation?: Hex;
 };
 
 export const DEPLOYMENT = `${CHAIN_ID}:${ALLOWANCE.toLowerCase()}`;
@@ -83,6 +89,13 @@ export async function priorPayment(ctx: Ctx, key: string): Promise<PaymentRecord
     : undefined;
 }
 const REPEAT_MS = 10 * 60_000;
+/// A payment isn't started this close to its deadline, nor broadcast this close.
+const START_MARGIN_S = 60;
+const SEND_MARGIN_S = 30;
+const now = () => Math.floor(Date.now() / 1000);
+/// Too close to its deadline to be sent: it could land after it.
+const lapsed = (rec: PaymentRecord) => rec.validUntil !== undefined && rec.validUntil - SEND_MARGIN_S <= now();
+const notFound = (e: unknown) => (e as { name?: string })?.name === "TransactionNotFoundError";
 const REPEAT_BLOCKS = 600n; // ten minutes of Celo blocks
 const PAID = parseAbiItem("event Paid(uint256 indexed id, address indexed to, uint256 amount, bytes32 memo)");
 const explorer = (h: string) => `https://celoscan.io/tx/${h}`;
@@ -110,11 +123,53 @@ export function makePay(ctx: Ctx, policies: Policies) {
     return account;
   };
 
+  /// Sign a no-op at a lapsed payment's nonce and save it before sending it.
+  async function cancel(rec: PaymentRecord): Promise<PaymentRecord> {
+    if (rec.cancel) {
+      await ctx.resend(rec.cancel.raw);
+      return rec;
+    }
+    const signed = await ctx.signCancel(rec.nonce, findToken(rec.token) ?? null);
+    const next: PaymentRecord = { ...rec, cancel: signed };
+    await save(next);
+    await ctx.resend(signed.raw);
+    return next;
+  }
+
+  // Payments saved but not yet seen on-chain, for the next nonce to respect.
+  // Records written by 0.2.0 carry no agent, so the policy says whose they are.
+  if (ctx.account) {
+    ctx.addJournal(async (fromNonce) => {
+      const scope = paymentScope(ctx), agent = ctx.requireAccount().address.toLowerCase();
+      const agents = new Map<string, Promise<string>>();
+      const open: OpenTx[] = [], hashes = new Set<string>();
+      for (const rec of await ctx.store.since(0)) {
+        if (rec.nonce < fromNonce || !["sent", "unsent"].includes(rec.status) || hashes.has(rec.hash.toLowerCase())) continue;
+        // Bytes that don't hash to the recorded payment are never sent.
+        if (keccak256(rec.raw).toLowerCase() !== rec.hash.toLowerCase()) continue;
+        if (rec.deployment !== scope) {
+          if (rec.deployment !== DEPLOYMENT) continue;
+          if (!agents.has(rec.policyId)) {
+            agents.set(rec.policyId, ctx.pub.readContract({ address: ALLOWANCE, abi: allowanceAbi, functionName: "policy", args: [BigInt(rec.policyId)] }).then((p) => p.agent.toLowerCase()));
+          }
+          if (await agents.get(rec.policyId) !== agent) continue;
+        }
+        hashes.add(rec.hash.toLowerCase());
+        open.push({
+          nonce: rec.nonce, hash: rec.hash, raw: rec.raw, savedAt: Date.parse(rec.at), resend: !lapsed(rec),
+          ...(rec.cancel ? { cancel: rec.cancel } : {}),
+          cancelNow: async () => { await cancel(rec); },
+        });
+      }
+      return open;
+    });
+  }
+
   /// Simulate, then sign without sending. Throws the contract's refusal
   /// before anything is signed.
   async function sign(p: Policy, to: Address, units: bigint, memo: Hex) {
     const account = local();
-    const fee = await gasFor(ctx, findToken(p.token) ?? null, 120_000n);
+    const fee = await gasFor(ctx, findToken(p.token) ?? null, PAY_GAS, "payment");
     const args = [p.id, to, units, memo] as const;
     try {
       await ctx.pub.simulateContract({ address: ALLOWANCE, abi: allowanceAbi, functionName: "pay", args, account, ...fee } as never);
@@ -122,10 +177,7 @@ export function makePay(ctx: Ctx, policies: Policies) {
       throw new RemessoError("refused", `the policy refuses this payment: ${refusal(e)}`);
     }
     const data = encodeFunctionData({ abi: allowanceAbi, functionName: "pay", args });
-    let nonce = await ctx.nextNonce();
-    for (const rec of await ctx.store.since(0)) {
-      if (rec.deployment === paymentScope(ctx)) nonce = Math.max(nonce, rec.nonce + 1);
-    }
+    const nonce = await ctx.nextNonce();
     const request = await prepareTransactionRequest(ctx.pub, {
       account,
       nonce,
@@ -156,10 +208,7 @@ export function makePay(ctx: Ctx, policies: Policies) {
   /// the record keeps the hash either way.
   async function broadcast(rec: PaymentRecord, waitMs: number): Promise<PaymentRecord> {
     await ctx.assertActive();
-    if (rec.validUntil !== undefined && rec.validUntil <= Math.floor(Date.now() / 1000)) throw new RemessoError("refused", "the saved payment intent expired; its original hash must be reconciled without another broadcast", { hash: rec.hash });
-    try {
-      await sendRawTransaction(ctx.pub, { serializedTransaction: rec.raw });
-    } catch { /* already known, or accepted and unanswered: the receipt decides */ }
+    await ctx.resend(rec.raw);
     const receipt = await ctx.pub.waitForTransactionReceipt({ hash: rec.hash, timeout: waitMs }).catch(() => null);
     if (!receipt) return rec;
     const done = outcome(rec, receipt);
@@ -171,12 +220,15 @@ export function makePay(ctx: Ctx, policies: Policies) {
   async function reconcile(rec: PaymentRecord): Promise<PaymentRecord> {
     // Inclusion isn't finality. Re-read even a previously confirmed receipt:
     // a reorg may have removed it since the last call.
-    const receipt = await getTransactionReceipt(ctx.pub, { hash: rec.hash }).catch(() => null);
+    const receipt = await receiptOf(ctx.pub, rec.hash);
     if (receipt) return outcome(rec, receipt);
-    try {
-      await getTransaction(ctx.pub, { hash: rec.hash });
-      return { ...rec, status: "sent" }; // in the mempool
-    } catch { /* unknown to the node */ }
+    // Its cancellation landed instead, so the payment never can.
+    if (rec.cancel && await receiptOf(ctx.pub, rec.cancel.hash)) return { ...rec, status: "expired" };
+    const known = (hash: Hex) => ctx.pub.getTransaction({ hash }).then(() => true, (e: unknown) => {
+      if (notFound(e)) return false;
+      throw e;
+    });
+    if (await known(rec.hash) || (rec.cancel && await known(rec.cancel.hash))) return { ...rec, status: "sent" }; // in a mempool
     const used = await getTransactionCount(ctx.pub, { address: local().address, blockTag: "latest" });
     // Its nonce is still free, so the signed bytes never went out and still can.
     if (used <= rec.nonce) return { ...rec, status: "unsent" };
@@ -185,11 +237,25 @@ export function makePay(ctx: Ctx, policies: Policies) {
     throw new RemessoError("conflict", "the payment's nonce was consumed but its receipt is unavailable; reconcile its original hash before paying again", { hash: rec.hash, nonce: rec.nonce });
   }
 
+  /// Wait for whichever of a lapsed payment and its cancellation lands.
+  async function settled(rec: PaymentRecord, waitMs: number): Promise<PaymentRecord> {
+    const until = Date.now() + waitMs;
+    for (;;) {
+      const next = await reconcile(rec);
+      if (next.status !== "sent" && next.status !== "unsent") {
+        await save(next);
+        return next;
+      }
+      if (Date.now() >= until) return next;
+      await new Promise((r) => setTimeout(r, 1_500));
+    }
+  }
+
   /// The same payment in the last ten minutes, recorded here or on-chain:
   /// the usual sign of a timed-out call being retried.
   async function recentRepeat(policyId: bigint, to: Address, units: bigint, memo: Hex): Promise<{ hash: Hex } | null> {
     const mine = (await ctx.store.since(Date.now() - REPEAT_MS)).find((p) =>
-      p.deployment === paymentScope(ctx) && p.policyId === policyId.toString() && p.to === to && p.units === units.toString() &&
+      (p.deployment === paymentScope(ctx) || p.deployment === DEPLOYMENT) && p.policyId === policyId.toString() && p.to === to && p.units === units.toString() &&
       p.memo === memo && (p.status === "sent" || p.status === "confirmed")
     );
     if (mine) return { hash: mine.hash };
@@ -211,6 +277,7 @@ export function makePay(ctx: Ctx, policies: Policies) {
     token: rec.token,
     sent: formatAmount(rec.units, rec.token),
     explorer: explorer(rec.hash),
+    ...(rec.cancel && rec.status !== "confirmed" ? { cancellation: rec.cancel.hash } : {}),
     ...extra,
   });
 
@@ -248,6 +315,9 @@ export function makePay(ctx: Ctx, policies: Policies) {
       if (key != null && (typeof key !== "string" || key.length === 0)) throw new RemessoError("invalid", "idempotencyKey must be a nonempty string: leave it out, or give one per payment");
       const waitMs = input.waitMs ?? 45_000;
       if (!Number.isSafeInteger(waitMs) || waitMs < 1 || waitMs > 120_000) throw new RemessoError("invalid", "waitMs must be from 1 to 120000 milliseconds");
+      for (const [name, value] of [["validUntil", input.validUntil], ["startBy", input.startBy]] as const) {
+        if (value !== undefined && (!Number.isSafeInteger(value) || value <= 0)) throw new RemessoError("invalid", `${name} must be a Unix time in seconds`);
+      }
       const unitsFor = (p: Policy) => {
         const t = findToken(p.token);
         if (!t) throw new RemessoError("refused", `policy ${p.id} spends a token Remesso doesn't know (${p.token})`);
@@ -266,23 +336,34 @@ export function makePay(ctx: Ctx, policies: Policies) {
         if (prior.to !== to || prior.units !== units?.toString() || prior.memo !== memo || tokenChanged || policyChanged || payerChanged || (input.validUntil !== undefined && input.validUntil !== prior.validUntil)) {
           throw new RemessoError("key_reused", `idempotency key "${key}" was already used for a different payment (${formatAmount(prior.units, prior.token)} to ${prior.to})`);
         }
+        // A saved payment is answered from the chain whatever its deadline: a
+        // late retry must learn that its payment landed, not be told to quote
+        // again and pay twice.
         prior = await reconcile(prior);
         await save(prior);
         if (prior.status === "unsent") {
-          // Signed and recorded, never sent: its own bytes go now. Same
-          // payment, same nonce, so still at most once.
-          prior = await broadcast(prior, waitMs);
+          // Signed and recorded, never sent. Before its deadline its own bytes
+          // go now: same payment, same nonce, so still at most once. After it,
+          // a no-op takes the nonce, so it can never land late.
+          if (prior.cancel || lapsed(prior)) prior = await settled(await cancel(prior), waitMs);
+          else prior = await broadcast(prior, waitMs);
         }
         if (prior.status === "confirmed") return result(prior, { repeat: true });
         if (prior.status === "reverted") {
           throw new RemessoError("reverted", `this key's payment reverted on-chain, so nothing was paid: ${explorer(prior.hash)}. Use a new key to try again.`, { hash: prior.hash });
         }
+        if (prior.status === "expired") {
+          throw new RemessoError("refused", `this key's payment was cancelled before it went out, because its deadline passed, so nothing was paid. Use a new key to try again.`, { hash: prior.hash, cancellation: prior.cancel?.hash, expired: true });
+        }
         if (prior.status === "sent" || prior.status === "unsent") return result(prior);
         throw new RemessoError("conflict", "this key has an unresolved payment; reconcile its original transaction before paying again", { hash: prior.hash });
       }
 
+      if (input.startBy !== undefined && now() >= input.startBy) throw new RemessoError("refused", "this payment's quote has expired, so nothing was signed: prepare it again");
+      if (input.validUntil !== undefined && input.validUntil - START_MARGIN_S <= now()) {
+        throw new RemessoError("refused", "this payment's deadline is less than a minute away, so it isn't started and nothing was signed");
+      }
       const p = await choose(input, unitsFor);
-      if (input.validUntil !== undefined && (!Number.isSafeInteger(input.validUntil) || input.validUntil <= Math.floor(Date.now() / 1000))) throw new RemessoError("refused", "this payment intent has expired");
       if (!p.active) throw new RemessoError("refused", `policy ${p.id} ${p.revoked ? "was revoked by its owner" : "has expired"}`);
       const units = unitsFor(p);
       if (input.token && findToken(input.token)?.address.toLowerCase() !== p.token.toLowerCase()) {
@@ -303,7 +384,7 @@ export function makePay(ctx: Ctx, policies: Policies) {
       }
 
       const signed = await sign(p, to, units, memo);
-      if (input.validUntil !== undefined && input.validUntil <= Math.floor(Date.now() / 1000)) throw new RemessoError("refused", "the payment intent expired while signing; nothing was broadcast");
+      if (input.validUntil !== undefined && input.validUntil - SEND_MARGIN_S <= now()) throw new RemessoError("refused", "the payment's deadline came too close while signing, so nothing was saved or broadcast");
       const rec: PaymentRecord = {
         key: key ?? null,
         deployment: scope,

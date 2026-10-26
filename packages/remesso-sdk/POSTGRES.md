@@ -25,7 +25,8 @@ const remesso = createRemesso({
 ```
 
 Every process using a signing address must use the same database, namespace,
-journals and coordinator. The signer lock spans both wallet and policy funding.
+journals and coordinator; `createRemesso` refuses a coordinator without all
+three journals. The signer lock spans both wallet and policy funding.
 Use a direct PostgreSQL connection or a session-pooling proxy. Transaction
 pooling cannot preserve session advisory locks. A worker holds one reserved
 connection throughout signing and receipt waits, so size the pool for active
@@ -35,16 +36,22 @@ The adapter stores immutable payment terms and signed transaction bytes before
 broadcast. It retains keys and signed steps indefinitely. A retry can update
 confirmation state but cannot replace transaction bytes or change an invoice's
 funding route. Reading the shared nonce floor does not reserve an unsigned nonce.
-The SDK raises it after durable recording; worker restarts also scan both
-journals, preventing nonce reuse if the floor update failed after a save.
+The SDK raises it after durable recording. Before choosing a nonce it also
+reads both journals and the saved writes below: it broadcasts again any saved
+transaction the chain hasn't mined, lowest nonce first, or signs a no-op at the
+nonce of one that must no longer land, so a lost broadcast can't hold up the
+transactions after it.
 
 For other contract writes, `coordinator.recordSigned(scope, { nonce, hash, raw })`
 atomically records immutable signed bytes and raises the nonce floor while the
 signer lock is held. The SDK uses this evidence before broadcasting coordinated
 policy and schedule writes. This preserves nonce safety across a crash or a
-database disconnect after broadcast. It does not add application idempotency to
-generic actions: retrying a policy creation as a new action can create another
-policy, so retain its original transaction hash and reconcile that action.
+database disconnect after broadcast. A write no node accepted is cancelled with a
+no-op at its nonce before the signer's next transaction (unless a node has it by
+then), saved with `coordinator.recordCancel`. It does not add application
+idempotency to generic actions: retrying a policy creation as a new action can
+create another policy, so retain its original transaction hash and reconcile
+that action.
 
 An advisory lock lasts for the database session, rather than an expiring lease.
 The coordinator checks session identity and lock ownership, watches the driver's
@@ -53,7 +60,9 @@ that lease before signing and broadcasting. A signature produced after loss of
 the session is discarded. All processes that can broadcast with the same key
 must follow this protocol; PostgreSQL cannot fence an unrelated blockchain
 writer. Preserve the driver's installed `options.onclose` and `options.debug`
-hooks after creating storage.
+hooks after creating storage. The `debug` hook is live only while a lock's own
+marker query is sent, because postgres.js makes every error's query parameters
+enumerable while it is set.
 
 `initialize()` creates only `remesso_sdk_*` tables and indexes. It requires
 PostgreSQL durability settings (`fsync` and `synchronous_commit`) to be enabled,
@@ -96,7 +105,10 @@ if (job) {
 ```
 
 Jobs are delivered at least once. Reuse `job.key` as the payment key on every
-attempt. Claims use `FOR UPDATE SKIP LOCKED`; another worker can reclaim an
+attempt. A payment key belongs to one signing key, so every worker that takes
+payment jobs must sign with the same key, or a reclaimed job pays again. A
+claim lasts five minutes unless `jobLeaseMs` or `leaseMs` says otherwise,
+longer than a payment's default 45-second wait. Claims use `FOR UPDATE SKIP LOCKED`; another worker can reclaim an
 expired job with a fresh claim token. `ack`, `nack` and `extend` return false for
 expired or superseded claims. Extend a live claim when work takes longer than
 its lease. Losing a job lease does not release an independently held signer lock.

@@ -4,7 +4,7 @@ import { privateKeyToAccount } from "viem/accounts";
 import { makeCtx } from "../src/context.ts";
 import { ALLOWANCE, EXECUTOR, token } from "../src/deployment.ts";
 import { RemessoError } from "../src/errors.ts";
-import { INVOICE_DOMAIN, INVOICE_TYPES, invoiceTypedData, makeInvoices, memoryInvoiceStore, type InvoiceStore, type SignedInvoice, type SignInvoiceInput } from "../src/invoices.ts";
+import { INVOICE_DOMAIN, INVOICE_TYPES, invoiceReference, invoiceTypedData, makeInvoices, memoryInvoiceStore, type InvoiceStore, type SignedInvoice, type SignInvoiceInput } from "../src/invoices.ts";
 import { memo32 } from "../src/payments.ts";
 import type { Receipts, PaymentProof, VerifyPaymentInput } from "../src/receipts.ts";
 import type { Remittances, SendRemittanceInput } from "../src/remittances.ts";
@@ -31,9 +31,9 @@ function proof(): PaymentProof {
     memo: memo32(requestId.replaceAll("-", "")), callerVerified: true };
 }
 function fixture(options: { signer?: typeof seller | null; store?: InvoiceStore; request?: RequestStatus; proof?: PaymentProof; timestamp?: bigint;
-  chain?: number; code?: `0x${string}`; contractValid?: boolean; sendFailure?: boolean; blockHash?: `0x${string}` } = {}) {
+  chain?: number; code?: `0x${string}`; contractValid?: boolean; sendFailure?: boolean; blockHash?: `0x${string}`; quoteIssue?: string } = {}) {
   const account = options.signer === undefined ? seller : options.signer;
-  const calls = { sign: 0, create: 0, request: 0, send: [] as SendRemittanceInput[], verify: [] as VerifyPaymentInput[], contract: 0 };
+  const calls = { sign: 0, create: 0, request: 0, quote: 0, send: [] as SendRemittanceInput[], verify: [] as VerifyPaymentInput[], contract: 0 };
   const pub = { getChainId: async () => options.chain ?? 42220, getCode: async () => options.code,
     readContract: async () => { calls.contract++; return options.contractValid ? "0x1626ba7e" : "0xffffffff"; },
     getBlock: async () => ({ number: 101n, hash: options.blockHash ?? blockHash, timestamp: options.timestamp ?? BigInt(now) }),
@@ -47,7 +47,9 @@ function fixture(options: { signer?: typeof seller | null; store?: InvoiceStore;
     requests: { get: async () => { calls.request++; return options.request ?? backend(); },
       create: async () => { calls.create++; return { id: requestId, reference: requestId.replaceAll("-", ""), link: "https://sdk.test/invoice", status: "pending" }; },
     } as unknown as Requests,
-    remittances: { send: async (terms: SendRemittanceInput) => { calls.send.push(terms); if (options.sendFailure) throw new RemessoError("http", "unknown broadcast outcome");
+    remittances: {
+      quote: async () => { calls.quote++; return { canSend: !options.quoteIssue, issues: options.quoteIssue ? [{ code: "run_limits", message: options.quoteIssue }] : [] }; },
+      send: async (terms: SendRemittanceInput) => { calls.send.push(terms); if (options.sendFailure) throw new RemessoError("http", "unknown broadcast outcome");
       return { funding: "policy", status: "confirmed", payer: buyer.address, fee: 0n, hash: txHash, policyId: 7n,
         to: seller.address, amount: 2_500_000n, token: usd.address, sent: "2.5 USDT", explorer: `https://sdk.test/tx/${txHash}` }; },
     } as unknown as Remittances,
@@ -115,8 +117,43 @@ Deno.test("expired invoices cannot be paid but their signatures remain auditable
   await assertRejects(() => api.verify(historical), RemessoError);
   assertEquals((await api.verify(historical, { allowExpired: true })).expiresAt, now - 60);
   await assertRejects(() => fixture({ signer: buyer }).api.pay(historical, { funding: "wallet" }), RemessoError);
-  const delivered = await fixture({ timestamp: BigInt(now - 90) }).api.verifyPayment(historical, { txHash });
+  // Without a request, the payment that settles it carries its reference.
+  const settled = { ...proof(), memo: memo32(invoiceReference((await api.verify(historical, { allowExpired: true })).id)) } as PaymentProof;
+  const delivered = await fixture({ timestamp: BigInt(now - 90), proof: settled }).api.verifyPayment(historical, { txHash });
   assertEquals(delivered.orderId, input.orderId);
+});
+
+Deno.test("an invoice without a request is settled only by a policy payment carrying its reference", async () => {
+  const invoice = await fixture().api.sign(input);
+  const reference = memo32(invoiceReference((await fixture().api.verify(invoice)).id));
+  const subscriptionRun: PaymentProof = { kind: "run", eventId: `42220:${EXECUTOR.toLowerCase()}:${txHash}:0`, chainId: 42220, contract: EXECUTOR, txHash, logIndex: 0,
+    blockNumber: 101n, blockHash, from: buyer.address, to: seller.address, token: usd.address as Address, amount: 2_500_000n, finality: "finalized", scheduleId: 3n, amountIn: 2_506_266n, runNumber: 7 };
+  // A run of the buyer's subscription for the same amount is not this invoice.
+  assertEquals((await assertRejects(() => fixture({ proof: subscriptionRun }).api.verifyPayment(invoice, { txHash }), RemessoError)).code, "conflict");
+  // Nor is a policy payment made for something else.
+  assertEquals((await assertRejects(() => fixture({ proof: { ...proof(), memo: memo32("another order") } as PaymentProof }).api.verifyPayment(invoice, { txHash }), RemessoError)).code, "conflict");
+  const f = fixture({ proof: { ...proof(), memo: reference } as PaymentProof });
+  assertEquals((await f.api.verifyPayment(invoice, { txHash, policyId: 7n })).orderId, input.orderId);
+  assertEquals(memo32(f.calls.verify[0].memo), reference);
+  // And paying it from a policy carries that reference.
+  const agentSide = fixture({ signer: agent });
+  await agentSide.api.pay(invoice, { funding: "policy", policyId: 7n });
+  assertEquals(memo32(agentSide.calls.send[0].memo), reference);
+  // A wallet can't carry it, so a wallet is refused before anything is reserved or sent.
+  const buyerSide = fixture({ signer: buyer });
+  assertEquals((await assertRejects(() => buyerSide.api.pay(invoice, { funding: "wallet" }), RemessoError)).code, "refused");
+  assertEquals([buyerSide.calls.quote, buyerSide.calls.send.length], [0, 0]);
+});
+
+Deno.test("an invoice that can't be paid now is refused before it is reserved to a route", async () => {
+  const invoice = await fixture().api.sign({ ...input, requestId }), store = memoryInvoiceStore();
+  const wallet = fixture({ signer: buyer, store, quoteIssue: "the gross debit is outside this token's executor run limits" });
+  assertEquals((await assertRejects(() => wallet.api.pay(invoice, { funding: "wallet" }), RemessoError)).code, "refused");
+  assertEquals(wallet.calls.send.length, 0);
+  // The refusal left no reservation: another route can still pay it.
+  const policy = fixture({ signer: agent, store });
+  await policy.api.pay(invoice, { funding: "policy", policyId: 7n });
+  assertEquals(policy.calls.send.length, 1);
 });
 
 Deno.test("invoice nonce defaults are random and fixed terms reconstruct the same replay key", async () => {
@@ -156,11 +193,11 @@ Deno.test("backend invoice terms are checked before signing or paying", async ()
 });
 
 Deno.test("wallet invoice sends require the named payer and force exact signed terms", async () => {
-  const invoice = await fixture().api.sign(input), f = fixture({ signer: buyer });
+  const invoice = await fixture().api.sign({ ...input, requestId }), f = fixture({ signer: buyer });
   const result = await f.api.pay(invoice, { funding: "wallet" });
   const verified = await f.api.verify(invoice);
   assertEquals(result.invoiceId, verified.id);
-  assertEquals(f.calls.send, [{ funding: "wallet", to: seller.address, amount: "2.5", token: usd.address, idempotencyKey: verified.idempotencyKey, requestId: undefined, validUntil: invoice.message.expiresAt }]);
+  assertEquals(f.calls.send, [{ funding: "wallet", to: seller.address, amount: "2.5", token: usd.address, idempotencyKey: verified.idempotencyKey, requestId, validUntil: invoice.message.expiresAt }]);
   const wrong = fixture({ signer: stranger });
   assertEquals((await assertRejects(() => wrong.api.pay(invoice, { funding: "wallet" }), RemessoError)).code, "refused");
   assertEquals(wrong.calls.send.length, 0);
@@ -175,7 +212,7 @@ Deno.test("policy invoice sends constrain the funds owner, not the agent's own w
 });
 
 Deno.test("shared invoice reservation refuses cross-funding, cross-agent and cross-policy replay", async () => {
-  const invoice = await fixture().api.sign(input), store = memoryInvoiceStore();
+  const invoice = await fixture().api.sign({ ...input, requestId }), store = memoryInvoiceStore();
   const owner = fixture({ signer: buyer, store }), delegate = fixture({ signer: agent, store });
   await owner.api.pay(invoice, { funding: "wallet" });
   await owner.api.pay(invoice, { funding: "wallet" });
@@ -188,7 +225,7 @@ Deno.test("shared invoice reservation refuses cross-funding, cross-agent and cro
 });
 
 Deno.test("failed or uncertain sends retain their immutable invoice reservation", async () => {
-  const invoice = await fixture().api.sign(input), store = memoryInvoiceStore();
+  const invoice = await fixture().api.sign({ ...input, requestId }), store = memoryInvoiceStore();
   const a = fixture({ signer: agent, store, sendFailure: true });
   await assertRejects(() => a.api.pay(invoice, { funding: "policy", policyId: 7 }), RemessoError);
   await assertRejects(() => fixture({ signer: buyer, store }).api.pay(invoice, { funding: "wallet" }), RemessoError);
@@ -236,10 +273,13 @@ Deno.test("bound invoices refuse another request's policy memo or an unbound sch
 
 Deno.test("invoice receipt must be canonical and included within its signed validity window", async () => {
   const invoice = await fixture().api.sign(input);
-  for (const timestamp of [BigInt(input.issuedAt! - 1), BigInt(input.expiresAt)]) {
-    await assertRejects(() => fixture({ timestamp }).api.verifyPayment(invoice, { txHash }), RemessoError);
+  const settled = { ...proof(), memo: memo32(invoiceReference((await fixture().api.verify(invoice)).id)) } as PaymentProof;
+  // Five minutes before issue is a fast clock, more is an older payment; at expiry is late.
+  for (const timestamp of [BigInt(input.issuedAt! - 301), BigInt(input.expiresAt)]) {
+    assertEquals((await assertRejects(() => fixture({ timestamp, proof: settled }).api.verifyPayment(invoice, { txHash }), RemessoError)).code, "refused");
   }
-  await assertRejects(() => fixture({ blockHash: toHex(999, { size: 32 }) }).api.verifyPayment(invoice, { txHash }), RemessoError);
+  assertEquals((await fixture({ timestamp: BigInt(input.issuedAt! - 1), proof: settled }).api.verifyPayment(invoice, { txHash })).orderId, input.orderId);
+  await assertRejects(() => fixture({ blockHash: toHex(999, { size: 32 }), proof: settled }).api.verifyPayment(invoice, { txHash }), RemessoError);
 });
 
 Deno.test("invoice type definition is stable and excludes the signature from replay identity", () => {

@@ -116,15 +116,16 @@ await refusedWith(asAgent.pay({ to: DEST, amount: "0.03", idempotencyKey: "invoi
 await refusedWith(asAgent.pay({ to: DEST, amount: "0.02", memo: "invoice 1" }), "repeat", "an identical payment without a key, minutes later, is refused");
 await refusedWith(asAgent.pay({ to: DEST, amount: "0.06", idempotencyKey: "big" }), "refused", "over the per-payment cap, refused before signing");
 
-// The first attempt is signed and recorded, and the broadcast is lost.
-let drop = true;
+// The payment is signed and recorded, and every broadcast of it is lost: the
+// SDK's own retries too.
+let drops = Infinity;
 const flaky = createPublicClient({
   chain: celo,
   pollingInterval: 200,
   transport: custom({
     request: async ({ method, params }) => {
-      if (method === "eth_sendRawTransaction" && drop) {
-        drop = false;
+      if (method === "eth_sendRawTransaction" && drops > 0) {
+        drops--;
         throw new Error("the network dropped it");
       }
       return await rpc(FORK, method, params as unknown[]);
@@ -138,6 +139,12 @@ check(lost.status === "pending" && (await balance(DEST)) === before, "a broadcas
 const resent = await asAgent.pay({ to: DEST, amount: "0.01", idempotencyKey: "invoice-2" });
 check(resent.status === "confirmed" && resent.hash === lost.hash && (await balance(DEST)) - before === 10_000n,
   "retried with its key: the recorded bytes go out, same hash, paid once");
+// One dropped broadcast, as from an RPC answering 429, is sent again within
+// the same call rather than left pending.
+drops = 1;
+before = await balance(DEST);
+const once = await lossy.pay({ to: DEST, amount: "0.01", idempotencyKey: "invoice-3" });
+check(once.status === "confirmed" && (await balance(DEST)) - before === 10_000n, "a broadcast dropped once is sent again in the same call: paid once");
 
 await asPayer.policies.revoke(pol.id);
 await refusedWith(asAgent.pay({ to: DEST, amount: "0.01", idempotencyKey: "after-revoke", policyId: pol.id }), "refused", "after the owner revokes, the agent is refused");

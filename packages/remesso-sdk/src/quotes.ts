@@ -165,8 +165,15 @@ export function makeQuotes(ctx: Ctx, deps: { policies: Policies; requests: Reque
         if (!Number.isSafeInteger(feeBps) || feeBps < 0 || feeBps >= 10_000) throw new RemessoError("refused", "the live protocol fee is outside the supported range");
         grossDebit = grossFor(amount, feeBps);
         balance = held;
-        approval = { spender: EXECUTOR, current, required: grossDebit, additional: grossDebit, approvedAfter: current + grossDebit, needsApproval: true, canApprove: true };
-        notes.push("Wallet sends create one capped schedule, then add this payment's budget to the existing token allowance before execution.");
+        // An allowance already unlimited needs no approval, and adding to it
+        // would only overflow.
+        const unlimited = current >= 2n ** 255n;
+        approval = unlimited
+          ? { spender: EXECUTOR, current, required: grossDebit, additional: 0n, approvedAfter: current, needsApproval: false, canApprove: true }
+          : { spender: EXECUTOR, current, required: grossDebit, additional: grossDebit, approvedAfter: current + grossDebit, needsApproval: true, canApprove: true };
+        notes.push(unlimited
+          ? "Wallet sends create one capped schedule; the executor's existing allowance is unlimited, so no approval is sent."
+          : "Wallet sends create one capped schedule, then add this payment's budget to the token allowance, read again when the approval is signed.");
         if (!allowed) issue("token_not_allowed", "the live executor does not accept this token for new Direct payments");
         try {
           const limits = runLimits(t);
@@ -174,7 +181,7 @@ export function makeQuotes(ctx: Ctx, deps: { policies: Policies; requests: Reque
         } catch (e) { issue("run_limits", (e as Error).message); }
         if (grossDebit >= 2n ** 128n) issue("amount_overflow", "the gross debit does not fit the schedule's uint128 amount");
         if (held < grossDebit) issue("insufficient_balance", "the wallet token balance cannot cover the exact recipient amount and protocol fee");
-        if (approval.approvedAfter >= UINT256) issue("approval_overflow", "adding this payment's budget would overflow the token approval");
+        if (approval.needsApproval && approval.approvedAfter >= UINT256) issue("approval_overflow", "adding this payment's budget would overflow the token approval");
         const first = block.timestamp + 3600n;
         const expiry = block.timestamp + (lifetime < 86_400n ? lifetime : 86_400n);
         const args = [to, grossDebit, 3600n, 0n, 1, expiry, first, 2, t.address, zeroAddress, account.address, 1] as const;
@@ -182,7 +189,8 @@ export function makeQuotes(ctx: Ctx, deps: { policies: Policies; requests: Reque
           await simulate("creation", EXECUTOR, executorAbi, "createSchedule", args);
           await estimate("creation", EXECUTOR, executorAbi, "createSchedule", args, 450_000n);
         } else steps.push({ step: "creation", gas: 450_000n, basis: "conservative_hint" });
-        if (approval.approvedAfter < UINT256) {
+        if (!approval.needsApproval) { /* nothing to approve */ }
+        else if (approval.approvedAfter < UINT256) {
           await simulate("approval", t.address, erc20Abi, "approve", [EXECUTOR, approval.approvedAfter]);
           await estimate("approval", t.address, erc20Abi, "approve", [EXECUTOR, approval.approvedAfter], 100_000n);
         } else steps.push({ step: "approval", gas: 100_000n, basis: "conservative_hint" });
@@ -242,7 +250,12 @@ export function makeQuotes(ctx: Ctx, deps: { policies: Policies; requests: Reque
       if (native < estimatedNativeCost * 2n) {
         if (t.feeCurrency) {
           const signerTokens = input.funding === "wallet" ? balance ?? 0n : await ctx.pub.readContract({ address: t.address, abi: erc20Abi, functionName: "balanceOf", args: [account.address], blockNumber: block.number });
-          if (signerTokens > (input.funding === "wallet" ? grossDebit : 0n)) {
+          // Fees paid in the token come out of the balance that pays: a cent
+          // covers one policy payment, three cents a wallet send's three
+          // transactions, with room for the gas price to rise.
+          let headroom = 1n;
+          try { headroom = runLimits(t).min * (input.funding === "wallet" ? 3n : 1n) / 100n || 1n; } catch { /* not a schedule token */ }
+          if (signerTokens >= (input.funding === "wallet" ? grossDebit : 0n) + headroom) {
             feeCurrency = t.feeCurrency as Address;
             notes.push("The signer has a supported Celo fee currency. Its converted network charge is not quoted here; estimatedNativeCost is CELO-denominated only and does not include an adapter conversion rate.");
           } else issue("insufficient_gas", "the signer needs CELO or a supported fee-currency balance beyond the payment debit");

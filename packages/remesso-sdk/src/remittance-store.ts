@@ -23,16 +23,21 @@ export type RemittanceRecord = {
   /** Cadence execution stays an hour away while the sender prepares and runs early. */
   firstRunAt: number;
   expiresAt: number;
-  /** Optional application deadline; cannot be extended by a retry. */
+  /** Optional hard deadline: the mandate expires before it. A retry cannot change it. */
   validUntil?: number;
-  approvalAmount: string;
+  /** The allowance the approval sets: what was approved when it was signed, plus this payment. */
+  approvalAmount?: string;
+  /** The executor's allowance was already unlimited, so no approval was signed. */
+  approvalSkipped?: true;
   createdAt: string;
   requestId?: string;
   requestBound?: boolean;
   approval?: RemittanceStep;
   creation?: RemittanceStep;
   execution?: RemittanceStep;
+  /** Signed when the payment can't be completed, so the mandate can never pay later. */
   cancellation?: RemittanceStep;
+  cancelReason?: string;
   scheduleId?: string;
   creationBlock?: string;
   paymentHash?: Hex;

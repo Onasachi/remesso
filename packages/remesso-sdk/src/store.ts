@@ -31,7 +31,11 @@ export type PaymentRecord = {
   /// The signed transaction, so a record that never left can still go out
   /// with the same nonce: at most once, still.
   raw: Hex;
-  status: "sent" | "confirmed" | "reverted" | "unsent" | "dropped";
+  /// A no-op signed at the same nonce once `validUntil` passed with the
+  /// payment unsent. Whichever lands first is the only one that ever can.
+  cancel?: { hash: Hex; raw: Hex };
+  /// `expired`: the cancellation landed, so the payment never can.
+  status: "sent" | "confirmed" | "reverted" | "unsent" | "dropped" | "expired";
   at: string;
 };
 
@@ -58,7 +62,7 @@ export function upsert(list: PaymentRecord[], rec: PaymentRecord, now = Date.now
     p.hash !== rec.hash && !(rec.key && p.key === rec.key && p.deployment === rec.deployment)
   );
   const all = [...rest, rec];
-  const protectedRecord = (p: PaymentRecord) => p.key != null || !["confirmed", "reverted"].includes(p.status);
+  const protectedRecord = (p: PaymentRecord) => p.key != null || !["confirmed", "reverted", "expired"].includes(p.status);
   const recent = new Set(all.filter((p) => !protectedRecord(p) && Date.parse(p.at) > cutoff).slice(-KEEP_COUNT));
   return all.filter((p) => protectedRecord(p) || recent.has(p));
 }

@@ -1,5 +1,5 @@
 import { assertEquals, assertRejects } from "@std/assert";
-import { encodeAbiParameters, encodeEventTopics, toHex, TransactionReceiptNotFoundError, type Address, type Hex, type PublicClient, type TransactionReceipt } from "viem";
+import { encodeAbiParameters, encodeEventTopics, toHex, TransactionNotFoundError, TransactionReceiptNotFoundError, type Address, type Hex, type PublicClient, type TransactionReceipt } from "viem";
 import { allowanceAbi, executorAbi } from "../src/abi.ts";
 import { makeCtx } from "../src/context.ts";
 import { ALLOWANCE, EXECUTOR, token } from "../src/deployment.ts";
@@ -55,6 +55,7 @@ function fixture(overrides: Fixture = {}) {
   const pub = {
     getChainId: async () => overrides.chainId ?? 42220,
     getTransactionReceipt: async () => overrides.receipt ?? receipt(),
+    getTransaction: async ({ hash }: { hash: Hex }) => { throw new TransactionNotFoundError({ hash }); },
     getBlock: async ({ blockTag }: { blockTag?: string }) => blockTag === "finalized"
       ? { number: overrides.finalizedNumber ?? 100n, hash: overrides.finalizedHash ?? blockHash }
       : { number: 100n, hash: overrides.canonicalHashes?.[blockReads++] ?? blockHash },

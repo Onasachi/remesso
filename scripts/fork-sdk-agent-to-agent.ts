@@ -390,7 +390,9 @@ try {
   const interruptedClient = createPublicClient({ chain: celo, pollingInterval: 50, transport: custom({ request: async ({ method, params }) => {
     if (method === "eth_sendRawTransaction") {
       const transaction = parseTransaction((params as [`0x${string}`])[0]);
-      if (!creationDropped && transaction.to?.toLowerCase() === EXECUTOR.toLowerCase() && transaction.data?.startsWith(createSelector)) {
+      // Every broadcast of the creation from this client is lost, the SDK's
+      // own retries included, as when the process dies after recording it.
+      if (transaction.to?.toLowerCase() === EXECUTOR.toLowerCase() && transaction.data?.startsWith(createSelector)) {
         creationDropped = true;
         throw new Error("test dropped the signed creation before Anvil received it");
       }
@@ -437,9 +439,9 @@ try {
   const recoverPolicy = await payer.policies.create({ agent: agent.address, token: "USDT", perPayment: "0.10", perDay: "0.20", days: 1, budget: "0.20", recipients: [receiver.address] });
   const recovery = await payee.requests.create({ payer: owner.address, amount: "0.01", token: "USDT" });
   requestIds.push(recovery.id);
-  let drop = true;
+  // Every broadcast from this client is lost, the SDK's own retries included.
   const flaky = createPublicClient({ chain: celo, pollingInterval: 50, transport: custom({ request: async ({ method, params }) => {
-    if (method === "eth_sendRawTransaction" && drop) { drop = false; throw new Error("test dropped broadcast before RPC"); }
+    if (method === "eth_sendRawTransaction") throw new Error("test dropped broadcast before RPC");
     return await rpc(method, params as unknown[]);
   } }) });
   const lossy = createRemesso({ ...options, account: agent, publicClient: flaky, store: fileStore(storePath) });

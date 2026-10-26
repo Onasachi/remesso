@@ -20,7 +20,12 @@ export type WebhookType = "payment.received" | "payment.finalized" | "payment.re
 /// payments (schedule runs and policy payments) are delivered, and every one
 /// has a payer, a recipient, a token and an amount.
 export type WebhookMessage = {
-  /** The `webhook-id`: the same on every retry, so dedupe on it. */
+  /**
+   * The `webhook-id`: the same on every retry of one delivery, so a retry can
+   * be told apart. One payment has several deliveries (received, finalized,
+   * re-received after a reorg), each with its own id: deduplicate the
+   * business action on `data.txHash` and `data.logIndex`, not on this.
+   */
   id: string;
   type: WebhookType;
   timestamp: string;
@@ -61,7 +66,7 @@ export type WebhookHandlerOptions = {
   secret?: Secrets | (() => Secrets | Promise<Secrets>);
   /** The address or addresses you subscribe. Challenges for any other are refused. */
   recipient: string | string[];
-  /** Called per verified attempt. Deduplicate `message.id` with your business action. Throw to retry. */
+  /** Called per verified attempt, for every type including `payment.removed`. Deduplicate the business action on `data.txHash` and `data.logIndex`; one payment arrives more than once. Throw to retry. */
   onPayment(message: WebhookMessage): void | Promise<void>;
 };
 

@@ -36,6 +36,15 @@ function frozen<T>(value: T): T {
   return value;
 }
 function failed(reason: string): never { throw new RemessoError("refused", `managed signer ${reason}`); }
+/// secp256k1's order over two. A signature's `s` above it has a low-s twin
+/// with another transaction hash; Celo nodes refuse the high one (EIP-2), so
+/// saving it would leave a payment that can never land while its twin could.
+const HALF_ORDER = 0x7fffffffffffffffffffffffffffffff5d576e7357a4501ddfe92f46681b20a0n;
+function lowS(signature: Hex): boolean {
+  // r || s || v: s is bytes 32..64 of a 65-byte signature.
+  if (!/^0x[\da-f]{130}$/i.test(signature)) return false;
+  return BigInt(`0x${signature.slice(66, 130)}`) <= HALF_ORDER;
+}
 
 /**
  * Adapt a custody service, wallet service or other callback signer to viem.
@@ -77,6 +86,7 @@ export function managedSigner(options: ManagedSignerOptions): LocalAccount {
           signature = { r, s, ...(v === undefined ? {} : { v }), ...(yParity === undefined ? {} : { yParity }) } as Signature;
         }
         if (!same(serializeTransaction(unsigned, signature), raw)) failed("returned noncanonical signed transaction bytes");
+        if (BigInt(signature.s) > HALF_ORDER) failed("returned a high-s signature, which Celo nodes refuse");
       } catch (error) {
         if (error instanceof RemessoError) throw error;
         failed("returned transaction bytes that cannot be verified");
@@ -88,6 +98,7 @@ export function managedSigner(options: ManagedSignerOptions): LocalAccount {
       const copy = structuredClone(typedData) as TypedDataDefinition;
       if (copy.domain?.chainId !== undefined && Number(copy.domain.chainId) !== CHAIN_ID) throw new RemessoError("wrong_chain", "managed signer typed data names another chain");
       const signature = await options.signTypedData({ typedData: frozen(copy), hash: hashTypedData(copy) });
+      if (typeof signature !== "string" || !lowS(signature)) failed("returned a typed-data signature that isn't a canonical 65-byte low-s signature");
       let valid = false;
       try { valid = await verifyTypedData({ ...copy, address, signature }); } catch { /* fail below */ }
       if (!valid) failed("returned typed-data signed by a different account or for different terms");
@@ -97,6 +108,7 @@ export function managedSigner(options: ManagedSignerOptions): LocalAccount {
       if (!options.signMessage) failed("does not support personal-message signing");
       const copy = structuredClone(message);
       const signature = await options.signMessage({ message: copy, hash: hashMessage(copy) });
+      if (typeof signature !== "string" || !lowS(signature)) failed("returned a message signature that isn't a canonical 65-byte low-s signature");
       let valid = false;
       try { valid = await verifyMessage({ address, message, signature }); } catch { /* fail below */ }
       if (!valid) failed("returned a message signature for different terms or account");

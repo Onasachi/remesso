@@ -4,11 +4,10 @@ import {
   type Address,
   decodeEventLog,
   type Hex,
-  TransactionReceiptNotFoundError,
   zeroAddress,
 } from "viem";
 import { allowanceAbi, executorAbi } from "./abi.js";
-import type { Ctx } from "./context.js";
+import { type Ctx, receiptOf } from "./context.js";
 import { ALLOWANCE, CHAIN_ID, checksum, EXECUTOR, token as tokenOf, toUnits } from "./deployment.js";
 import { RemessoError } from "./errors.js";
 import { memo32 } from "./payments.js";
@@ -101,10 +100,8 @@ export function makeReceipts(ctx: Ctx) {
     const chainId = await ctx.pub.getChainId();
     if (chainId !== CHAIN_ID) throw new RemessoError("wrong_chain", `payment proofs require Celo mainnet (${CHAIN_ID}), got ${chainId}`);
 
-    const receipt = await ctx.pub.getTransactionReceipt({ hash: input.txHash }).catch((e: unknown) => {
-      if (e instanceof TransactionReceiptNotFoundError) throw new RemessoError("not_found", "the transaction has no included receipt", { txHash: input.txHash });
-      throw e;
-    });
+    const receipt = await receiptOf(ctx.pub, input.txHash);
+    if (!receipt) throw new RemessoError("not_found", "the transaction has no included receipt", { txHash: input.txHash });
     if (!same(receipt.transactionHash, input.txHash)) throw new RemessoError("conflict", "the RPC returned a different transaction's receipt");
     if (receipt.status !== "success") throw new RemessoError("reverted", "the transaction reverted; it is not payment evidence", { txHash: input.txHash });
     if (!hashOf(receipt.blockHash) || typeof receipt.blockNumber !== "bigint") throw new RemessoError("conflict", "the receipt is not included in a block");

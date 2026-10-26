@@ -1,5 +1,5 @@
 import { assertEquals, assertRejects } from "@std/assert";
-import { toHex, type PublicClient } from "viem";
+import { keccak256, toHex, TransactionNotFoundError, type PublicClient } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { celo } from "viem/chains";
 import { makeAgents } from "../src/agents.ts";
@@ -7,11 +7,13 @@ import { makeCtx } from "../src/context.ts";
 import { ALLOWANCE, EXECUTOR, token } from "../src/deployment.ts";
 import { RemessoError } from "../src/errors.ts";
 import { fileRemittanceStore } from "../src/node.ts";
-import { makeRemittances, type SendRemittanceInput } from "../src/remittances.ts";
+import { makeRemittances, type SendRemittance, type SendRemittanceInput } from "../src/remittances.ts";
 import { memoryRemittanceStore, type RemittanceRecord } from "../src/remittance-store.ts";
 import type { RequestStatus, Requests } from "../src/requests.ts";
 import type { Policies } from "../src/policies.ts";
 import { memoryStore } from "../src/store.ts";
+import { makePay } from "../src/payments.ts";
+import { makeWalletRemittances } from "../src/wallet-remittances.ts";
 
 const account = privateKeyToAccount(toHex(12345, { size: 32 }));
 const receiver = privateKeyToAccount(toHex(23456, { size: 32 })).address;
@@ -79,7 +81,7 @@ function counterparty(opts: { required?: boolean; profile?: boolean; accepted?: 
     if (functionName === "getAgentWallet") return opts.noWallet ? `0x${"0".repeat(40)}` : opts.switched && ++reads > 1 ? other : receiver;
     return `data:application/json,${encodeURIComponent(JSON.stringify(opts.profile === false ? {} : doc))}`;
   } } as unknown as PublicClient;
-  return { agents: makeAgents(context(pub), { getRequest: async () => invoice(), send: async (i) => { sends++; terms = i; return { ...result, funding: "policy", payer: account.address, fee: 0n }; } }),
+  return { agents: makeAgents(context(pub), { getRequest: async () => invoice(), send: (async (i: SendRemittanceInput) => { sends++; terms = i; return { ...result, funding: "policy", payer: account.address, fee: 0n }; }) as unknown as SendRemittance }),
     sends: () => sends, terms: () => terms };
 }
 
@@ -129,7 +131,7 @@ Deno.test("wallet remittance file store keeps separate signer keys and fails clo
   } finally { await Deno.remove(dir, { recursive: true }); }
 });
 
-Deno.test("a new key after restart recovers the nonce floor across policy and wallet journals", async () => {
+Deno.test("a new key after restart rebroadcasts and signs above unsent bytes in both journals", async () => {
   const signer = privateKeyToAccount(toHex(7654321, { size: 32 }));
   const policy = memoryStore();
   const wallet = memoryRemittanceStore();
@@ -139,11 +141,28 @@ Deno.test("a new key after restart recovers the nonce floor across policy and wa
     approvalAmount: "1002507", createdAt: new Date().toISOString(), creation: { hash: tx, raw: "0x1234", nonce: 12 } };
   await wallet.save(r);
   await policy.save({ key: "old-policy-invoice", deployment: `42220:${ALLOWANCE.toLowerCase()}:${signer.address.toLowerCase()}`,
-    policyId: "1", to: receiver, units: "1000000", token: usd.address, memo: toHex(new Uint8Array(32)), hash: tx,
-    nonce: 14, raw: "0x1234", status: "sent", at: new Date().toISOString() });
-  const pub = { getTransactionCount: async () => 0 } as unknown as PublicClient;
-  const resumed = makeCtx({ ...context(pub), account: signer, store: policy, remittanceStore: wallet });
-  assertEquals(await resumed.nextNonce(), 15);
-  await wallet.save({ ...r, execution: { hash: tx, raw: "0x1234", nonce: 17 } });
-  assertEquals(await makeCtx({ ...resumed }).nextNonce(), 18);
+    policyId: "1", to: receiver, units: "1000000", token: usd.address, memo: toHex(new Uint8Array(32)), hash: keccak256("0x5678"),
+    nonce: 14, raw: "0x5678", status: "sent", at: new Date().toISOString() });
+  const sent: string[] = [];
+  const pub = {
+    chain: celo,
+    getTransactionCount: async () => 0,
+    getTransaction: async ({ hash }: { hash: `0x${string}` }) => { throw new TransactionNotFoundError({ hash }); },
+    request: async ({ method, params }: { method: string; params: string[] }) => {
+      if (method !== "eth_sendRawTransaction") throw new Error(`unexpected RPC ${method}`);
+      sent.push(params[0]);
+      return tx;
+    },
+  } as unknown as PublicClient;
+  // The client registers both journals; a new nonce sees every saved transaction.
+  const journaled = () => {
+    const ctx = makeCtx({ ...context(pub), account: signer, store: policy, remittanceStore: wallet });
+    makePay(ctx, {} as Policies);
+    makeWalletRemittances(ctx, { store: wallet, getRequest: async () => { throw new Error("unused"); }, answer: async () => { throw new Error("unused"); } });
+    return ctx;
+  };
+  assertEquals(await journaled().nextNonce(), 15);
+  assertEquals(sent, ["0x1234", "0x5678"]);
+  await wallet.save({ ...r, execution: { hash: keccak256("0x9abc"), raw: "0x9abc", nonce: 17 } });
+  assertEquals(await journaled().nextNonce(), 18);
 });

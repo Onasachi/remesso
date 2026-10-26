@@ -4,10 +4,6 @@ Agent-to-agent remittances on Celo, in TypeScript, on viem. Build agents that
 request payments, pay other agents and verify settlement before fulfilling an
 order, using either the agent's own wallet or a delegated treasury policy.
 
-**This checkout is 0.3.0-rc.1, unpublished.** The published package is still
-0.2.0. The agent-to-agent, production storage, invoice, lifecycle, quote,
-development and adapter APIs below require a local build until release.
-
 - **Schedules:** a payer signs once, on-chain, a fixed amount to a fixed
   address on a fixed cadence. Remesso's executor sends each payment when it is
   due. Nothing can change the recipient, the amount or the cadence afterwards;
@@ -74,31 +70,32 @@ immutable funding terms on-chain. Persist the returned `eventId` atomically
 with fulfillment so a replay cannot deliver an order twice.
 
 An invoice amount is exact; the one-off path rejects recurring or unspecified
-terms. Retry pending sends with the same funding model, signer, key and
-terms. Both journals default to memory unless configured above. File stores
-need one coordinating process per signer; use shared Postgres coordination
-for multiple workers. Wallet creation and execution hashes are
-separate: only a verified `RunExecuted` transaction proves payment.
+terms. A `pending` payment may still be paid: retry it with the same key and
+terms, never a new key, and the SDK continues that one payment. A wallet
+payment that can't be completed has its schedule cancelled first, and is
+reported as not paid (`refused`, with `details.cancelled`) only once that has
+landed. Both journals default to memory unless configured above. File stores
+need one process per signer; use shared Postgres coordination for multiple
+workers. Only a verified `RunExecuted` or `Paid` transaction proves payment.
 
 See the full [agent-to-agent guide](../../docs-site/docs/guides/agent-to-agent.md)
 and runnable [buyer/seller example](../../examples/agent-to-agent.ts).
 
 ## Build and test locally
 
-From this repository, with Node 20+ and Foundry's `anvil` installed:
+With Node 20+ and Foundry's `anvil` installed:
 
 ```bash
-cd packages/remesso-sdk
-npm install
-npm run dev:smoke
+npx remesso-sdk dev --smoke
 ```
 
-This builds the candidate, starts its own Celo fork, funds public test accounts,
-creates a sample invoice and exercises wallet/policy payments and a signed
-webhook receiver. It stops its environment afterward. `npm run dev` keeps it
-running and prints connection settings. The backend is an in-memory development
-emulator; production cron and public webhook networking need separate tests.
-Never fund its public test keys on a real network.
+This starts a local fork of Celo, funds public test accounts, creates a sample
+invoice, pays once from a wallet and once from a policy, checks both with a
+signed webhook receiver, and stops. `npx remesso-sdk dev` keeps it running and
+prints the settings to use. The backend is an in-memory stand-in, so production
+cron and public webhook networking need separate tests. Never fund its public
+test keys on a real network. From this repository, `npm run dev:smoke` in
+`packages/remesso-sdk` builds and runs the same.
 
 ## Run multiple agent workers
 
@@ -126,11 +123,15 @@ const agent = createRemesso({
 });
 ```
 
-Use direct PostgreSQL or session pooling. The advisory lock covers signing and
-broadcast, and connection loss fails closed. Keys and signed bytes are retained;
-keep the SDK tables private. Generic writes also retain nonce evidence, which
-does not make a new policy creation idempotent. [POSTGRES.md](./POSTGRES.md)
-covers leased jobs, fenced acknowledgements and atomic invoice fulfillment.
+`createRemesso` refuses a `coordinator` without the three stores: with journals
+in memory, each worker would keep its own keys and a retry on another worker
+would pay again. Use direct PostgreSQL or session pooling. The advisory lock
+covers signing and broadcast, and connection loss fails closed. Keys and signed
+bytes are retained; keep the SDK tables private. Before signing anything, the
+SDK sends again any saved transaction the chain hasn't mined, or cancels one
+past its deadline at its nonce, so a lost broadcast can't hold up the rest.
+[POSTGRES.md](./POSTGRES.md) covers jobs, fenced acknowledgements and atomic
+invoice fulfillment.
 
 ## Prepare, observe and recover
 
@@ -145,11 +146,12 @@ const recovered = await agent.remittances.recoverPending({ limit: 25, waitMs: 50
 ```
 
 `quote()` reads approval, fee, budget, simulation and gas details. `prepare()`
-pins send input to a maximum token debit and deadline. Neither reserves funds.
-Network gas is separate; conservative gas hints and fee-currency conversion
-are not exact costs. `get`/`listPending` never broadcast; `reconcile` resumes only
-an existing saved key; `wait(key, options)` observes requested finality. Recovery
-makes one sequential pass and never constructs a new payment for an unknown key.
+fixes the token, policy and maximum debit, and sets `startBy` to the quote's
+expiry: the payment must start by then, and once started it continues. Neither
+reserves funds. `validUntil` is a hard deadline: a wallet payment's schedule
+expires before it, and a policy payment still unsent near it is cancelled.
+`get`/`listPending` only read; `reconcile` and `recoverPending` continue payments
+that have started and never start one; `wait(key, options)` observes finality.
 
 Signed invoices add authenticated order terms:
 
@@ -171,7 +173,9 @@ if (paid.status === "confirmed" && paid.hash) {
 
 Finalized verification may need a later retry. Atomically dedupe the invoice ID,
 payment event ID and issuer/order with your business writes before fulfillment.
-The shared invoice store pins funding route and key across worker restarts.
+The shared invoice store pins funding route and key across worker restarts. An
+invoice signed without a request (`invoices.sign`) is tied to its payment only
+by the memo `invoiceReference(id)`, so it is paid from a policy.
 
 Optional adapters stay separate from the root browser entry:
 

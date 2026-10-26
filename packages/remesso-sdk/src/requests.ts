@@ -152,14 +152,18 @@ export function makeRequests(ctx: Ctx, deps: { pay(input: PayInput): Promise<Pay
     /// Pay a request through a policy, as an agent. The payment carries the
     /// request's reference, so the requester sees it answered, and the
     /// request id is the default idempotency key: one payment per request.
-    async pay(id: string, opts: Omit<PayInput, "to" | "memo" | "amount" | "token" | "payer"> & { amount?: string } = {}): Promise<PaymentResult> {
+    async pay(id: string, opts: Omit<PayInput, "to" | "memo" | "amount" | "token" | "payer"> & { amount?: string; token?: string } = {}): Promise<PaymentResult> {
       const r = await get(id);
       if (!["pending", "accepted", "accepted_with_changes"].includes(r.status)) {
         throw new RemessoError("refused", `request ${r.id} is ${r.status}, so it isn't paid`);
       }
       const amount = opts.amount ?? r.requested.amount;
       if (!amount) throw new RemessoError("invalid", `request ${r.id} names no amount, so pass one`);
-      const token = r.requested.token ?? "USDT";
+      // The request's token, or the payer's choice when it names none.
+      if (opts.token && r.requested.token && findToken(opts.token)?.address.toLowerCase() !== findToken(r.requested.token)?.address.toLowerCase()) {
+        throw new RemessoError("refused", `request ${r.id} asks for ${r.requested.token}, not ${opts.token}`);
+      }
+      const token = r.requested.token ?? opts.token ?? "USDT";
       const key = opts.idempotencyKey ?? `request:${r.id}`;
       const prior = await priorPayment(ctx, key);
       if (r.payment?.state === "paid" && !prior) {

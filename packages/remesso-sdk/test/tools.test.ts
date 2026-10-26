@@ -86,5 +86,5 @@ Deno.test("unknown tools fail without dispatching, and JSON conversion is lossle
 
 Deno.test("tool JSON strips account, raw bytes and credential fields recursively", () => {
   assertEquals(toolJson({ amount: 2n, account: { privateKey: "secret" }, nested: { raw: "0xsigned", api_key: "credential", txHash: toHex(17, { size: 32 }) }, url: "https://user:password@rpc.test?api_key=secret" }),
-    { amount: "2", nested: { txHash: toHex(17, { size: 32 }) }, url: "https://[redacted]@rpc.test?api_key=[redacted]" });
+    { amount: "2", nested: { txHash: toHex(17, { size: 32 }) }, url: "https://rpc.test/[redacted]" });
 });

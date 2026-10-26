@@ -44,6 +44,10 @@ export interface SignerCoordinator {
   noteNonce(scope: string, used: number): Promise<void>;
   /** Generic contract writes also record nonce evidence before broadcasting. */
   recordSigned(scope: string, transaction: { nonce: number; hash: Hex; raw: Hex }): Promise<void>;
+  /** Saved generic writes at or above a nonce, with any cancellation saved for them. */
+  openSigned(scope: string, fromNonce: number): Promise<Array<{ nonce: number; hash: Hex; raw: Hex; savedAt: number; cancel?: { hash: Hex; raw: Hex } }>>;
+  /** Save the no-op that cancels an unsent generic write, before it is broadcast. */
+  recordCancel(scope: string, nonce: number, cancel: { hash: Hex; raw: Hex }): Promise<void>;
 }
 
 export type DurableJob<T = unknown> = {
@@ -92,17 +96,33 @@ function hooks(sql: PostgresClient): SessionHooks {
   if (!sql.options || typeof sql.options !== "object") throw new RemessoError("invalid", "the Postgres adapter requires a postgres.js client with public connection options");
   const result: SessionHooks = { pending: new Map(), closed: new Map() };
   const onclose = sql.options.onclose;
-  const debug = sql.options.debug;
+  let debug = sql.options.debug;
   sql.options.onclose = (id) => {
     // Called synchronously by postgres.js after a session socket closes. A
     // reserved connection must never be reused after this notification.
     for (const fn of result.closed.get(id) ?? []) fn();
     onclose?.(id);
   };
-  sql.options.debug = (id: number, query: string, ...args: unknown[]) => {
-    for (const [marker, capture] of result.pending) if (query.includes(marker)) capture(id);
+  // The marker query tells which session a lock is on. postgres.js makes every
+  // error's query and parameters enumerable while `debug` is set, which would
+  // put signed bytes in any log that serializes an error. So the hook is
+  // exposed only while a marker query is being sent, and removed as soon as
+  // that query is seen; the rest of the time `debug` is whatever it was.
+  const capture = (id: number, query: string, ...args: unknown[]) => {
+    for (const [marker, found] of result.pending) {
+      if (query.includes(marker)) {
+        result.pending.delete(marker);
+        found(id);
+      }
+    }
     if (typeof debug === "function") debug(id, query, ...args);
   };
+  Object.defineProperty(sql.options, "debug", {
+    configurable: true,
+    enumerable: true,
+    get: () => result.pending.size ? capture : debug,
+    set: (value) => { debug = value; },
+  });
   sessionHooks.set(sql, result);
   return result;
 }
@@ -128,7 +148,7 @@ function paymentTerms(r: PaymentRecord) {
 }
 function remittanceTerms(r: RemittanceRecord) {
   return { payer: lower(r.payer), to: lower(r.to), token: lower(r.token), amount: r.amount, amountIn: r.amountIn,
-    fee: r.fee, feeBps: r.feeBps, firstRunAt: r.firstRunAt, expiresAt: r.expiresAt, approvalAmount: r.approvalAmount,
+    fee: r.fee, feeBps: r.feeBps, firstRunAt: r.firstRunAt, expiresAt: r.expiresAt,
     createdAt: r.createdAt, requestId: r.requestId ?? null, validUntil: r.validUntil ?? null };
 }
 function job<T>(row: Row): DurableJob<T> {
@@ -146,7 +166,9 @@ function job<T>(row: Row): DurableJob<T> {
  */
 export function createPostgresStorage(sql: PostgresClient, options: { namespace?: string; jobLeaseMs?: number; heartbeatMs?: number } = {}) {
   const namespace = text(options.namespace ?? "default", "namespace");
-  const defaultLease = options.jobLeaseMs ?? 30_000;
+  // Longer than a payment's default 45-second wait, so a job isn't reclaimed
+  // by another worker while its payment is still being sent.
+  const defaultLease = options.jobLeaseMs ?? 300_000;
   const heartbeatMs = options.heartbeatMs ?? 1_000;
   const leaseMs = (n = defaultLease) => {
     if (!Number.isSafeInteger(n) || n < 10 || n > 3_600_000) throw new RemessoError("invalid", "job leaseMs must be from 10 to 3600000 milliseconds");
@@ -284,6 +306,25 @@ export function createPostgresStorage(sql: PostgresClient, options: { namespace?
       ) select nonce from saved`, [namespace, scope, used, lower(transaction.hash), lower(transaction.raw), next]);
       if (!rows.length) throw new RemessoError("conflict", "this signer nonce already belongs to different durable transaction bytes");
     },
+    async openSigned(scope, fromNonce) {
+      const db = await requireLock(scope);
+      const rows = await db.unsafe(`select nonce, hash, raw, cancel_hash, cancel_raw, created_at from remesso_sdk_transactions
+        where namespace = $1 and scope = $2 and nonce >= $3 order by nonce`, [namespace, scope, nonce(fromNonce)]);
+      return rows.map((row) => ({
+        nonce: Number(row.nonce), hash: row.hash as Hex, raw: row.raw as Hex, savedAt: new Date(row.created_at as string).getTime(),
+        ...(row.cancel_hash ? { cancel: { hash: row.cancel_hash as Hex, raw: row.cancel_raw as Hex } } : {}),
+      }));
+    },
+    async recordCancel(scope, used, cancel) {
+      const db = await requireLock(scope);
+      if (!/^0x[\da-f]{64}$/i.test(cancel.hash) || !/^0x(?:[\da-f]{2})+$/i.test(cancel.raw) || lower(keccak256(cancel.raw)) !== lower(cancel.hash)) {
+        throw new RemessoError("invalid", "a cancellation must include raw bytes and their matching keccak256 hash");
+      }
+      const rows = await db.unsafe(`update remesso_sdk_transactions set cancel_hash = $4, cancel_raw = $5
+        where namespace = $1 and scope = $2 and nonce = $3 and (cancel_hash is null or (cancel_hash = $4 and cancel_raw = $5)) returning nonce`,
+      [namespace, scope, nonce(used), lower(cancel.hash), lower(cancel.raw)]);
+      if (!rows.length) throw new RemessoError("conflict", "this nonce has no saved write, or already has a different cancellation");
+    },
   };
 
   const paymentStore: PaymentStore = {
@@ -308,7 +349,8 @@ export function createPostgresStorage(sql: PostgresClient, options: { namespace?
         values ($1, $2, $3, $4::jsonb, $5::jsonb, $6)
         on conflict (namespace, scope, id) do update set record = excluded.record
         where remesso_sdk_payments.terms = excluded.terms and
-          (not (remesso_sdk_payments.record ? 'owner') or lower(remesso_sdk_payments.record->>'owner') = lower(excluded.record->>'owner'))
+          (not (remesso_sdk_payments.record ? 'owner') or lower(remesso_sdk_payments.record->>'owner') = lower(excluded.record->>'owner')) and
+          (not (remesso_sdk_payments.record ? 'cancel') or remesso_sdk_payments.record->'cancel' = excluded.record->'cancel')
         returning id`, [namespace, record.deployment, record.key == null ? `hash:${lower(record.hash)}` : `key:${record.key}`, json(record), json(terms), record.at]);
       if (!rows.length) throw new RemessoError("key_reused", "the durable payment key already has different immutable terms or signed bytes");
     },
@@ -334,7 +376,7 @@ export function createPostgresStorage(sql: PostgresClient, options: { namespace?
         values ($1, $2, $3, $4::jsonb, $5::jsonb, $6)
         on conflict (namespace, scope, key) do update set record = excluded.record
         where remesso_sdk_remittances.terms = excluded.terms
-        ${["approval", "creation", "execution", "cancellation", "scheduleId"].map((name) => `and (not (remesso_sdk_remittances.record ? '${name}') or remesso_sdk_remittances.record->'${name}' = excluded.record->'${name}')`).join("\n")}
+        ${["approval", "approvalAmount", "approvalSkipped", "creation", "execution", "cancellation", "cancelReason", "scheduleId"].map((name) => `and (not (remesso_sdk_remittances.record ? '${name}') or remesso_sdk_remittances.record->'${name}' = excluded.record->'${name}')`).join("\n")}
         returning key`, [namespace, record.scope, record.key, json(record), json(terms), record.createdAt]);
       if (!rows.length) throw new RemessoError("key_reused", "the durable remittance key already has different terms or signed transaction steps");
     },
@@ -489,6 +531,9 @@ export function createPostgresStorage(sql: PostgresClient, options: { namespace?
           attempts integer not null default 0, run_at timestamptz not null default clock_timestamp(), created_at timestamptz not null default clock_timestamp(),
           worker text, claim_token uuid, lease_until timestamptz, last_error text, primary key (namespace, id), unique (namespace, job_key))`,
         `create index if not exists remesso_sdk_jobs_ready on remesso_sdk_jobs (namespace, status, run_at, lease_until)`,
+        // A no-op signed at an unsent write's nonce, so the write can't land late.
+        `alter table remesso_sdk_transactions add column if not exists cancel_hash text`,
+        `alter table remesso_sdk_transactions add column if not exists cancel_raw text`,
       ]) await sql.unsafe(statement);
       // Supabase may grant default table privileges to API roles. With no RLS
       // policies, raw signed bytes remain readable only by the owning trusted

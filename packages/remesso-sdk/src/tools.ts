@@ -1,5 +1,6 @@
 /// Framework-independent tools. Hosts may wrap these definitions for MCP,
 /// Vercel AI SDK or their own agent runtime without reimplementing payments.
+import { deployment } from "./deployment.js";
 import { RemessoError } from "./errors.js";
 import type { Invoices, SignedInvoice, PayInvoiceOptions } from "./invoices.js";
 import type { Lifecycle, LifecycleOptions } from "./lifecycle.js";
@@ -75,13 +76,28 @@ function validate(schema: Record<string, unknown>, value: unknown, path = "input
     if (typeof value !== "number" || !Number.isSafeInteger(value) || value < Number(schema.minimum) || value > Number(schema.maximum)) fail("must be an integer within the allowed bounds");
   }
 }
+/// URLs in text a model reads keep their scheme and host only. An RPC
+/// provider's key can be any part of the path (`/v2/<key>`) or the query, and
+/// viem quotes the URL in its errors. Remesso's own links and the explorer
+/// carry no secrets and stay whole, so pay links and transaction links work.
+const PUBLIC_HOSTS = new Set([new URL(deployment.app.origin).host, new URL(deployment.functions.base).host, "remesso.xyz", "remesso.crackedstudios.xyz", "celoscan.io"]);
+export function redactUrls(text: string): string {
+  return text.replace(/\bhttps?:\/\/[^\s"'<>)\]]+/gi, (url) => {
+    try {
+      const u = new URL(url);
+      if (PUBLIC_HOSTS.has(u.host) && !u.username && !u.password) return url;
+      const hidden = (u.pathname !== "/" && u.pathname !== "") || u.search || u.hash || u.username || u.password;
+      return `${u.protocol}//${u.host}${hidden ? "/[redacted]" : ""}`;
+    } catch { return "[redacted url]"; }
+  });
+}
 /** BigInts become decimal strings and Dates ISO strings; no wallet/account objects are exposed by tool handlers. */
 export function toolJson(value: unknown): JsonValue {
   const secrets = new Set(["account", "walletclient", "publicclient", "transport", "privatekey", "apikey", "secret", "password", "mnemonic", "seed", "authorization", "accesstoken", "refreshtoken", "raw", "serializedtransaction"]);
   return value === undefined ? null : JSON.parse(JSON.stringify(value, (key, item) => {
     if (secrets.has(key.toLowerCase().replace(/[_-]/g, ""))) return undefined;
     if (typeof item === "bigint") return item.toString();
-    if (typeof item === "string") return item.replace(/(https?:\/\/)[^/\s@]+@/g, "$1[redacted]@").replace(/([?&](?:api[_-]?key|token|secret|authorization)=)[^&\s]+/gi, "$1[redacted]").replace(/0x[0-9a-f]{200,}/gi, "[redacted bytes]");
+    if (typeof item === "string") return redactUrls(item).replace(/0x[0-9a-f]{200,}/gi, "[redacted bytes]");
     return item;
   }));
 }

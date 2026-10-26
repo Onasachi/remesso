@@ -380,7 +380,8 @@ export async function startDev(opts: DevOptions = {}): Promise<DevEnvironment> {
       check(walletQuote.canSend && walletQuote.protocolFee > 0n, "wallet quote and creation/approval simulations", { issues: walletQuote.issues, simulation: walletQuote.simulation, feeBps: walletQuote.feeBps });
       const prepared = await clients.buyer.remittances.prepare(walletInput, { ttlSeconds: 120 });
       check(prepared.input.maxDebit != null && toUnits(prepared.input.maxDebit, usdt) === prepared.quote.grossDebit &&
-        prepared.input.validUntil != null && prepared.input.validUntil <= Math.floor(prepared.quote.expiresAt.getTime() / 1000), "prepared intent pins the quoted debit and expiry");
+        prepared.input.startBy != null && prepared.input.startBy <= Math.floor(prepared.quote.expiresAt.getTime() / 1000) && prepared.input.validUntil === undefined,
+        "prepared intent pins the quoted debit, and its quote bounds only when it may start");
       const paid = await clients.buyer.remittances.send(prepared.input);
       check(paid.status === "confirmed" && paid.hash, "wallet-funded exact remittance");
       const proof = await clients.seller.receipts.verify({ txHash: paid.hash!, from: accounts.buyer, to: accounts.seller, token: "USDT", amount: "1", ...(paid.funding === "wallet" ? { scheduleId: paid.scheduleId } : {}) });

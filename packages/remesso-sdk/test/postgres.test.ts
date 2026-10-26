@@ -244,3 +244,34 @@ Deno.test({ name: "Postgres fulfillment is transactional and dedupes event, invo
     }
   });
 }});
+
+Deno.test({ name: "Postgres errors keep their query parameters out of logs once storage is installed", ignore: !enabled, fn: async () => {
+  await fixture(async (a, _b, sql) => {
+    // Before: the session hook left postgres.js in debug mode, which makes every
+    // error's parameters enumerable, so a logger serialising one wrote them out.
+    const error = await sql.unsafe("select $1::int", ["not a number signed-bytes"]).then(() => null, (e: unknown) => e as Record<string, unknown>);
+    assert(error);
+    assertEquals(Object.keys(error).includes("parameters"), false);
+    assertEquals(JSON.stringify(error).includes("signed-bytes"), false);
+    // The lock still finds its own session.
+    assertEquals(await a.coordinator.runExclusive(signerScope, async (lease) => { await lease.assertActive(); return "held"; }), "held");
+  });
+}});
+
+Deno.test({ name: "Postgres lists unsent generic writes and keeps one cancellation per nonce", ignore: !enabled, fn: async () => {
+  await fixture(async (a) => {
+    const write = { nonce: 11, hash: keccak256("0xabcd"), raw: "0xabcd" as const };
+    const cancel = { hash: keccak256("0xef01"), raw: "0xef01" as const };
+    await a.coordinator.runExclusive(signerScope, async () => {
+      await a.coordinator.recordSigned(signerScope, write);
+      const [open] = await a.coordinator.openSigned(signerScope, 11);
+      assertEquals([open.nonce, open.hash, open.cancel], [11, write.hash, undefined]);
+      assertEquals(await a.coordinator.openSigned(signerScope, 12), []);
+      await a.coordinator.recordCancel(signerScope, 11, cancel);
+      await a.coordinator.recordCancel(signerScope, 11, cancel); // the same cancellation again is fine
+      assertEquals((await a.coordinator.openSigned(signerScope, 0))[0].cancel, cancel);
+      await assertRejects(() => a.coordinator.recordCancel(signerScope, 11, { hash: keccak256("0x99"), raw: "0x99" }), RemessoError);
+      await assertRejects(() => a.coordinator.recordCancel(signerScope, 12, cancel), RemessoError);
+    });
+  });
+}});
