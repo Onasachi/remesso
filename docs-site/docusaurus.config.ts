@@ -135,7 +135,7 @@ const config: Config = {
           ],
         },
       ],
-      copyright: `MIT licensed. Remesso runs on Celo mainnet, unaudited: start small.`,
+      copyright: "remesso-sdk is MIT licensed.",
     },
     prism: {
       theme: prismThemes.github,

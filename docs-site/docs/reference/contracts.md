@@ -17,7 +17,7 @@ The SDK checks that its RPC answers this chain id before it signs anything, and 
 
 <ContractTable />
 
-Both contracts are immutable and verified on Celoscan. Neither has been audited by a person.
+Both contracts are immutable and verified on Celoscan.
 
 - **`RemessoExecutorV5`** holds schedules, not funds: each payment moves straight from the payer's wallet, the amount to the recipient and the fee to Remesso's treasury. Its owner can pause it, change the executor key, allow tokens for new schedules, set the swap pool's fee tier (for the swap rails, which are switched off) and rescue tokens sent to it by mistake. Nothing it can do changes a signed schedule's recipient, amount or cadence.
 - **`RemessoAgentAllowance`** holds agent policies. It has no owner and no admin.

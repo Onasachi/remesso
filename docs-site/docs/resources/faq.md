@@ -12,10 +12,6 @@ Short answers to common questions, then what to check when something doesn't hap
 
 No. Remesso runs on Celo mainnet only. Test with small amounts: the smallest scheduled payment is 1 USDT, the fee comes out of it, and gas costs a fraction of a cent. Paying a second address of your own gets 0.9975 USDT back.
 
-### Have the contracts been audited?
-
-Not by a person. Both contracts are live, verified on Celoscan and covered by tests, but no independent audit has been done. Start small. See [security](./security.md).
-
 ### Does the recipient need gas, an account or any software?
 
 No. Receiving needs only an address. The payer pays to create a schedule, and Remesso's executor pays the gas for each payment. You need the recipient's key only to sign as that address: to subscribe to webhooks, or to answer or decline a request.

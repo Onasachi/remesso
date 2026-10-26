@@ -77,8 +77,10 @@ from Remesso, pay up to 0.01"*, *"What can you still spend today?"*
 ## Source
 
 `mcp/server.mjs` is a bundle of `mcp/src/` (the wallet, and a minimal MCP
-stdio server in `mcp.mjs`) with viem and the official x402 client, pinned by
-`mcp/package-lock.json`, so the plugin runs without an install step. The
+stdio server in `mcp.mjs`), the parts of the `remesso-sdk` source it uses
+(`packages/remesso-sdk/src/`: payments, their records and recovery), viem and
+the official x402 client, pinned by `mcp/package-lock.json`, so the plugin
+runs without an install step. The
 build then removes the EVM contract bytecode viem embeds for verifying
 smart-wallet signatures, which this server never does
 (`mcp/scripts/strip-bytecode.mjs` explains why). To rebuild and compare:

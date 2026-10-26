@@ -179,10 +179,6 @@ function Facts(): ReactNode {
             </div>
           ))}
         </div>
-        <div className={styles.warning}>
-          <strong>Real money, unaudited contracts.</strong> There is no testnet: everything moves real money on Celo
-          mainnet, and the contracts have not been audited by a person. Start with a dollar, not a payroll.
-        </div>
       </div>
     </section>
   );

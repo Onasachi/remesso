@@ -156,10 +156,6 @@ Revoking takes effect at once, and no one can undo it, Remesso included. To give
 
 ## Test it safely
 
-:::warning Real money
-There is no testnet. The agent spends real USDT from the person's wallet on Celo mainnet. Test with keys that hold only what you're willing to lose.
-:::
-
 1. Grant a small policy: `perPayment: "0.05"`, `perDay: "0.10"`, `days: 1`, `budget: "0.10"`.
 2. Send the agent's key a little CELO, then call `payForOrder("test-1", yourOtherWallet, "0.02")`.
 3. Call it again with `"test-1"`: it answers `already paid`, and nothing new is sent.

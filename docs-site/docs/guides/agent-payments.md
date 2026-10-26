@@ -12,10 +12,6 @@ There are two roles:
 
 Agent payments carry no fee: what the agent pays is what arrives. The contract has no owner and no admin. Nobody but a policy's owner can change it, and nobody but its agent can spend under it.
 
-:::warning
-The allowance contract is live on Celo mainnet and has not been audited by a person. Keep policies small: the caps are what an agent's leaked key could spend.
-:::
-
 ## Create a policy
 
 The person creates the policy, in code or in the Remesso app at [remesso.xyz/agent-wallet](https://remesso.xyz/agent-wallet):

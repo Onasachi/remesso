@@ -1,0 +1,85 @@
+{
+  "name": "remesso-sdk",
+  "version": "0.3.0-rc.1",
+  "description": "Agent-to-agent stablecoin remittances on Celo: wallet and policy funding, verified receipts, invoices, recurring payments and signed webhooks. TypeScript on viem.",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    },
+    "./node": {
+      "types": "./dist/node.d.ts",
+      "import": "./dist/node.js",
+      "default": "./dist/node.js"
+    },
+    "./postgres": {
+      "types": "./dist/postgres.d.ts",
+      "import": "./dist/postgres.js",
+      "default": "./dist/postgres.js"
+    },
+    "./dev": {
+      "types": "./dist/dev.d.ts",
+      "import": "./dist/dev.js",
+      "default": "./dist/dev.js"
+    },
+    "./tools": {
+      "types": "./dist/tools.d.ts",
+      "import": "./dist/tools.js",
+      "default": "./dist/tools.js"
+    },
+    "./signers": {
+      "types": "./dist/signers.d.ts",
+      "import": "./dist/signers.js",
+      "default": "./dist/signers.js"
+    }
+  },
+  "bin": { "remesso-sdk": "./dist/cli.js" },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist",
+    "README.md",
+    "POSTGRES.md",
+    "LICENSE"
+  ],
+  "sideEffects": false,
+  "scripts": {
+    "build": "rm -rf dist && tsc -p tsconfig.json",
+    "dev": "npm run build && node dist/cli.js dev",
+    "dev:smoke": "npm run build && node dist/cli.js dev --smoke",
+    "prepack": "npm run build"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "peerDependencies": {
+    "viem": "^2.57.7"
+  },
+  "devDependencies": {
+    "@types/node": "22.20.1",
+    "typescript": "5.9.3",
+    "viem": "2.57.7"
+  },
+  "keywords": [
+    "celo",
+    "stablecoins",
+    "payments",
+    "recurring-payments",
+    "agents",
+    "agent-to-agent",
+    "webhooks",
+    "viem",
+    "remittances"
+  ],
+  "author": "Cracked Studio (https://bitbucket.org/crackedstudios)",
+  "homepage": "https://remesso.xyz/developers",
+  "repository": {
+    "type": "git",
+    "url": "git+https://bitbucket.org/crackedstudios/remesso.git",
+    "directory": "packages/remesso-sdk"
+  },
+  "bugs": "https://bitbucket.org/crackedstudios/remesso/issues",
+  "license": "MIT"
+}

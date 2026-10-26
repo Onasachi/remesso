@@ -6,10 +6,6 @@ description: What the contracts guarantee, what Remesso operates and can't do, a
 
 Remesso is built so that the money path depends on contracts, not on trusting Remesso. This page sets out what is enforced, what is operated, and what is left to you.
 
-:::warning Unaudited
-Both contracts are live on Celo mainnet and have not been audited by a person. Treat every amount as one you could lose, and start small.
-:::
-
 ## What the contracts enforce
 
 **Schedules (`RemessoExecutorV5`)**

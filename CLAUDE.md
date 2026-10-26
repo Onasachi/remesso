@@ -94,9 +94,21 @@ deno run --allow-read --allow-write scripts/build-sdk.ts --check
 deno test --config packages/remesso-sdk/deno.json --unstable-sloppy-imports --allow-read --allow-write \
   --allow-env --allow-net=127.0.0.1 packages/remesso-sdk/test/
 (cd packages/remesso-sdk && npx tsc -p tsconfig.json --noEmit)
+# Real Postgres isolation/worker/session-loss checks; SDK-owned test namespaces only:
+REMESSO_POSTGRES_TEST=1 deno test --config packages/remesso-sdk/deno.json --unstable-sloppy-imports \
+  --allow-read --allow-env --allow-run --allow-net=127.0.0.1 packages/remesso-sdk/test/postgres.test.ts
+# Own local fork/emulator with funded public test agents; requires Anvil on PATH:
+npm --prefix packages/remesso-sdk run dev:smoke
+# Separate SDK worker processes sharing Postgres + an owned fork (ports 18546/18547):
+deno run --allow-all --config packages/remesso-sdk/deno.json --unstable-sloppy-imports scripts/sdk-production-e2e.ts
 deno test --allow-env supabase/functions/_shared/config.test.ts   # the limits /agent publishes are the executor's
 # its money paths on a mainnet fork (both anvils, as for fork-wallet-pay.ts):
 deno run --allow-all --config packages/remesso-sdk/deno.json --unstable-sloppy-imports scripts/fork-sdk.ts
+# SDK + actual request/event handlers + webhook worker, against an idle local
+# Supabase and the same fork. Fresh rows only; restores existing cursors.
+deno run --allow-all --config packages/remesso-sdk/deno.json --unstable-sloppy-imports scripts/fork-sdk-agent-to-agent.ts
+# buyer/seller developer example; `pay` previews, --send signs on mainnet (ask first)
+deno check --config examples/sdk.deno.json --unstable-sloppy-imports examples/agent-to-agent.ts
 # the whole loop on mainnet with the test wallet: a dry run unless --send (ask first)
 deno run --allow-all --config packages/remesso-sdk/deno.json --unstable-sloppy-imports scripts/e2e-sdk.ts
 # Publishing remesso-sdk to npm is done by hand: cd packages/remesso-sdk && npm publish
@@ -1026,6 +1038,112 @@ reconcile.
 - `fileStore` in `remesso-sdk/node` holds across restarts.
 - `scripts/fork-sdk.ts` covers a broadcast lost on the way: it goes out later
   with its own bytes, paid once.
+
+**The agent-to-agent platform: 0.3.0, not yet published.** Written with Codex
+on 2026-10-26, then reviewed and fixed the same day: Codex's version passed
+every test it had and still had ways to pay twice and to stall a signer.
+
+- **`remittances.send`** takes `funding: "wallet" | "policy"`, a required
+  idempotency key and an exact amount received; a `requestId` must match every
+  term of a one-off request. Its result type follows `funding` (overloads).
+- **Wallet funding is one V5 Direct schedule capped at one run**: created,
+  approved, then run by the sender with `runNow` (trigger = the payer, one
+  early send). `firstRunAt` is an hour out, so Remesso's executor pays it if
+  the sender never runs it; it lives a day at most, and expires a second
+  before `validUntil`. The approval is read when it is signed (allowance now
+  plus this payment): computed when the payment was saved, it could undo an
+  approval made since. An unlimited allowance gets no approval at all.
+- **"Nothing was paid" is only said when the chain proves it**: the schedule
+  is cancelled, or past its expiry, at a block where it never ran. Any other
+  failure after creation (runNow refused, an approval or a run reverted, a fee
+  that changed) cancels the schedule first, journaled, and answers `pending`
+  until that lands; then `refused` with `details.cancelled` or `expired`.
+  `reverted` only means the creation failed. A paused schedule is `conflict`.
+- **The request is bound when the schedule is created**, not after payment,
+  so the executor's later run still settles it.
+- **Deadlines:** `startBy` (set by `prepare` to the quote's expiry) gates only
+  the start, so a late retry of a payment that went through reports it paid.
+  `validUntil` is when it must land: the wallet schedule's expiry, and for a
+  policy payment no start within 60s, no broadcast within 30s, and unsent bytes
+  cancelled after it. Codex's version checked the deadline before the saved
+  record, so a retry a minute after `prepare` was told "expired" and paid again
+  under a new key.
+- **Nonces (`ctx.nextNonce`).** Every journal (policy records, wallet steps, a
+  coordinator's generic writes) registers its unmined transactions. Before a
+  nonce is chosen they are broadcast again in nonce order, or, if they must no
+  longer land (a lapsed policy payment, a generic write whose caller was told
+  it failed), cancelled with a no-op at their nonce after a 30s grace. Codex's
+  floor counted unsent records and never resent them: one swallowed broadcast
+  (an x402 top-up's 429) stalled the signer for good. `resend` retries a
+  failed broadcast twice.
+- **`receiptOf`.** Measured 2026-10-26: forno answered no receipt for about 2
+  in 5 lookups of transactions a day and a half old or more, though mined. It
+  retries, then reads `eth_getBlockReceipts` for the transaction's block.
+  `receipts.verify`, lifecycle and the wallet path use it. Historical state
+  reads are fine: forno is archive.
+- **Invoices.** One signed without a request (`invoices.sign`) is bound to its
+  payment only by the memo `invoiceReference(id)` (the id's first 32 hex
+  characters), so it is paid from a policy; a wallet needs `invoices.create`.
+  `verifyPayment` accepts only the invoice's own payment: before, a run of the
+  buyer's subscription for the same amount verified. `pay` quotes before it
+  reserves the invoice to a route. `issuedAt` allows five minutes of skew.
+- **Lifecycle.** `reconcile`/`recoverPending` continue started payments and
+  never start one: a record saved before its first signature is left for its
+  own caller. Recovery picks candidates without RPC reads, so `limit` bounds
+  the work. A live schedule's reverted step is `needs_reconciliation`, not
+  `failed`. Expiry is strictly after `expiresAt`, as V5 runs at it.
+- **Workers.** `createRemesso` refuses a `coordinator` without shared `store`,
+  `remittanceStore` and `invoiceStore`. Postgres jobs lease five minutes by
+  default (a payment waits 45s); payment keys are per signing key, so job
+  workers must share one. The adapter's `debug` hook is a getter live only
+  during a lock's marker query: set permanently, postgres.js made every
+  error's parameters (signed bytes) enumerable. `openSigned`/`recordCancel`
+  and two `cancel_*` columns back the generic-write cancellations.
+- **`managedSigner`** refuses high-s signatures. **`remesso-sdk/tools`** keeps
+  only scheme and host of URLs in what a model reads (RPC keys sit in paths),
+  except Remesso's hosts and Celoscan.
+- **The MCP wallet is 0.6.0** and pays through the SDK. Its x402 top-ups are
+  keyed `x402-topup:<ms>` and a pending one is resumed, not repeated; `pay`
+  with a request uses the agent's token when the request names none; its
+  readiness uses the SDK's `gasNeeded(PAY_GAS, price, "payment")`; read tools
+  work with an allowance override (`needAllowance` vs `needSpending`); legacy
+  records whose hash isn't their bytes' are accepted and never resent.
+  `esbuild --alias:viem=viem` gives the bundle one viem (1.19 MB; Codex's had
+  two, 1.79 MB). The directory's scan held 1.68 MB and passed 866 KB; 1.19 MB
+  hasn't been tried. `plugin/` ships the SDK files the bundle reads (from
+  esbuild's metafile) and the SDK's `package.json` (its `sideEffects: false`
+  changes the output), so `plugin/mcp` rebuilds byte-identical.
+- **A second review (Codex, 2026-10-26) found 11 more, all fixed** with a
+  failing-first test each:
+  - a lifecycle read of the schedule not pinned to the block whose time it
+    compared, so a paid schedule read as expired;
+  - a request-bound wallet payment run though its request could no longer be
+    bound: now it is approved and run only once the request names the
+    schedule, and cancelled if the request can't be answered;
+  - a young unsent write skipped rather than waited out, stranding what was
+    signed above it;
+  - a deadline passing while a payment was saved, then sent late;
+  - cancellations at the original's fees, which a pool holding the original
+    refuses: they now pay an eighth more, in its fee currency, and an
+    underpriced replacement counts as refused;
+  - a wait on another payment's lost approval that never resent it;
+  - stale schedule state used once its wait timed out;
+  - an expired invoice's retry that never looked for its payment, and a
+    `maxDebit` checked only after the invoice was reserved;
+  - listings filtered by when a payment was saved: records now carry
+    `settledAt`;
+  - an MCP top-up resumed as if its old funds were still there: pending
+    top-ups are settled, then the balance decides.
+  `ctx.unblock(nonce)` repairs the gap below a stuck payment on its own retry.
+- **Validated 2026-10-26, after both rounds:** 181 SDK tests and 10 Postgres
+  ones, `npx remesso-sdk dev --smoke` (19), `fork-wallet-pay.ts` (25),
+  `fork-sdk.ts`, `fork-sdk-agent-to-agent.ts` (59), `sdk-production-e2e.ts`
+  (17), 105 doc samples, the docs build. `test/review.test.ts` holds one
+  regression per finding. Nothing published, deployed or sent on mainnet.
+- **Still open:** each wallet payment uses a schedule id, and `sync-schedules`
+  scans ids 25 at a time every 5 minutes; past roughly 7,000 completed ones,
+  new schedules stop being discovered. `index-events` already records every
+  `schedule_created`; discovery could read those instead.
 
 **The webhook handler** (`webhookHandler`, fetch-style):
 - It answers a challenge only for the addresses it was given.

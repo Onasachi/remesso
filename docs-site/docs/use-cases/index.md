@@ -24,4 +24,3 @@ A few facts hold across all of them:
 - **Receiving costs nothing.** A recipient needs an address, and no gas, balance or account.
 - **Scheduled payments carry a 0.25% fee**, taken from each payment. Agent policy payments carry none. See [Fees and gas](../guides/fees-and-gas.md).
 - **Each scheduled payment is the equivalent of 1 to 1,000 dollars**, in whichever token it pays. Outside that range a schedule is valid on-chain but never runs, so the SDK refuses it before signing. [Tokens and limits](../reference/tokens-and-limits.md) lists the bounds per token.
-- **There is no testnet.** Every example moves real money on Celo mainnet. Test with keys that hold only what you're willing to lose, and with the smallest amounts the executor sends.

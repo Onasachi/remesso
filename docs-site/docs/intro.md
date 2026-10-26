@@ -4,7 +4,9 @@ title: Introduction
 description: What remesso-sdk is, what you can build with it, and how a payment moves from a signature to a webhook.
 ---
 
-`remesso-sdk` is a TypeScript library for recurring and agent payments in stablecoins on Celo. A payer signs once, Remesso's executor sends each payment when it is due, and your server hears about each one from a signed webhook.
+`remesso-sdk` is a TypeScript library for payments in stablecoins on Celo, between people and between agents. A payer signs once and Remesso's executor sends each payment when it is due; an agent pays from its own wallet or within a policy a person set; and the recipient checks every payment on the chain and hears about it from a signed webhook.
+
+To build one agent that sells and another that pays it, start with [Build an agent-to-agent app](./guides/agent-to-agent.md). For several workers, signed invoices and recovery after a crash, see [Run an agent service in production](./guides/production-sdk.md).
 
 ```bash
 npm install remesso-sdk viem
@@ -50,13 +52,9 @@ The payer's signature is the authority. The contract checks every payment agains
 
 ## Before you start
 
-:::warning Real money, unaudited contracts
-Remesso runs on Celo mainnet only: there is no testnet, so every example moves real money. The contracts are live and have not been audited by a person. Start with small amounts, a dollar rather than a payroll, and keys that hold only what you are willing to lose.
-:::
-
 - You need Node 20 or later, and a little USDT on Celo for your first payment.
 - The SDK runs on a server or in a script with a private key. In a browser it works with the user's own wallet.
-- Every payment Remesso sends is between the equivalent of 1 and 1,000 dollars. See [fees, limits and gas](./guides/fees-and-gas.md).
+- Wallet-funded sends and schedules follow the executor's per-run limits. Policy payments follow their signed spending caps. See [fees, limits and gas](./guides/fees-and-gas.md).
 
 ## Where to go next
 

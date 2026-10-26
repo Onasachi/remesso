@@ -10,7 +10,7 @@ import { privateKeyToAccount } from "viem/accounts";
 import { signedHeaders } from "../../../supabase/functions/_shared/standard-webhooks.ts";
 import { checkAction, webhookTypedData } from "../../../supabase/functions/_shared/webhook-actions.ts";
 import { checkDecline, declineTypedData } from "../../../supabase/functions/_shared/request-decline.ts";
-import { createRemesso, RemessoError, webhookHandler, type WebhookMessage } from "../src/index.ts";
+import { createRemesso, EXECUTOR, token, RemessoError, webhookHandler, type WebhookMessage } from "../src/index.ts";
 import { fileStore, toNodeListener } from "../src/node.ts";
 
 const KEY = "0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d"; // a well-known test key, no funds
@@ -162,7 +162,7 @@ Deno.test("webhook handler: challenge only for our address; deliveries verified;
   const body = JSON.stringify({
     type: "payment.received",
     timestamp: new Date().toISOString(),
-    data: { chainId: 42220, contract: "0x3c35", schedule: "1", from: "0x5b15", to: account.address.toLowerCase(), token: "0xd2ab", amount: "997500", amountIn: "1000000", runNumber: 1, early: false, txHash: "0x4ef1", logIndex: 11, blockNumber: 80271047, blockHash: "0xdded", blockTime: "2026-10-16T17:30:05Z", final: false, removed: false },
+    data: { chainId: 42220, contract: EXECUTOR, schedule: "1", from: account.address, to: account.address.toLowerCase(), token: token("USDT").address, amount: "997500", amountIn: "1000000", runNumber: 1, early: false, txHash: toHex(1, { size: 32 }), logIndex: 11, blockNumber: 80271047, blockHash: toHex(2, { size: 32 }), blockTime: "2026-10-16T17:30:05Z", final: false, removed: false },
   });
   const signed = await signedHeaders([secret], "msg_1", body);
   const delivered = await post(body, signed);

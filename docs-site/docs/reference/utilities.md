@@ -62,6 +62,8 @@ memo32("invoice-42"); // 0x696e766f6963652d3432 followed by zeros: 32 bytes
 
 `memo32(memo?)` encodes a memo as the `bytes32` an agent payment records on-chain, padded on the right. It throws `invalid` over 32 bytes rather than cutting it. A plain letter is one byte, an accented letter two and an emoji four.
 
+`invoiceReference(invoiceId)` is the memo that settles a signed invoice made without a request: the first 32 hex characters of its id. `invoices.pay` sets it for you; pass it as `memo` to pay such an invoice another way.
+
 ## Pay links
 
 ```ts
@@ -91,7 +93,7 @@ The client's own `payLink` method defaults `to` to the client's address.
 
 | Export | Signature | Description |
 |---|---|---|
-| `webhookHandler` | `(options: WebhookHandlerOptions) => (req: Request) => Promise<Response>` | A fetch-style handler: answers the subscription challenge for your address, verifies every delivery and calls `onPayment` once per message. |
+| `webhookHandler` | `(options: WebhookHandlerOptions) => (req: Request) => Promise<Response>` | A fetch-style handler: answers the subscription challenge for your address, verifies the signature, payment shape and recipient, and calls `onPayment` per delivery attempt. Deduplicate `message.id` with your business action. |
 | `verifyWebhook` | `(raw, headers, secrets) => Promise<boolean>` | Whether a raw body was signed with one of your secrets in the last five minutes. |
 | `parseWebhook` | `(raw, headers, secrets) => Promise<WebhookMessage>` | A verified delivery, parsed. Throws for a bad signature or a body that isn't a Remesso payment message. |
 
@@ -106,6 +108,15 @@ Agent payments are recorded before they are broadcast, so a retry with the same 
 | `memoryStore()` | The default: records in memory, lost when the process exits. |
 | `fileStore(path?)` | From `remesso-sdk/node`. Records in a JSON file with `0600` permissions, by default `~/.remesso-sdk/payments.json`. Use one process per file. |
 | `PaymentStore` | The interface, to keep records in your own database: `byKey(key, deployment)`, `since(ms)` and `save(record)`. |
+| `memoryRemittanceStore()` | Wallet payments in memory, lost when the process exits. |
+| `fileRemittanceStore(path?)` | From `remesso-sdk/node`. Wallet payments in a JSON file with `0600` permissions, by default `~/.remesso-sdk/remittances.json`. Use one process per file. |
+| `RemittanceStore` | The interface: `get(key, scope)`, `list(scope)` and `save(record)`. `list` returns every record for the signer; `save` resolves only once the record is durable. |
+
+Keys belong to one chain, contract and signing key. A key, and a transaction not yet settled, are kept for good; only settled payments without a key are dropped, after 30 days or past 1,000 of them. Keep the stores across restarts and back them up. An unreadable or corrupt file refuses new payments rather than forgetting the old ones.
+
+Before signing anything, the SDK reads every journal for transactions the chain hasn't mined yet. It sends them again, lowest nonce first, or cancels at its nonce one that must no longer land, and signs the new one above them. So a lost broadcast never holds up the transactions after it, and a lagging RPC never lets a new payment replace a saved one. Keep both stores with the key.
+
+Clients that share a key in one process share one queue. Workers in several processes need the shared journals and lock of `remesso-sdk/postgres`. A nonce used with no receipt to show by what is a `conflict` to investigate, never a reason to pay again.
 
 ## Node helpers
 
@@ -114,6 +125,7 @@ From `remesso-sdk/node`:
 | Export | Description |
 |---|---|
 | `fileStore(path?)` | Agent payment records on disk, above. |
+| `fileRemittanceStore(path?)` | Wallet payment records on disk, above. |
 | `toNodeListener(handler)` | Runs a fetch-style handler, such as `webhookHandler`'s, under `http.createServer` or Express. Mount it before any JSON body parser: the signature covers the raw body. |
 | `safeFetchText(url)` | Fetches an agent's registration file only from public addresses, connecting to the address it checked. Pass it as the client's `fetchText`. |
 

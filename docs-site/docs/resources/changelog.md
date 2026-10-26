@@ -5,6 +5,21 @@ description: What changed in each release of remesso-sdk.
 
 Releases of [`remesso-sdk`](https://www.npmjs.com/package/remesso-sdk) on npm.
 
+## 0.3.0
+
+Not yet released.
+
+- **Agent-to-agent payments.** `remittances.send` pays one exact amount from this agent's own wallet or from a spending policy, optionally answering a one-off request. A retry with the same key continues the same payment. See [Build an agent-to-agent app](../guides/agent-to-agent.md).
+- **`agents.pay`** pays an agent registered in ERC-8004, at the wallet the registry names.
+- **`receipts.verify`** checks a payment on the chain, without a key: exact payer, recipient, token and amount, by Remesso's contracts, optionally finalized.
+- **Signed invoices.** `invoices.create`, `sign`, `verify`, `pay` and `verifyPayment`: the recipient signs exact terms, the payer checks them, and only that invoice's payment settles it.
+- **Quotes and deadlines.** `remittances.quote` and `prepare`; `startBy` bounds when a payment may start, and `validUntil` when it must land.
+- **Recovery.** `remittances.get`, `listPending`, `reconcile`, `wait` and `recoverPending` follow a payment and continue it after a crash. They never start one.
+- **Workers.** `remesso-sdk/postgres` shares journals, a signing lock, jobs and a fulfilment inbox between processes.
+- **Local development.** `npx remesso-sdk dev` runs both funding models against a local fork of Celo.
+- **Managed signers and agent tools.** `remesso-sdk/signers` and `remesso-sdk/tools`.
+- **Safer journals.** Before signing anything, the SDK sends again any saved transaction the chain hasn't mined, or cancels one past its deadline at its nonce, so one lost broadcast can't hold up the transactions after it. A failed broadcast is retried at once.
+
 ## 0.2.0
 
 Released 25 October 2026.

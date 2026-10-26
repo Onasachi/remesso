@@ -13,10 +13,6 @@ You will run two programs: a **receiver**, which serves a webhook endpoint, and 
 - About **1.05 USDT on Celo** in a wallet you control, for the payment and the fee. A little CELO for gas helps; without it, the SDK pays gas in USDT.
 - `cloudflared`, to give your laptop a public HTTPS address for the webhook ([install it](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/downloads/)). Any public HTTPS URL works instead.
 
-:::warning
-This moves real money on Celo mainnet. Use keys that hold only what you are willing to lose.
-:::
-
 ## 1. Create the project
 
 The SDK is ES modules only, and `tsx` runs TypeScript files without a build step.

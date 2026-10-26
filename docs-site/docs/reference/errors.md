@@ -110,7 +110,14 @@ The SDK asks the RPC for its chain id before the first write and refuses anythin
   - `this wallet already has the maximum pending requests: ...`;
   - `the signature is not from the recipient address`.
 
-**What to do:** read the message. It names the limit, the policy or the state that stood in the way. Nothing was sent, so you can fix it and try again.
+- **A deadline:** `this payment's quote has expired, so nothing was signed: prepare it again`, from `startBy`; or a `validUntil` too close to start.
+- **A payment that started and can't complete.** These are final, and safe to retry under a new key:
+  - a policy payment whose deadline passed before it went out, so a no-op took its nonce (`details.expired`);
+  - a wallet payment whose schedule was cancelled (`details.cancelled`, with `cancellationHash`) or expired (`details.expired`) without running.
+
+  Its schedule's transactions cost gas, but no money moved, and none can. Until the cancellation lands, `send` answers `pending` instead.
+
+**What to do:** read the message. It names the limit, the policy or the state that stood in the way. Nothing was paid, so you can fix it and try again.
 
 ### conflict
 
@@ -121,7 +128,14 @@ The SDK asks the RPC for its chain id before the first write and refuses anythin
 - Declining a request that is no longer pending: `this request is already accepted`.
 - A schedule the backend hasn't seen on-chain yet: `that schedule hasn't been seen on-chain yet; try again in a minute`. `requests.answer` retries this one by itself for up to 90 seconds before giving up.
 
-**What to do:** check the current state, with `requests.get`, `schedules.get` or `webhooks.rotate`, rather than repeating the call.
+The SDK also reports `conflict` when it can't tell what happened and won't guess:
+
+- a payment's nonce was used and no receipt shows by what: look at `details.hash` before paying again;
+- a contract write was signed but no node accepted it: before this key's next transaction it is cancelled with a no-op unless a node has it by then;
+- a journal returned another key's or another signer's record;
+- the payer paused a wallet payment's schedule (`details.paused`): resume or cancel it.
+
+**What to do:** check the current state, with `requests.get`, `schedules.get`, `remittances.get` or `webhooks.rotate`, rather than repeating the call. Never answer one by paying under a new key.
 
 ### reverted
 
@@ -130,6 +144,8 @@ The SDK asks the RPC for its chain id before the first write and refuses anythin
 The state changed between the simulation and the block: a balance or an approval spent elsewhere, or a policy revoked in between. For an agent payment, a retry with the same key reports it again: `this key's payment reverted on-chain, so nothing was paid: ... Use a new key to try again.`
 
 **What to do:** look at the transaction, fix the cause, and try again. For an agent payment, use a new idempotency key: the old one stays tied to the payment that reverted.
+
+A wallet payment raises `reverted` only when its schedule couldn't be created. Once the schedule exists, a reverted approval or run doesn't end it: the schedule could still be paid, so the SDK cancels it and answers `pending` until the cancellation lands, then `refused` with `details.cancelled`.
 
 ### no_gas
 

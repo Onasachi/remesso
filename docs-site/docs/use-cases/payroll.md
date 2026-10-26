@@ -143,10 +143,6 @@ await payer.schedules.setActive(scheduleId, true); // resume
 
 ## Test it safely
 
-:::warning Real money
-There is no testnet. Payroll moves real USDT on Celo mainnet. Test with keys that hold only what you're willing to lose.
-:::
-
 1. Put one contractor in `team`: a second wallet you control, with `receive: "1"`.
 2. Set `runs = 1` and leave out `firstRunAt`, so the payment is due at once.
 3. Give the employer wallet about 1.01 USDT and a little CELO, then run `payroll.ts`.

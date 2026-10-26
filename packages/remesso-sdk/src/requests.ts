@@ -8,7 +8,7 @@ import type { Address, Hex } from "viem";
 import type { Ctx } from "./context.js";
 import { checksum, findToken } from "./deployment.js";
 import { RemessoError } from "./errors.js";
-import type { PayInput, PaymentResult } from "./payments.js";
+import { priorPayment, type PayInput, type PaymentResult } from "./payments.js";
 import type { Policies } from "./policies.js";
 import type { Cadence } from "./schedules.js";
 import { declineTypedData, MAX_DECLINE_TTL_SECS } from "./vendor/request-decline.js";
@@ -152,24 +152,22 @@ export function makeRequests(ctx: Ctx, deps: { pay(input: PayInput): Promise<Pay
     /// Pay a request through a policy, as an agent. The payment carries the
     /// request's reference, so the requester sees it answered, and the
     /// request id is the default idempotency key: one payment per request.
-    async pay(id: string, opts: Omit<PayInput, "to" | "memo" | "amount" | "token"> & { amount?: string } = {}): Promise<PaymentResult> {
+    async pay(id: string, opts: Omit<PayInput, "to" | "memo" | "amount" | "token" | "payer"> & { amount?: string; token?: string } = {}): Promise<PaymentResult> {
       const r = await get(id);
       if (!["pending", "accepted", "accepted_with_changes"].includes(r.status)) {
         throw new RemessoError("refused", `request ${r.id} is ${r.status}, so it isn't paid`);
       }
       const amount = opts.amount ?? r.requested.amount;
       if (!amount) throw new RemessoError("invalid", `request ${r.id} names no amount, so pass one`);
-      const token = r.requested.token ?? "USDT";
-      // A request is addressed to one wallet. Paying someone else's from this
-      // person's wallet answers nothing.
-      const policyIds = opts.policyId != null ? [BigInt(opts.policyId)] : await deps.policies.find();
-      const mine = [];
-      for (const pid of policyIds) {
-        const p = await deps.policies.get(pid);
-        if (p.active && p.owner.toLowerCase() === r.payer.toLowerCase() && p.symbol === findToken(token)?.symbol) mine.push(p);
+      // The request's token, or the payer's choice when it names none.
+      if (opts.token && r.requested.token && findToken(opts.token)?.address.toLowerCase() !== findToken(r.requested.token)?.address.toLowerCase()) {
+        throw new RemessoError("refused", `request ${r.id} asks for ${r.requested.token}, not ${opts.token}`);
       }
-      if (!mine.length) {
-        throw new RemessoError("refused", `request ${r.id} was sent to ${r.payer}, and no active ${token} policy from that wallet names this agent`);
+      const token = r.requested.token ?? opts.token ?? "USDT";
+      const key = opts.idempotencyKey ?? `request:${r.id}`;
+      const prior = await priorPayment(ctx, key);
+      if (r.payment?.state === "paid" && !prior) {
+        throw new RemessoError("refused", `request ${r.id} is already paid; no new payment is sent`);
       }
       return await deps.pay({
         ...opts,
@@ -177,18 +175,18 @@ export function makeRequests(ctx: Ctx, deps: { pay(input: PayInput): Promise<Pay
         amount,
         token,
         memo: r.reference,
-        policyId: opts.policyId ?? mine[0].id,
-        idempotencyKey: opts.idempotencyKey ?? `request:${r.id}`,
+        payer: r.payer,
+        idempotencyKey: key,
       });
     },
 
     /// Wait until a request is paid: a payment with a transaction, not an
     /// answer. Polls `status`.
-    async waitUntilPaid(id: string, opts: { timeoutMs?: number; intervalMs?: number; signal?: AbortSignal } = {}): Promise<RequestStatus> {
+    async waitUntilPaid(id: string, opts: { timeoutMs?: number; intervalMs?: number; signal?: AbortSignal; final?: boolean } = {}): Promise<RequestStatus> {
       const until = Date.now() + (opts.timeoutMs ?? 20 * 60_000);
       for (;;) {
         const r = await get(id);
-        if (r.payment?.state === "paid") return r;
+        if (r.payment?.state === "paid" && r.payment.txs.length > 0 && (!opts.final || r.payment.txs.some((tx) => tx.final))) return r;
         if (r.status === "declined" || r.status === "expired") throw new RemessoError("refused", `request ${r.id} is ${r.status}`);
         if (Date.now() > until) throw new RemessoError("timeout", `request ${r.id} isn't paid yet (${r.status})`);
         if (opts.signal?.aborted) throw new RemessoError("timeout", "stopped");

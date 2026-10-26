@@ -188,10 +188,6 @@ async function tellCustomer(customerId: string, state: State): Promise<void> {
 
 ## Test it safely
 
-:::warning Real money
-There is no testnet. A subscription moves real USDT on Celo mainnet. Test with keys that hold only what you're willing to lose.
-:::
-
 1. Use a second wallet you control as the customer, holding about 1.01 USDT and a little CELO.
 2. In `checkout.ts`, ask for `amount: "1"` with `runs: 1`. One USDT is the smallest payment the executor sends.
 3. Start `webhook.ts`, then sign from the customer wallet using the link.

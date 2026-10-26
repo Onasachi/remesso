@@ -15,10 +15,6 @@ You need:
 - gas for two transactions, an approval and the schedule itself. CELO works for every token. With no CELO, USDT, USDC, USDm and USA₮ can pay their own gas. See [Fees, limits and gas](./fees-and-gas.md).
 - at least the executor's minimum per payment: the equivalent of 1 US dollar, such as 1 USDT or 1,500 wARS.
 
-:::warning
-Everything here moves real money on Celo mainnet, and the contracts have not been audited by a person. Start with a small amount.
-:::
-
 ## Create a schedule
 
 `schedules.create` approves the contract for the schedule's total, creates the schedule, and returns its id. This program pays 5 USDT a month, twelve times:

@@ -37,7 +37,7 @@ export type CreatePolicyInput = {
   token: string;
   /** Per payment, decimal. */
   perPayment: string;
-  /** Per rolling day, decimal. */
+  /** Per fixed 24-hour window starting at the first payment, decimal. */
   perDay: string;
   /** How long it lasts, in days. Default 30. */
   days?: number;
@@ -112,10 +112,16 @@ export function makePolicies(ctx: Ctx) {
     const who = (agent ? checksum(agent) : ctx.requireAccount().address).toLowerCase();
     let indexed: bigint[] = [];
     try {
-      const q = new URLSearchParams({ address: who, role: "agent", kind: "policy_created", limit: "500" });
-      const { events } = await ctx.get<{ events: { contract: string; refId: string; removed: boolean }[] }>(`${ctx.endpoints.paymentEvents}?${q}`);
-      indexed = [...new Set(events.filter((e) => !e.removed && e.contract === ALLOWANCE.toLowerCase()).map((e) => e.refId))].map(BigInt);
-    } catch { /* read the chain instead */ }
+      let after = 0;
+      for (;;) {
+        const q = new URLSearchParams({ address: who, role: "agent", kind: "policy_created", limit: "500", after: String(after) });
+        const { events, next } = await ctx.get<{ events: { contract: string; refId: string; removed: boolean }[]; next: number }>(`${ctx.endpoints.paymentEvents}?${q}`);
+        indexed.push(...events.filter((e) => !e.removed && e.contract.toLowerCase() === ALLOWANCE.toLowerCase()).map((e) => BigInt(e.refId)));
+        if (events.length < 500) break;
+        if (!Number.isSafeInteger(next) || next <= after) throw new Error("policy event cursor didn't advance");
+        after = next;
+      }
+    } catch { indexed = []; /* An incomplete page set cannot replace a full chain scan. */ }
     const newest = indexed.reduce((a, b) => (b > a ? b : a), 0n);
     const next = await ctx.pub.readContract({ address: ALLOWANCE, abi: allowanceAbi, functionName: "nextPolicyId" }) as bigint;
     const fresh: bigint[] = [];
@@ -141,50 +147,55 @@ export function makePolicies(ctx: Ctx) {
 
     /// As the owner: approve the budget and create a policy for an agent.
     async create(input: CreatePolicyInput): Promise<{ id: bigint; hash: Hex; approveHash: Hex }> {
-      const account = ctx.requireAccount();
-      await ctx.assertChain();
-      const t = tokenOf(input.token);
-      const agent = checksum(input.agent);
-      const perPayment = toUnits(input.perPayment, t);
-      const perDay = toUnits(input.perDay, t);
-      const budget = toUnits(input.budget, t);
-      if (perPayment <= 0n || perPayment > perDay) throw new RemessoError("invalid", "perPayment must be above zero and at most perDay");
-      const days = input.days ?? 30;
-      if (!(days > 0)) throw new RemessoError("invalid", "days must be positive");
-      const expiresAt = BigInt(Math.floor(Date.now() / 1000) + Math.round(days * 86_400));
-      const recipients = (input.recipients ?? []).map(checksum);
+      return await ctx.serial(async () => {
+        const account = ctx.requireAccount();
+        await ctx.assertChain();
+        const t = tokenOf(input.token);
+        const agent = checksum(input.agent);
+        if (/^0x0{40}$/i.test(agent) || agent.toLowerCase() === account.address.toLowerCase()) throw new RemessoError("invalid", "agent must be a nonzero address different from the owner");
+        const perPayment = toUnits(input.perPayment, t);
+        const perDay = toUnits(input.perDay, t);
+        const budget = toUnits(input.budget, t);
+        if (perPayment <= 0n || perPayment > perDay) throw new RemessoError("invalid", "perPayment must be above zero and at most perDay");
+        if (perDay >= 2n ** 128n || budget <= 0n) throw new RemessoError("invalid", "policy limits must fit uint128 and budget must be positive");
+        const days = input.days ?? 30;
+        if (!Number.isFinite(days) || days <= 0 || days > 365) throw new RemessoError("invalid", "days must be above zero and at most 365");
+        const expiresAt = BigInt(Math.floor(Date.now() / 1000) + Math.round(days * 86_400));
+        const recipients = (input.recipients ?? []).map(checksum);
+        if (recipients.length > 50 || recipients.some((r) => /^0x0{40}$/i.test(r))) throw new RemessoError("invalid", "recipients must contain at most 50 nonzero addresses");
 
-      const current = await ctx.pub.readContract({ address: t.address as Address, abi: erc20Abi, functionName: "allowance", args: [account.address, ALLOWANCE] });
-      let nonce = await ctx.pub.getTransactionCount({ address: account.address, blockTag: "pending" });
-      const { hash: approveHash } = await write(ctx, {
-        address: t.address as Address, abi: erc20Abi, functionName: "approve", args: [ALLOWANCE, current + budget], gasToken: t, nonce: nonce++,
+        const current = await ctx.pub.readContract({ address: t.address as Address, abi: erc20Abi, functionName: "allowance", args: [account.address, ALLOWANCE] });
+        let nonce = await ctx.nextNonce();
+        const { hash: approveHash } = await write(ctx, {
+          address: t.address as Address, abi: erc20Abi, functionName: "approve", args: [ALLOWANCE, current + budget], gasToken: t, nonce: nonce++,
+        });
+        const { hash, receipt } = await write(ctx, {
+          address: ALLOWANCE,
+          abi: allowanceAbi,
+          functionName: "createPolicy",
+          args: [agent, t.address, perPayment, perDay, expiresAt, recipients.length > 0, recipients],
+          gasToken: t,
+          nonce,
+        });
+        const id = policyIdFrom(receipt.logs);
+        if (id == null) throw new RemessoError("http", `created, but ${hash} has no PolicyCreated log`, { hash });
+        return { id, hash, approveHash };
       });
-      const { hash, receipt } = await write(ctx, {
-        address: ALLOWANCE,
-        abi: allowanceAbi,
-        functionName: "createPolicy",
-        args: [agent, t.address, perPayment, perDay, expiresAt, recipients.length > 0, recipients],
-        gasToken: t,
-        nonce,
-      });
-      const id = policyIdFrom(receipt.logs);
-      if (id == null) throw new RemessoError("http", `created, but ${hash} has no PolicyCreated log`, { hash });
-      return { id, hash, approveHash };
     },
 
     /// As the owner: end a policy now.
     async revoke(id: bigint | number | string): Promise<Hex> {
-      return (await write(ctx, {
+      return await ctx.serial(async () => (await write(ctx, {
         address: ALLOWANCE, abi: allowanceAbi, functionName: "revoke", args: [BigInt(id)], gasToken: await gasTokenOf(BigInt(id)),
-      })).hash;
+      })).hash);
     },
 
     /// As the owner: add a recipient to a policy's allowlist, or take one off.
     async setRecipient(id: bigint | number | string, recipient: string, allowed: boolean): Promise<Hex> {
-      return (await write(ctx, {
+      return await ctx.serial(async () => (await write(ctx, {
         address: ALLOWANCE, abi: allowanceAbi, functionName: "setRecipient", args: [BigInt(id), checksum(recipient), allowed],
         gasToken: await gasTokenOf(BigInt(id)),
-      })).hash;
+      })).hash);
     },
   };
 }

@@ -91,8 +91,8 @@ export class McpServer {
     this.tools = new Map();
   }
 
-  tool(name, description, shape, handler) {
-    this.tools.set(name, { description, shape, handler });
+  tool(name, description, shape, handler, metadata = {}) {
+    this.tools.set(name, { description, shape, handler, metadata });
   }
 
   async handle(msg) {
@@ -109,7 +109,7 @@ export class McpServer {
         return {};
       case "tools/list":
         return {
-          tools: [...this.tools].map(([name, t]) => ({ name, description: t.description, inputSchema: toJsonSchema(t.shape) })),
+          tools: [...this.tools].map(([name, t]) => ({ name, description: t.description, inputSchema: toJsonSchema(t.shape), ...(t.metadata?.annotations ? { annotations: t.metadata.annotations } : {}), ...(t.metadata?.outputSchema ? { outputSchema: t.metadata.outputSchema } : {}) })),
         };
       case "tools/call": {
         const t = this.tools.get(params?.name);

@@ -38,6 +38,18 @@ export {
   type WebhookType,
 } from "./webhooks.js";
 export type { FoundAgent } from "./agents.js";
+export type { AgentPayInput, AgentPaymentResult } from "./agents.js";
+export type { VerifyPaymentInput, PaymentProof, Receipts } from "./receipts.js";
+export type { SendRemittanceInput, SendRemittance, RemittanceFunding, RemittanceResult, PolicyRemittanceResult, Remittances, PreparedRemittance } from "./remittances.js";
+export type { WalletRemittanceInput, WalletRemittanceResult, WalletRemittanceStage } from "./wallet-remittances.js";
+export { memoryRemittanceStore, type RemittanceStore, type RemittanceRecord, type RemittanceStep } from "./remittance-store.js";
+export type { SignerCoordinator, SignerLease } from "./coordination.js";
+export type { RemittanceQuote, QuoteRemittanceInput, QuoteOptions, QuoteIssue, QuoteGasStep } from "./quotes.js";
+export type { PaymentOperation, PaymentStage, PaymentStatus, LifecycleOptions, WaitPaymentOptions, RecoverPendingOptions } from "./lifecycle.js";
+export { memoryInvoiceStore, INVOICE_DOMAIN, INVOICE_TYPES, invoiceTypedData, invoiceReference,
+  type SignedInvoice, type UnsignedInvoice, type InvoiceMessage, type SignInvoiceInput,
+  type VerifiedInvoice, type PayInvoiceOptions, type VerifyInvoicePaymentInput,
+  type InvoicePaymentProof, type InvoiceStore, type InvoiceReservation } from "./invoices.js";
 export type { PayeeProfile } from "./vendor/payee-profile.js";
 export { type PayLink, type PayLinkInput, parsePayLink, payLink } from "./links.js";
 export { memoryStore, type PaymentRecord, type PaymentStore } from "./store.js";

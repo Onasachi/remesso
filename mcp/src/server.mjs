@@ -11,18 +11,23 @@
 // 0600 file under ~/.remesso-agent, and no tool returns it.
 
 import { McpServer, z } from "./mcp.mjs";
+import { createRemesso } from "../../packages/remesso-sdk/src/client.ts";
+import { fileStore, fileRemittanceStore } from "../../packages/remesso-sdk/src/node.ts";
+import { ALLOWANCE as SDK_ALLOWANCE, token as sdkToken } from "../../packages/remesso-sdk/src/deployment.ts";
+import { createAgentTools, redactUrls } from "../../packages/remesso-sdk/src/tools.ts";
+import { gasNeeded, PAY_GAS } from "../../packages/remesso-sdk/src/context.ts";
+import { RemessoError } from "../../packages/remesso-sdk/src/errors.ts";
 import { payeeProfile, uriSource } from "./payee-profile.mjs";
 import { safeFetchText } from "./safe-fetch.mjs";
-import { createClient, http, parseAbi, getAddress, isAddress, formatUnits, parseUnits, concat, encodeFunctionData, keccak256 } from "viem";
+import { createClient, http, parseAbi, getAddress, isAddress, formatUnits, parseUnits } from "viem";
 import {
-  readContract, getBalance, simulateContract, waitForTransactionReceipt, getChainId, getBlockNumber, getLogs,
-  getTransaction, getTransactionCount, getTransactionReceipt, prepareTransactionRequest, signTransaction, sendRawTransaction,
+  readContract, getBalance, getGasPrice, simulateContract, getChainId,
 } from "viem/actions";
 import { privateKeyToAccount, generatePrivateKey } from "viem/accounts";
 import { celo } from "viem/chains";
 import { wrapFetchWithPayment, x402Client, decodePaymentResponseHeader } from "@x402/fetch";
 import { registerExactEvmScheme } from "@x402/evm/exact/client";
-import { mkdirSync, readFileSync, writeFileSync, existsSync, chmodSync } from "node:fs";
+import { mkdirSync, readFileSync, writeFileSync, existsSync, chmodSync, openSync, closeSync, fsyncSync, renameSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 
@@ -45,11 +50,6 @@ const TOKENS = {
 };
 const tokenKey = (s) => String(s || "").toUpperCase().replace("₮", "T").replace("USD T", "USDT");
 const tokenByAddress = (a) => Object.entries(TOKENS).find(([, t]) => t.address.toLowerCase() === String(a).toLowerCase());
-
-// ERC-8021 Schema 0 suffix carrying `remesso` and the Agents on Open Rails code,
-// the same bytes the backend and the web app append (attribution.test.ts pins
-// them to @celo/attribution-tags). The EVM ignores trailing calldata.
-const ATTRIBUTION = "0x72656d6573736f2c63656c6f5f356364333563613535626166190080218021802180218021802180218021";
 
 const ERC20 = parseAbi([
   "function balanceOf(address) view returns (uint256)",
@@ -75,7 +75,6 @@ const AA = parseAbi([
   "error RecipientNotAllowed()",
   "error SafeERC20FailedOperation(address token)",
 ]);
-const [PAID] = parseAbi(["event Paid(uint256 indexed id, address indexed to, uint256 amount, bytes32 memo)"]);
 const REGISTRY = parseAbi([
   "function getAgentWallet(uint256) view returns (address)",
   "function tokenURI(uint256) view returns (string)",
@@ -144,8 +143,8 @@ const client = createClient({ chain: celo, transport: http(RPC), account });
 const pub = {
   readContract: (a) => readContract(client, a),
   getBalance: (a) => getBalance(client, a),
+  getGasPrice: () => getGasPrice(client),
   simulateContract: (a) => simulateContract(client, a),
-  waitForTransactionReceipt: (a) => waitForTransactionReceipt(client, a),
 };
 
 // The RPC can be overridden (REMESSO_RPC_URL), so nothing else guarantees it
@@ -163,27 +162,23 @@ function assertChain() {
   return chainCheck;
 }
 
-// A memo is bytes32 on-chain, so it is measured in bytes. An accented letter
-// is two bytes and an emoji four: cutting at 32 characters overflowed the field
-// and failed the payment with an encoding error. Refused rather than cut,
-// because a cut reference no longer matches what it refers to.
-function memo32(memo) {
-  if (!memo) return `0x${"0".repeat(64)}`;
-  const bytes = new TextEncoder().encode(memo);
-  if (bytes.length > 32) {
-    throw new Error(`the memo is ${bytes.length} bytes and the limit is 32 (a plain letter is 1 byte, an accented letter 2, an emoji 4)`);
-  }
-  return `0x${Buffer.from(bytes).toString("hex").padEnd(64, "0")}`;
-}
-
 // ---- helpers ----
 
 const ok = (obj) => ({ content: [{ type: "text", text: typeof obj === "string" ? obj : JSON.stringify(obj, null, 2) }] });
-const fail = (msg) => ({ isError: true, content: [{ type: "text", text: msg }] });
+// An RPC's key can sit in its URL's path, and viem quotes the URL in errors.
+const fail = (msg) => ({ isError: true, content: [{ type: "text", text: redactUrls(String(msg)) }] });
 const fmt = (units, t) => `${formatUnits(units, t.decimals)} ${t.label}`;
 
 function needAllowance() {
   if (!ALLOWANCE) return "RemessoAgentAllowance is not deployed yet (REMESSO_ALLOWANCE_ADDRESS is unset), so this agent cannot spend. It can still receive and ask to be paid.";
+  return null;
+}
+/// Payments go through the SDK, which signs only against the canonical
+/// contract. Reading a policy on another one still works.
+function needSpending() {
+  const missing = needAllowance();
+  if (missing) return missing;
+  if (ALLOWANCE.toLowerCase() !== SDK_ALLOWANCE.toLowerCase()) return `SDK spending requires the canonical allowance contract ${SDK_ALLOWANCE}; REMESSO_ALLOWANCE_ADDRESS=${ALLOWANCE} is unsupported. No transaction was signed.`;
   return null;
 }
 
@@ -322,14 +317,16 @@ async function readiness() {
     if (left < 3 * DAY) warnings.push(`The policy ends ${d.expires}; your human can create a new one on the setup page before then.`);
   }
 
-  const celoBal = await pub.getBalance({ address: account.address });
+  const [celoBal, gasPrice] = await Promise.all([pub.getBalance({ address: account.address }), pub.getGasPrice()]);
   const sym = d ? d.token : "USDT";
   const t = TOKENS[sym] ?? TOKENS.USDT;
   const tokBal = await pub.readContract({ address: t.address, abi: ERC20, functionName: "balanceOf", args: [account.address] });
-  const gas = celoBal > parseUnits("0.002", 18) ? `${formatUnits(celoBal, 18)} CELO`
+  // The same bar pay uses, so "Ready" is never followed by "no gas".
+  const perPayment = gasNeeded(PAY_GAS, gasPrice, "payment");
+  const gas = celoBal >= perPayment ? `${formatUnits(celoBal, 18)} CELO, about ${celoBal / (perPayment > 0n ? perPayment : 1n)} payments at today's gas price`
     : tokBal >= 10_000n ? `paid in ${t.label} (${fmt(tokBal, t)} held)` : null;
-  add(Boolean(gas), "Network fees", gas ?? "the agent holds no CELO and almost no tokens",
-    `Send the agent (${account.address}) 0.10 ${t.label}, or 0.05 CELO. It pays fees in either.`);
+  add(Boolean(gas), "Network fees", gas ?? `the agent holds ${formatUnits(celoBal, 18)} CELO, under the ${formatUnits(perPayment, 18)} a payment needs, and almost no ${t.label}`,
+    `Send the agent (${account.address}) 0.10 CELO, or 0.10 ${t.label}. It pays fees in either.`);
 
   if (d) {
     try {
@@ -359,217 +356,147 @@ async function readiness() {
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-// Gas: CELO if the agent has any, else the token itself through Celo's fee
-// abstraction. The agent may hold nothing at first; then the human sends it a
-// little CELO, or the first x402 top-up leaves it a few cents of token.
-async function gasOptions(tokenSym) {
-  const celoBal = await pub.getBalance({ address: account.address });
-  if (celoBal > parseUnits("0.002", 18)) return {};
-  const t = TOKENS[tokenKey(tokenSym)];
-  const bal = await pub.readContract({ address: t.address, abi: ERC20, functionName: "balanceOf", args: [account.address] });
-  if (bal >= 10_000n) return { feeCurrency: t.feeCurrency }; // >= 0.01
-  throw new Error(`the agent wallet ${account.address} has no gas: send it about 0.05 CELO, or 0.10 ${t.label}.`);
+// ---- payments: the SDK owns signing, persistence and reconciliation ----
+// The original MCP journal remains untouched. Adapt its symbols/number IDs
+// as SDK records. Adopt a signer scope only after immutable policy.agent proof.
+const WAIT_MS = 45_000;
+const legacyPayFile = () => join(HOME, "payments.json");
+const sdkStore = fileStore(join(HOME, "sdk-payments.json"));
+function legacyPayments() {
+  let data;
+  try { data = JSON.parse(readFileSync(legacyPayFile(), "utf8")); }
+  catch (e) {
+    if (e.code === "ENOENT") return [];
+    throw new RemessoError("conflict", "The legacy payment history cannot be read; restore it before paying so earlier keys cannot pay twice.");
+  }
+  if (data.version !== 1 || !Array.isArray(data.payments)) throw new RemessoError("conflict", "The legacy payment journal has an invalid format; restore it before paying.");
+  return data.payments.map((p) => {
+    try {
+      const t = sdkToken(TOKENS[p.token]?.address ?? p.token);
+      if (!p || typeof p.deployment !== "string" || !(p.key === null || typeof p.key === "string") ||
+        !/^\d+$/.test(String(p.policyId)) || !/^\d+$/.test(p.units) || !/^0x[\da-f]{40}$/i.test(p.to) ||
+        !/^0x[\da-f]{64}$/i.test(p.hash) || !/^0x[\da-f]{64}$/i.test(p.memo) || !/^0x(?:[\da-f]{2})+$/i.test(p.raw) ||
+        !Number.isSafeInteger(p.nonce) || p.nonce < 0 ||
+        !Number.isFinite(Date.parse(p.at)) || !["sent", "confirmed", "reverted", "unsent", "dropped"].includes(p.status)) throw new Error("invalid record");
+      // An earlier version could record a matching payment's hash with the
+      // original bytes, so the two may differ. Such a record still answers its
+      // key; the SDK never sends bytes that don't hash to the recorded payment.
+      return { ...p, policyId: String(p.policyId), to: getAddress(p.to), token: getAddress(t.address) };
+    } catch { throw new RemessoError("conflict", "A legacy payment record is invalid; preserve and restore the journal before spending."); }
+  });
 }
-
-// ---- payments: recorded, so a retry never pays twice ----
-//
-// An agent's tool call can time out after its transaction went out, and the
-// agent tries again. pay() checks nothing about repeats, so that was a second
-// payment, inside every cap (docs/agent-to-agent.md, 2b). Each payment is
-// signed first and recorded here, hash and signed bytes, before it is
-// broadcast. A call with the same idempotency_key finds the record and returns
-// what became of the first payment instead of making another.
-const payFile = () => join(HOME, "payments.json");
-const KEEP_MS = 30 * 86_400_000;
-const WAIT_MS = 45_000; // under the hosts' tool timeouts (Codex: 60s)
-const REPEAT_MS = 10 * 60_000;
-const REPEAT_BLOCKS = 600n; // ten minutes of Celo blocks
-
-function loadPayments() {
-  try { return JSON.parse(readFileSync(payFile(), "utf8")).payments ?? []; } catch { return []; }
+async function compatibleHistory() {
+  const old = legacyPayments(), scoped = [], policies = new Map();
+  for (const record of old) {
+    if (record.deployment.toLowerCase() === `${celo.id}:${SDK_ALLOWANCE.toLowerCase()}`) {
+      if (!policies.has(record.policyId)) policies.set(record.policyId, readContract(client, { address: SDK_ALLOWANCE, abi: AA, functionName: "policy", args: [BigInt(record.policyId)] }));
+      const policy = await policies.get(record.policyId);
+      if (policy.agent.toLowerCase() === account.address.toLowerCase()) scoped.push({ ...record, owner: policy.owner,
+        deployment: `${celo.id}:${SDK_ALLOWANCE.toLowerCase()}:${account.address.toLowerCase()}` });
+    }
+    // Retain the legacy scope. The SDK also verifies policy.agent before
+    // adopting an old unscoped key, including CIP-64 transactions.
+    scoped.push(record);
+  }
+  return scoped;
 }
-/// Replaces any record with the same hash, or with the same key in this
-/// deployment, so a key has one record: the latest attempt.
-function recordPayment(rec) {
-  const cutoff = Date.now() - KEEP_MS;
-  const rest = loadPayments().filter((p) =>
-    p.hash !== rec.hash && !(rec.key && p.key === rec.key && p.deployment === rec.deployment) && Date.parse(p.at) > cutoff);
-  ensureHome();
-  writeFileSync(payFile(), JSON.stringify({ version: 1, payments: [...rest, rec].slice(-1000) }, null, 2), { mode: 0o600 });
-}
-
-// One payment at a time: two in parallel would sign with the same nonce.
+const compatibleStore = {
+  async byKey(key, deployment) {
+    const current = await sdkStore.byKey(key, deployment);
+    if (current) return current;
+    return (await compatibleHistory()).reverse().find((r) => r.key === key && r.deployment.toLowerCase() === deployment.toLowerCase());
+  },
+  async since(since) {
+    const current = await sdkStore.since(since), hashes = new Set(current.map((r) => r.hash.toLowerCase()));
+    return [...current, ...(await compatibleHistory()).filter((r) => Date.parse(r.at) > since && !hashes.has(r.hash.toLowerCase()))];
+  },
+  async save(record) {
+    legacyPayments(); // corruption never grants permission to forget old keys
+    await sdkStore.save(record);
+  },
+};
+// One process per agent home, like the existing key/config and file journals.
+// Reservation pins survive restarts; multi-worker hosts use the Postgres adapter.
+const invoiceStore = {
+  async reserve(invoiceId, reservation) {
+    const path = join(HOME, "sdk-invoices.json");
+    let data;
+    try { data = JSON.parse(readFileSync(path, "utf8")); }
+    catch (error) {
+      if (error.code !== "ENOENT") throw new RemessoError("conflict", "Invoice reservations cannot be read; restore them before paying.");
+      data = { version: 1, reservations: {} };
+    }
+    if (data.version !== 1 || !data.reservations || typeof data.reservations !== "object" || Array.isArray(data.reservations)) throw new RemessoError("conflict", "The invoice reservation store has an invalid format.");
+    const canonical = { funding: reservation.funding, signer: getAddress(reservation.signer).toLowerCase(), payer: getAddress(reservation.payer).toLowerCase(), key: reservation.key,
+      ...(reservation.policyId === undefined ? {} : { policyId: reservation.policyId }) };
+    const old = data.reservations[invoiceId];
+    if (old && JSON.stringify(old) !== JSON.stringify(canonical)) throw new RemessoError("key_reused", "This invoice is reserved to another funding route, signer or policy.");
+    if (old) return;
+    data.reservations[invoiceId] = canonical;
+    const temporary = `${path}.${process.pid}.tmp`;
+    const file = openSync(temporary, "w", 0o600);
+    try { writeFileSync(file, JSON.stringify(data, null, 2)); fsyncSync(file); }
+    finally { closeSync(file); }
+    renameSync(temporary, path);
+    chmodSync(path, 0o600);
+    const directory = openSync(HOME, "r");
+    try { fsyncSync(directory); }
+    catch (error) { if (!["EINVAL", "ENOTSUP", "EISDIR", "EPERM"].includes(error.code)) throw error; }
+    finally { closeSync(directory); }
+  },
+};
+const sdk = createRemesso({ account, rpcUrl: RPC, functionsUrl: FUNCTIONS, store: compatibleStore, invoiceStore,
+  remittanceStore: fileRemittanceStore(join(HOME, "sdk-remittances.json")) });
 let queue = Promise.resolve();
 function serial(fn) {
   const run = queue.then(fn, fn);
   queue = run.catch(() => {});
   return run;
 }
-
 const explorer = (h) => `https://celoscan.io/tx/${h}`;
-const sentLine = (rec) => {
-  const t = TOKENS[rec.token];
-  return { sent: `${formatUnits(BigInt(rec.units), t.decimals)} ${t.label}`, to: rec.to, policyId: rec.policyId, tx: rec.hash, explorer: explorer(rec.hash) };
-};
-
-/// Simulate, then sign without sending. Throws the contract's refusal before
-/// anything is signed.
-async function signPay(d, to, units, memoHex) {
-  const gas = await gasOptions(d.token);
-  const args = [BigInt(d.policyId), to, units, memoHex];
-  await pub.simulateContract({ address: ALLOWANCE, abi: AA, functionName: "pay", args, account, ...gas });
-  const request = await prepareTransactionRequest(client, {
-    account,
-    to: ALLOWANCE,
-    data: concat([encodeFunctionData({ abi: AA, functionName: "pay", args }), ATTRIBUTION]),
-    ...gas,
-  });
-  const raw = await signTransaction(client, { ...request, account });
-  return { hash: keccak256(raw), raw, nonce: request.nonce };
+function paymentReply(paid, keyed = true) {
+  if (paid.status !== "confirmed") return ok({ status: "pending", tx: paid.hash, explorer: paid.explorer,
+    next: keyed ? "Not confirmed yet. Retry with the SAME idempotency_key and terms; never use a new key for this payment."
+      : "Not confirmed yet. Check this transaction before paying again: without an idempotency_key, a new call is a new payment. Pass one next time so a retry can't pay twice." });
+  const entry = tokenByAddress(paid.token), label = entry?.[1].label ?? sdkToken(paid.token).symbol;
+  return ok({ sent: `${formatUnits(paid.amount, sdkToken(paid.token).decimals)} ${label}`, to: paid.to,
+    policyId: paid.policyId <= BigInt(Number.MAX_SAFE_INTEGER) ? Number(paid.policyId) : String(paid.policyId), tx: paid.hash, explorer: paid.explorer,
+    ...(paid.repeat ? { repeat: "this key had already paid; nothing new was sent" } : {}) });
 }
-
-function newRecord(key, d, to, units, memoHex, signed) {
-  return {
-    key: key ?? null, deployment: DEPLOYMENT, policyId: d.policyId, to, units: units.toString(), token: d.token,
-    memo: memoHex, hash: signed.hash, nonce: signed.nonce, raw: signed.raw, status: "sent", at: new Date().toISOString(),
-  };
+function paymentFailure(error) {
+  const code = error instanceof RemessoError ? error.code : "internal";
+  return { ...fail(`Payment operation needs attention (${code}): ${error instanceof RemessoError ? error.message : refusal(error)}. Keep the SAME key and inspect its original transaction before retrying.`),
+    structuredContent: { ok: false, error: { code, retryable: ["http", "timeout", "no_gas"].includes(code), sideEffects: "unknown" } } };
 }
-
-/// Broadcast a recorded payment and wait for its receipt. A failed broadcast
-/// may still have gone out, and a slow receipt isn't a failure: the record
-/// keeps the hash either way. "pending" when no receipt came in time.
-async function broadcastAndWait(rec) {
-  try {
-    await sendRawTransaction(client, { serializedTransaction: rec.raw });
-  } catch { /* already known, or the node accepted it and failed to answer: the receipt decides */ }
-  try {
-    const receipt = await pub.waitForTransactionReceipt({ hash: rec.hash, timeout: WAIT_MS });
-    const done = { ...rec, status: receipt.status === "success" ? "confirmed" : "reverted" };
-    recordPayment(done);
-    return done;
-  } catch {
-    return rec;
-  }
-}
-
-/// What became of a recorded payment whose outcome is unknown: the call that
-/// sent it timed out, or the process died while waiting.
-async function reconcile(rec) {
-  try {
-    const r = await getTransactionReceipt(client, { hash: rec.hash });
-    return { ...rec, status: r.status === "success" ? "confirmed" : "reverted" };
-  } catch { /* not mined, or this node hasn't seen it */ }
-  try {
-    await getTransaction(client, { hash: rec.hash });
-    return { ...rec, status: "sent" }; // in the mempool
-  } catch { /* unknown to the node */ }
-  const used = await getTransactionCount(client, { address: account.address, blockTag: "latest" });
-  // Its nonce is still free, so the signed bytes never went out and still can.
-  if (used <= rec.nonce) return { ...rec, status: "unsent" };
-  // The nonce went to another transaction, so this one can never land. A last
-  // look for its Paid event, in case a node simply lost track of the receipt.
-  const head = await getBlockNumber(client);
-  const logs = await getLogs(client, {
-    address: ALLOWANCE, event: PAID, args: { id: BigInt(rec.policyId), to: rec.to },
-    fromBlock: head > 4_999n ? head - 4_999n : 0n, toBlock: head,
-  });
-  const hit = logs.find((l) => l.args.amount === BigInt(rec.units) && l.args.memo === rec.memo);
-  return hit ? { ...rec, status: "confirmed", hash: hit.transactionHash } : { ...rec, status: "dropped" };
-}
-
-/// The same payment within the last ten minutes, from this machine's record
-/// or from the chain: the usual sign of a timed-out call being retried.
-async function recentRepeat(d, to, units, memoHex) {
-  const since = Date.now() - REPEAT_MS;
-  const local = loadPayments().find((p) =>
-    p.deployment === DEPLOYMENT && p.policyId === d.policyId && p.to === to && p.units === units.toString() &&
-    p.memo === memoHex && Date.parse(p.at) > since && (p.status === "sent" || p.status === "confirmed"));
-  if (local) return local;
-  const head = await getBlockNumber(client);
-  const logs = await getLogs(client, {
-    address: ALLOWANCE, event: PAID, args: { id: BigInt(d.policyId), to },
-    fromBlock: head > REPEAT_BLOCKS ? head - REPEAT_BLOCKS : 0n, toBlock: head,
-  });
-  const hit = logs.find((l) => l.args.amount === units && l.args.memo === memoHex);
-  return hit ? { hash: hit.transactionHash } : null;
-}
-
-/// A payment the wallet makes for itself (the x402 top-up): recorded like any
-/// other, but it throws rather than answering a tool call.
+/// Each top-up has its own key, so it isn't refused as a repeat of the last.
 async function payInternal(d, to, units, memo) {
-  await assertChain();
-  const memoHex = memo32(memo);
-  const rec = newRecord(null, d, to, units, memoHex, await signPay(d, to, units, memoHex));
-  recordPayment(rec);
-  const done = await broadcastAndWait(rec);
-  if (done.status !== "confirmed") throw new Error(`top-up ${done.status === "reverted" ? "reverted" : "not confirmed yet"}: ${explorer(rec.hash)}`);
-  return rec.hash;
+  const missing = needSpending();
+  if (missing) throw new RemessoError("refused", missing);
+  const paid = await sdk.pay({ policyId: d.policyId, to, amount: formatUnits(units, d._raw.t.decimals), token: TOKENS[d.token].address, memo,
+    idempotencyKey: `x402-topup:${Date.now()}`, waitMs: WAIT_MS });
+  if (paid.status !== "confirmed") throw new RemessoError("timeout", `top-up is pending: ${explorer(paid.hash)}. Call pay_x402 again once it lands; it won't top up twice.`, { hash: paid.hash });
+  return paid.hash;
 }
-
-async function payTool({ to, amount, token, memo, idempotency_key: key, allow_repeat }) {
-  const missing = needAllowance();
+/// Top-ups still on their way, settled before deciding another is needed: a
+/// retried pay_x402 then can't top up twice. Whether one that landed earlier
+/// still funds anything is for the balance to say: it may already be spent.
+async function settleTopUps() {
+  const scope = `${celo.id}:${SDK_ALLOWANCE.toLowerCase()}:${account.address.toLowerCase()}`;
+  const open = (await sdkStore.since(0)).filter((r) => r.deployment === scope && r.key?.startsWith("x402-topup:") && (r.status === "sent" || r.status === "unsent"));
+  for (const r of open) {
+    const paid = await sdk.pay({ policyId: r.policyId, to: r.to, amount: formatUnits(BigInt(r.units), sdkToken(r.token).decimals), token: r.token,
+      memo: "x402 top-up", idempotencyKey: r.key, waitMs: WAIT_MS });
+    if (paid.status !== "confirmed") throw new RemessoError("timeout", `a top-up is still pending: ${explorer(paid.hash)}. Call pay_x402 again once it lands; it won't top up twice.`, { hash: paid.hash });
+  }
+}
+async function payTool({ to, amount, token, memo, idempotency_key, allow_repeat }) {
+  const missing = needSpending();
   if (missing) return fail(missing);
-  if (!isAddress(to, { strict: false })) return fail(`not an address: ${to}`);
-  if (key === "") return fail("idempotency_key can't be empty: leave it out, or give one per payment. Nothing sent.");
-  const dest = getAddress(to);
-  const t = TOKENS[token];
-  let units, memoHex;
   try {
-    units = parseUnits(amount, t.decimals);
-    memoHex = memo32(memo);
-    await assertChain();
-  } catch (e) {
-    return fail(`Nothing sent: ${String(e?.shortMessage || e?.message || e)}`);
-  }
-
-  // A key seen before: answer with what became of that payment.
-  let prior = key ? loadPayments().find((p) => p.key === key && p.deployment === DEPLOYMENT) : null;
-  if (prior) {
-    if (prior.to !== dest || prior.units !== units.toString() || prior.token !== token || prior.memo !== memoHex) {
-      return fail(`idempotency_key "${key}" was already used for a different payment (${sentLine(prior).sent} to ${prior.to}). Use a new key for a new payment. Nothing sent.`);
-    }
-    try {
-      prior = await reconcile(prior);
-    } catch (e) {
-      return fail(`Couldn't check this key's earlier payment (${explorer(prior.hash)}): ${String(e?.shortMessage || e?.message || e)}. Nothing new was sent; try again shortly.`);
-    }
-    recordPayment(prior);
-    if (prior.status === "unsent") {
-      // The first attempt was signed and recorded but never left this machine.
-      // Its own bytes go now: same payment, same nonce, so still at most once.
-      prior = await broadcastAndWait(prior);
-      if (prior.status === "confirmed") return ok({ ...sentLine(prior), note: "sent now: this key's first attempt never reached the network" });
-    }
-    if (prior.status === "confirmed") return ok({ ...sentLine(prior), repeat: "this key had already paid; nothing new was sent" });
-    if (prior.status === "reverted") return fail(`This key's payment reverted on-chain, so nothing was paid: ${explorer(prior.hash)}. To try again, use a new key.`);
-    if (prior.status === "sent") return ok({ status: "pending", tx: prior.hash, explorer: explorer(prior.hash), next: "Not confirmed yet. Call pay again with the same idempotency_key in a minute; don't use a new key." });
-    // "dropped": it never landed and never can, so nothing was paid. Pay now, under the same key.
-  }
-
-  try {
-    const d = await policyFor(token);
-    if (!key && !allow_repeat) {
-      const dup = await recentRepeat(d, dest, units, memoHex);
-      if (dup) {
-        return fail(`An identical payment (${amount} ${t.label} to ${dest}${memo ? `, memo "${memo}"` : ""}) went out in the last 10 minutes: ${explorer(dup.hash)}. Nothing sent. If you really mean to pay again, call pay with allow_repeat: true; to make retries safe, pass an idempotency_key.`);
-      }
-    }
-    if (units > d._raw.spendable) return fail(`${amount} ${t.label} is over what this policy allows right now (${d.largestPaymentNow}). Nothing sent.`);
-    const rec = newRecord(key, d, dest, units, memoHex, await signPay(d, dest, units, memoHex));
-    recordPayment(rec);
-    const done = await broadcastAndWait(rec);
-    if (done.status === "reverted") return fail(`The transaction reverted on-chain, so nothing was paid: ${explorer(done.hash)}`);
-    if (done.status !== "confirmed") {
-      return ok({
-        status: "pending", tx: done.hash, explorer: explorer(done.hash),
-        next: key ? "Not confirmed yet. Call pay again with the same idempotency_key to get the outcome; don't use a new key."
-          : "Not confirmed yet. Check the explorer link before paying again, and pass an idempotency_key next time.",
-      });
-    }
-    return ok(sentLine(done));
-  } catch (e) {
-    return fail(`Nothing sent: ${refusal(e)}`);
-  }
+    const t = TOKENS[tokenKey(token)];
+    if (!t) throw new RemessoError("invalid", "token must be USDT, USDC or USA₮");
+    return paymentReply(await sdk.pay({ to, amount, token: t.address, memo, idempotencyKey: idempotency_key, allowRepeat: allow_repeat, waitMs: WAIT_MS }), idempotency_key != null);
+  } catch (error) { return paymentFailure(error); }
 }
 
 // ---- the server ----
@@ -577,7 +504,7 @@ async function payTool({ to, amount, token, memo, idempotency_key: key, allow_re
 // The brand mark, for MCP hosts that show a server's icon (MCP 2025-11-25).
 const server = new McpServer({
   name: "remesso-wallet",
-  version: "0.5.0",
+  version: "0.6.0",
   icons: [{ src: `${APP}/icon.png`, mimeType: "image/png", sizes: ["512x512"] }],
 });
 
@@ -703,45 +630,22 @@ async function payingWallets() {
 /// its reference becomes the memo (so the requester's side can bind the
 /// payment to the request), and one payment per request is the default key.
 async function payRequestTool(args) {
+  const missing = needSpending();
+  if (missing) return fail(missing);
   const id = String(args.request_id).trim().toLowerCase();
-  if (!UUID.test(id)) return fail("request_id must be a payment request's id, from payment_requests. Nothing sent.");
-  if (args.memo) return fail("A request's payment carries the request's reference as its memo, so leave memo out. Nothing sent.");
-  let r;
+  if (!UUID.test(id)) return fail("request_id must be a payment request UUID. Nothing signed.");
+  if (args.memo) return fail("A request payment carries its own reference; leave memo out. Nothing signed.");
   try {
-    r = await requestPayment({ action: "status", id });
-  } catch (e) {
-    return fail(`Couldn't read request ${id}: ${String(e?.message || e)}. Nothing sent.`);
-  }
-  if (!r.ok) return fail(`Couldn't read request ${id} (${r.status}): ${JSON.stringify(r.out).slice(0, 200)}. Nothing sent.`);
-  const req = r.out;
-  // Accepted covers a retry: the first attempt may already have bound it.
-  if (!["pending", "accepted", "accepted_with_changes"].includes(req.status)) return fail(`Request ${id} is ${req.status}, so it isn't paid. Nothing sent.`);
-  const asked = req.requested ?? {};
-  if (args.to && String(args.to).toLowerCase() !== String(asked.to).toLowerCase()) {
-    return fail(`Request ${id} asks to be paid at ${asked.to}, not ${args.to}. Nothing sent.`);
-  }
-  const amount = args.amount ?? asked.amount;
-  if (!amount) return fail(`Request ${id} names no amount, so pass one.`);
-  const token = args.token ?? (asked.token ? tokenKey(asked.token) : "USDT");
-  if (!TOKENS[token]) return fail(`Request ${id} asks for ${asked.token}; this wallet pays USDT, USDC or USA₮. Nothing sent.`);
-  // A request is addressed to one wallet. Paying someone else's from this
-  // human's wallet answers nothing, and it is what an injected instruction
-  // would ask for.
-  if (req.payer) {
-    let d;
-    try {
-      d = await policyFor(token);
-    } catch (e) {
-      return fail(`Nothing sent: ${refusal(e)}`);
-    }
-    if (d._raw.p.owner.toLowerCase() !== String(req.payer).toLowerCase()) {
-      return fail(`Request ${id} was sent to ${req.payer}, not to the wallet this agent pays from (${d._raw.p.owner}). Nothing sent.`);
-    }
-  }
-  return payTool({
-    to: asked.to, amount, token, memo: req.reference,
-    idempotency_key: args.idempotency_key ?? `request:${id}`, allow_repeat: args.allow_repeat,
-  });
+    const req = await sdk.requests.get(id);
+    if (args.to && getAddress(args.to) !== getAddress(req.requested.to)) throw new RemessoError("refused", "the recipient differs from the request");
+    // The request's token, or the one asked for when the request names none.
+    const chosen = args.token !== undefined ? sdkToken(TOKENS[tokenKey(args.token)]?.address ?? args.token) : null;
+    const t = req.requested.token ? sdkToken(req.requested.token) : chosen ?? sdkToken("USDT");
+    if (args.amount !== undefined && req.requested.amount !== null && parseUnits(args.amount, t.decimals) !== parseUnits(req.requested.amount, t.decimals)) throw new RemessoError("refused", "the amount differs from the request");
+    if (chosen && chosen.address.toLowerCase() !== t.address.toLowerCase()) throw new RemessoError("refused", "the token differs from the request");
+    if (req.requested.intervalSeconds != null || req.requested.runs != null && req.requested.runs !== 1) throw new RemessoError("refused", "recurring requests require a payer-signed schedule, not a one-off policy payment");
+    return paymentReply(await sdk.requests.pay(id, { amount: args.amount, token: t.address, idempotencyKey: args.idempotency_key ?? `request:${id}`, allowRepeat: args.allow_repeat, waitMs: WAIT_MS }));
+  } catch (error) { return paymentFailure(error); }
 }
 
 server.tool(
@@ -850,11 +754,15 @@ server.tool(
       if (price > maxUnits) return fail(`price ${fmt(price, t)} is above max_amount ${max_amount}. Nothing signed.`);
 
       // 2. Top up the agent's own float through the policy if it is short.
-      const float = await pub.readContract({ address: t.address, abi: ERC20, functionName: "balanceOf", args: [account.address] });
+      let float = await pub.readContract({ address: t.address, abi: ERC20, functionName: "balanceOf", args: [account.address] });
       let topUp = null;
       if (float < price) {
-        const missing = needAllowance();
+        const missing = needSpending();
         if (missing) return fail(`the agent holds ${fmt(float, t)}, the price is ${fmt(price, t)}, and ${missing}`);
+        await settleTopUps();
+        float = await pub.readContract({ address: t.address, abi: ERC20, functionName: "balanceOf", args: [account.address] });
+      }
+      if (float < price) {
         const d = await policyFor(token);
         // Take a little more than the price so the agent can also pay gas in the token.
         let want = price - float + 20_000n;
@@ -950,5 +858,19 @@ server.tool(
     });
   },
 );
+
+// Generic SDK tools use the same journals. Hosts explicitly enable writes;
+// the established pay tool keeps its on-chain spending-policy restrictions.
+const agentTools = createAgentTools(sdk, { enableWrites: process.env.REMESSO_ENABLE_AGENT_TOOLS_WRITES === "1" });
+for (const definition of agentTools.tools) {
+  const schema = definition.inputSchema;
+  const shape = Object.fromEntries(Object.entries(schema.properties).map(([key, json]) => [key, {
+    json, required: schema.required.includes(key), check: () => null,
+  }]));
+  server.tool(definition.name, definition.description, shape, async (args) => {
+    const result = await definition.execute(args);
+    return { ...ok(result), structuredContent: result, ...(result.ok ? {} : { isError: true }) };
+  }, { outputSchema: definition.outputSchema, annotations: definition.annotations });
+}
 
 await server.connect();
