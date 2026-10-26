@@ -82,12 +82,6 @@ const config: Config = {
         hideable: true,
       },
     },
-    announcementBar: {
-      id: "unaudited",
-      content:
-        "The Remesso contracts are live on Celo mainnet and have not been audited by a person. Start with small amounts.",
-      isCloseable: true,
-    },
     navbar: {
       title: "Remesso",
       logo: {
