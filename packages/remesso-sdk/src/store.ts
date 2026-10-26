@@ -37,6 +37,9 @@ export type PaymentRecord = {
   /// `expired`: the cancellation landed, so the payment never can.
   status: "sent" | "confirmed" | "reverted" | "unsent" | "dropped" | "expired";
   at: string;
+  /// When it was first seen settled. `at` is when it was signed, which can be
+  /// hours earlier for one that sat behind a lost broadcast.
+  settledAt?: string;
 };
 
 export interface PaymentStore {

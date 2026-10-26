@@ -41,7 +41,8 @@ export function fileStore(path: string = join(homedir(), ".remesso-sdk", "paymen
         !/^0x[0-9a-f]{64}$/i.test(p.memo) || !/^0x(?:[0-9a-f]{2})*$/i.test(p.raw) ||
         !Number.isSafeInteger(p.nonce) || p.nonce < 0 || !Number.isFinite(Date.parse(p.at)) || (p.validUntil !== undefined && (!Number.isSafeInteger(p.validUntil) || p.validUntil <= 0)) ||
         !["sent", "confirmed", "reverted", "unsent", "dropped", "expired"].includes(p.status) ||
-        (p.cancel !== undefined && (!/^0x[0-9a-f]{64}$/i.test(p.cancel?.hash) || !/^0x(?:[0-9a-f]{2})+$/i.test(p.cancel?.raw))))) throw new Error("invalid payment record");
+        (p.cancel !== undefined && (!/^0x[0-9a-f]{64}$/i.test(p.cancel?.hash) || !/^0x(?:[0-9a-f]{2})+$/i.test(p.cancel?.raw))) ||
+        (p.settledAt !== undefined && !Number.isFinite(Date.parse(p.settledAt))))) throw new Error("invalid payment record");
       return data.payments;
     } catch (e) {
       if ((e as NodeJS.ErrnoException).code === "ENOENT") return [];
@@ -71,7 +72,7 @@ export function fileRemittanceStore(path: string = join(homedir(), ".remesso-sdk
         if (!r || typeof r.key !== "string" || !r.key.trim() || typeof r.scope !== "string" || !r.scope ||
           ![r.payer, r.to, r.token].every(address) || ![r.amount, r.amountIn, r.fee].every(uint) ||
           (r.approvalAmount !== undefined && !uint(r.approvalAmount)) || (r.approvalSkipped !== undefined && r.approvalSkipped !== true) ||
-          (r.cancelReason !== undefined && typeof r.cancelReason !== "string") ||
+          (r.cancelReason !== undefined && typeof r.cancelReason !== "string") || (r.settledAt !== undefined && !Number.isFinite(Date.parse(r.settledAt))) ||
           !Number.isSafeInteger(r.feeBps) || r.feeBps < 0 || r.feeBps > 10_000 || !Number.isSafeInteger(r.expiresAt) || !Number.isSafeInteger(r.firstRunAt) || r.firstRunAt <= 0 ||
           !Number.isFinite(Date.parse(r.createdAt)) || (r.validUntil !== undefined && (!Number.isSafeInteger(r.validUntil) || r.validUntil <= 0)) || (r.scheduleId !== undefined && !uint(r.scheduleId)) ||
           (r.creationBlock !== undefined && !uint(r.creationBlock)) || (r.paymentHash !== undefined && !hash(r.paymentHash)) ||

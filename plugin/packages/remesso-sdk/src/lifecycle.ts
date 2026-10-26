@@ -153,9 +153,13 @@ export function makeLifecycle(ctx: Ctx, deps: { store: RemittanceStore; wallet: 
     base.scheduleId = event.args.id;
     base.stage = r.execution ? "execution" : "approval";
     base.hash = r.execution?.hash ?? r.approval?.hash ?? r.creation.hash;
-    const s = await ctx.pub.readContract({ address: EXECUTOR, abi: executorAbi, functionName: "getSchedule", args: [event.args.id] }) as unknown as Schedule;
-    if (!same(s.sender, r.payer) || !same(s.destination, r.to) || !same(s.token, r.token) || s.amountIn !== BigInt(r.amountIn) || s.interval !== 3600n || s.maxRuns !== 1 || s.payoutType !== 2) throw conflict("the schedule's immutable terms differ from this wallet remittance");
+    // Read at the block whose time it is compared with. A lagging node's
+    // "never ran" next to another node's later clock reads a paid schedule
+    // as expired.
     const now = await ctx.pub.getBlock();
+    if (now.number === null || now.number < created.blockNumber) throw conflict("the RPC hasn't reached the payment's creation block yet; read it again");
+    const s = await ctx.pub.readContract({ address: EXECUTOR, abi: executorAbi, functionName: "getSchedule", args: [event.args.id], blockNumber: now.number }) as unknown as Schedule;
+    if (!same(s.sender, r.payer) || !same(s.destination, r.to) || !same(s.token, r.token) || s.amountIn !== BigInt(r.amountIn) || s.interval !== 3600n || s.maxRuns !== 1 || s.payoutType !== 2) throw conflict("the schedule's immutable terms differ from this wallet remittance");
     let candidateError: unknown;
     for (const hash of [...new Set([r.paymentHash, r.execution?.hash].filter((v): v is Hex => v != null))]) {
       try { return await proof(base, hash); }
@@ -250,8 +254,10 @@ export function makeLifecycle(ctx: Ctx, deps: { store: RemittanceStore; wallet: 
     const out: Stored[] = [], now = Date.now();
     if (options.funding !== "policy") {
       for (const r of await deps.store.list(remittanceScope(ctx))) {
-        const old = now - Date.parse(r.createdAt) > SETTLED_MS;
-        if ((r.paymentHash && old) || r.expiresAt * 1000 < now - SETTLED_MS) continue;
+        // Settled long enough ago to be final. A payment can land hours after
+        // it was saved, so its own settle time counts, not its creation; with
+        // none recorded, a schedule expired long ago can't have paid since.
+        if (r.settledAt ? now - Date.parse(r.settledAt) > SETTLED_MS : r.expiresAt * 1000 < now - SETTLED_MS) continue;
         out.push({ funding: "wallet", record: r });
       }
     }
@@ -264,7 +270,9 @@ export function makeLifecycle(ctx: Ctx, deps: { store: RemittanceStore; wallet: 
         if (owned) policies.set(r.key, owned);
       }
       for (const record of policies.values()) {
-        if (["confirmed", "reverted", "expired"].includes(record.status) && now - Date.parse(record.at) > SETTLED_MS) continue;
+        // Older records carry no settle time: a week since signing stands in.
+        const settled = record.settledAt ? now - Date.parse(record.settledAt) > SETTLED_MS : now - Date.parse(record.at) > 7 * 86_400_000;
+        if (["confirmed", "reverted", "expired"].includes(record.status) && settled) continue;
         out.push({ funding: "policy", record });
       }
     }

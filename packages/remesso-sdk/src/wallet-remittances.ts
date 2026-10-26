@@ -193,6 +193,8 @@ export function makeWalletRemittances(ctx: Ctx, deps: Deps) {
       if (!known) {
         const used = await getTransactionCount(ctx.pub, { address: local().address, blockTag: "latest" });
         if (used > step.nonce) throw conflict("the remittance nonce was consumed but its original receipt is unavailable; reconcile the original hash before continuing", { hash: step.hash, nonce: step.nonce });
+        // A lost transaction below it would hold it up: fill that gap first.
+        await ctx.unblock(step.nonce);
         await ctx.resend(step.raw);
       }
       if (Date.now() < deadline) found = await ctx.pub.waitForTransactionReceipt({ hash: step.hash, timeout: Math.max(1, deadline - Date.now()) }).catch(() => null);
@@ -219,16 +221,18 @@ export function makeWalletRemittances(ctx: Ctx, deps: Deps) {
       log.args.amountIn === BigInt(r.amountIn) && log.args.amountOut === BigInt(r.amount) && log.args.runsExecuted === 1);
   }
 
-  /// The schedule as of one block, with that block's time, at or after `atLeast`.
-  async function state(r: RemittanceRecord, atLeast = 0n): Promise<{ s: Schedule; at: bigint }> {
-    const { s, at } = await untilVisible(async () => {
+  /// The schedule as of one block, with that block's time, at or after
+  /// `atLeast`. Null while the RPC can't show that block: a state from before a
+  /// receipt we hold is no basis for any decision, so the payment stays pending.
+  async function state(r: RemittanceRecord, atLeast = 0n): Promise<{ s: Schedule; at: bigint } | null> {
+    const { s, at, fresh } = await untilVisible(async () => {
       const head = await ctx.pub.getBlock();
       // A receipt can come from a node ahead of the one answering now.
       const block = head.number !== null && head.number >= atLeast ? head : await ctx.pub.getBlock({ blockNumber: atLeast }).catch(() => head);
       const s = await ctx.pub.readContract({ address: EXECUTOR, abi: executorAbi, functionName: "getSchedule", args: [BigInt(r.scheduleId!)], blockNumber: block.number! }) as unknown as Schedule;
       return { s, at: block.timestamp, fresh: block.number !== null && block.number >= atLeast };
     }, (v) => v.fresh && !same(v.s.sender, zeroAddress));
-    if (same(s.sender, zeroAddress)) throw conflict("the payment's schedule isn't visible on-chain yet; retry this key", { scheduleId: r.scheduleId });
+    if (!fresh || same(s.sender, zeroAddress)) return null;
     if (!same(s.sender, r.payer) || !same(s.destination, r.to) || !same(s.token, r.token) || s.amountIn !== BigInt(r.amountIn) ||
       s.interval !== INTERVAL || s.maxRuns !== 1 || s.payoutType !== 2) {
       throw conflict("the created schedule's immutable terms do not match this exact remittance; no payment is sent");
@@ -276,6 +280,21 @@ export function makeWalletRemittances(ctx: Ctx, deps: Deps) {
     } catch (e) { return String((e as Error).message); }
   }
 
+  /// Whether this schedule may still pay its request: bound to it now, waiting
+  /// on the backend, or never (declined, expired, or answered by another).
+  async function requestStanding(r: RemittanceRecord): Promise<"bound" | "waiting" | string> {
+    const req = await deps.getRequest(r.requestId!).catch(() => null);
+    if (!req) return "waiting";
+    const answered = req.payment?.schedule;
+    if (answered && same(answered.contract, EXECUTOR) && answered.id === r.scheduleId) {
+      r.requestBound = true;
+      await save(r);
+      return "bound";
+    }
+    if (answered) return "another payment answers it";
+    return req.status === "pending" ? "waiting" : `it is ${req.status}`;
+  }
+
   /// runNow simulates cleanly, or why not after a few seconds of retries.
   async function runnable(r: RemittanceRecord, deadline: number): Promise<string | null> {
     const until = Math.min(deadline, Date.now() + RUN_RETRY_MS);
@@ -293,6 +312,8 @@ export function makeWalletRemittances(ctx: Ctx, deps: Deps) {
   /// Another payment's approval not yet mined: approving on top of an
   /// allowance read now would undo it.
   async function approvalInFlight(r: RemittanceRecord): Promise<boolean> {
+    // If its broadcast was lost, waiting on it would wait forever: send it again.
+    await ctx.unblock(Number.MAX_SAFE_INTEGER);
     const used = await getTransactionCount(ctx.pub, { address: local().address, blockTag: "latest" });
     return (await deps.store.list(r.scope)).some((other) => other.key !== r.key && other.approval && other.approval.nonce >= used);
   }
@@ -400,9 +421,11 @@ export function makeWalletRemittances(ctx: Ctx, deps: Deps) {
     // recipient checks a payment against the schedule its request names.
     const requestError = await bind(r);
 
-    const { s, at } = await state(r, creation.blockNumber);
+    const current = await state(r, creation.blockNumber);
+    if (!current) return finish("approval", requestError);
+    const { s, at } = current;
     if (s.runsExecuted > 0) return await paid(r, requestError);
-    if (s.cancelled || at > s.expiresAt) throw notPaid(r, s);
+    if (s.cancelled || at > s.expiresAt) throw await unpaid(r, s);
     const stop = (reason: string) => abandon(r!, reason, deadline, (stage) => finish(stage, requestError));
     if (r.cancellation) return await stop(r.cancelReason ?? "the payment couldn't be completed");
     if (Number(s.feeBps) !== r.feeBps || netOf(s.amountIn, Number(s.feeBps)) !== BigInt(r.amount)) {
@@ -410,6 +433,14 @@ export function makeWalletRemittances(ctx: Ctx, deps: Deps) {
     }
     if (!s.active) {
       throw conflict("the payer paused this payment's schedule, so it isn't run now. Resume it with schedules.setActive, or cancel it with schedules.cancel", { scheduleId: r.scheduleId, paused: true });
+    }
+    // A request-bound payment is approved and run only once its request names
+    // this schedule: the recipient checks the payment against that binding, so
+    // paying one it can't bind would pay an invoice that never settles.
+    if (r.requestId && !r.requestBound) {
+      const standing = await requestStanding(r);
+      if (standing === "waiting") return finish("approval", requestError);
+      if (standing !== "bound") return await stop(`its request can't be answered by this payment any more: ${standing}`);
     }
 
     if (!r.approval && !r.approvalSkipped) {
@@ -439,6 +470,7 @@ export function makeWalletRemittances(ctx: Ctx, deps: Deps) {
       const refused = await runnable(r, deadline);
       if (refused !== null) {
         const now = await state(r);
+        if (!now) return finish("execution", requestError);
         if (now.s.runsExecuted > 0) return await paid(r, requestError);
         return await stop(`the contract wouldn't run the payment now (${refused})`);
       }
@@ -448,11 +480,13 @@ export function makeWalletRemittances(ctx: Ctx, deps: Deps) {
     if (!execution) return finish("execution", requestError);
     if (payment(execution, r)) {
       r.paymentHash = execution.transactionHash;
+      r.settledAt ??= new Date().toISOString();
       await save(r);
       return finish("payment", requestError);
     }
     // The executor's regular run can win the race with runNow.
     const after = await state(r, execution.blockNumber);
+    if (!after) return finish("execution", requestError);
     if (after.s.runsExecuted > 0) return await paid(r, requestError);
     if (execution.status !== "success") return await stop("running the payment reverted");
     throw conflict("the successful execution receipt has no matching exact RunExecuted payment");
@@ -462,10 +496,20 @@ export function makeWalletRemittances(ctx: Ctx, deps: Deps) {
       const hash = await paidHash(record);
       if (hash && hash !== record.paymentHash) {
         record.paymentHash = hash;
+        record.settledAt ??= new Date().toISOString();
         await save(record);
       }
       return finish("payment", error);
     }
+  }
+
+  /// Not paid, for good: noted as settled, then reported.
+  async function unpaid(r: RemittanceRecord, s: Schedule): Promise<RemessoError> {
+    if (!r.settledAt) {
+      r.settledAt = new Date().toISOString();
+      await save(r);
+    }
+    return notPaid(r, s);
   }
 
   /// A schedule that is cancelled or expired and never ran: true for good.
@@ -485,17 +529,20 @@ export function makeWalletRemittances(ctx: Ctx, deps: Deps) {
     }
     const landed = await stepReceipt(r.cancellation!, deadline);
     if (!landed) return finish("cancellation");
-    const { s, at } = await state(r, landed.blockNumber);
+    const after = await state(r, landed.blockNumber);
+    if (!after) return finish("cancellation");
+    const { s, at } = after;
     if (s.runsExecuted > 0) {
       // Remesso's executor ran it before the cancellation landed.
       const hash = await paidHash(r);
       if (hash) {
         r.paymentHash = hash;
+        r.settledAt ??= new Date().toISOString();
         await save(r);
       }
       return finish("payment");
     }
-    if (s.cancelled || at > s.expiresAt) throw notPaid(r, s);
+    if (s.cancelled || at > s.expiresAt) throw await unpaid(r, s);
     throw conflict("the cancellation landed but the schedule is still live; retry this key", { scheduleId: r.scheduleId, cancellationHash: r.cancellation!.hash });
   }
 }

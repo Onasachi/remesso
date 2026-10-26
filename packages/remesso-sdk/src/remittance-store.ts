@@ -41,6 +41,8 @@ export type RemittanceRecord = {
   scheduleId?: string;
   creationBlock?: string;
   paymentHash?: Hex;
+  /// When it was first seen paid, or not paid for good.
+  settledAt?: string;
 };
 
 export interface RemittanceStore {

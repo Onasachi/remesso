@@ -1487,7 +1487,7 @@ var init_pad = __esm({
 });
 
 // node_modules/viem/_esm/errors/encoding.js
-var IntegerOutOfRangeError, InvalidBytesBooleanError, InvalidHexBooleanError, SizeOverflowError;
+var IntegerOutOfRangeError, InvalidBytesBooleanError, InvalidHexBooleanError, InvalidHexValueError, RlpDepthLimitExceededError, RlpListBoundaryExceededError, RlpTrailingBytesError, SizeOverflowError;
 var init_encoding = __esm({
   "node_modules/viem/_esm/errors/encoding.js"() {
     init_base();
@@ -1506,6 +1506,28 @@ var init_encoding = __esm({
     InvalidHexBooleanError = class extends BaseError2 {
       constructor(hex) {
         super(`Hex value "${hex}" is not a valid boolean. The hex value must be "0x0" (false) or "0x1" (true).`, { name: "InvalidHexBooleanError" });
+      }
+    };
+    InvalidHexValueError = class extends BaseError2 {
+      constructor(value) {
+        super(`Hex value "${value}" is an odd length (${value.length}). It must be an even length.`, { name: "InvalidHexValueError" });
+      }
+    };
+    RlpDepthLimitExceededError = class extends BaseError2 {
+      constructor({ limit }) {
+        super(`RLP depth limit of \`${limit}\` exceeded.`, {
+          name: "RlpDepthLimitExceededError"
+        });
+      }
+    };
+    RlpListBoundaryExceededError = class extends BaseError2 {
+      constructor({ consumed, declared }) {
+        super(`RLP list items consumed \`${consumed}\` bytes but the list declared a length of \`${declared}\`.`, { name: "RlpListBoundaryExceededError" });
+      }
+    };
+    RlpTrailingBytesError = class extends BaseError2 {
+      constructor({ count }) {
+        super(`RLP payload encodes a single item, but \`${count}\` trailing ${count === 1 ? "byte remains" : "bytes remain"}.`, { name: "RlpTrailingBytesError" });
       }
     };
     SizeOverflowError = class extends BaseError2 {
@@ -3693,7 +3715,7 @@ function prettyPrint(args) {
   const maxLength = entries.reduce((acc, [key]) => Math.max(acc, key.length), 0);
   return entries.map(([key, value]) => `  ${`${key}:`.padEnd(maxLength + 1)}  ${value}`).join("\n");
 }
-var FeePayerNonceMismatchError, InvalidLegacyVError, InvalidSerializableTransactionError, InvalidStorageKeySizeError, TransactionExecutionError, TransactionNotFoundError, TransactionReceiptNotFoundError, TransactionReceiptRevertedError, WaitForTransactionReceiptTimeoutError;
+var FeePayerNonceMismatchError, InvalidLegacyVError, InvalidYParityError, InvalidSerializableTransactionError, InvalidSerializedTransactionTypeError, InvalidSerializedTransactionError, InvalidStorageKeySizeError, TransactionExecutionError, TransactionNotFoundError, TransactionReceiptNotFoundError, TransactionReceiptRevertedError, WaitForTransactionReceiptTimeoutError;
 var init_transaction = __esm({
   "node_modules/viem/_esm/errors/transaction.js"() {
     init_formatEther();
@@ -3717,6 +3739,13 @@ var init_transaction = __esm({
         });
       }
     };
+    InvalidYParityError = class extends BaseError2 {
+      constructor({ yParity }) {
+        super(`Invalid \`yParity\` value "${yParity}". Expected 0 or 1.`, {
+          name: "InvalidYParityError"
+        });
+      }
+    };
     InvalidSerializableTransactionError = class extends BaseError2 {
       constructor({ transaction }) {
         super("Cannot infer a transaction type from provided transaction.", {
@@ -3736,6 +3765,46 @@ var init_transaction = __esm({
           ],
           name: "InvalidSerializableTransactionError"
         });
+      }
+    };
+    InvalidSerializedTransactionTypeError = class extends BaseError2 {
+      constructor({ serializedType }) {
+        super(`Serialized transaction type "${serializedType}" is invalid.`, {
+          name: "InvalidSerializedTransactionType"
+        });
+        Object.defineProperty(this, "serializedType", {
+          enumerable: true,
+          configurable: true,
+          writable: true,
+          value: void 0
+        });
+        this.serializedType = serializedType;
+      }
+    };
+    InvalidSerializedTransactionError = class extends BaseError2 {
+      constructor({ attributes, serializedTransaction, type }) {
+        const missing = Object.entries(attributes).map(([key, value]) => typeof value === "undefined" ? key : void 0).filter(Boolean);
+        super(`Invalid serialized transaction of type "${type}" was provided.`, {
+          metaMessages: [
+            `Serialized Transaction: "${serializedTransaction}"`,
+            missing.length > 0 ? `Missing Attributes: ${missing.join(", ")}` : ""
+          ].filter(Boolean),
+          name: "InvalidSerializedTransactionError"
+        });
+        Object.defineProperty(this, "serializedTransaction", {
+          enumerable: true,
+          configurable: true,
+          writable: true,
+          value: void 0
+        });
+        Object.defineProperty(this, "type", {
+          enumerable: true,
+          configurable: true,
+          writable: true,
+          value: void 0
+        });
+        this.serializedTransaction = serializedTransaction;
+        this.type = type;
       }
     };
     InvalidStorageKeySizeError = class extends BaseError2 {
@@ -10041,10 +10110,10 @@ function assert2(value, options = {}) {
     throw new InvalidHexTypeError(value);
   if (strict) {
     if (!/^0x[0-9a-fA-F]*$/.test(value))
-      throw new InvalidHexValueError(value);
+      throw new InvalidHexValueError2(value);
   }
   if (!value.startsWith("0x"))
-    throw new InvalidHexValueError(value);
+    throw new InvalidHexValueError2(value);
 }
 function concat2(...values) {
   return `0x${values.reduce((acc, x) => acc + x.replace("0x", ""), "")}`;
@@ -10156,7 +10225,7 @@ function validate2(value, options = {}) {
     return false;
   }
 }
-var encoder4, hexes3, IntegerOutOfRangeError2, InvalidHexTypeError, InvalidHexValueError, SizeOverflowError3, SliceOffsetOutOfBoundsError3, SizeExceedsPaddingSizeError3;
+var encoder4, hexes3, IntegerOutOfRangeError2, InvalidHexTypeError, InvalidHexValueError2, SizeOverflowError3, SliceOffsetOutOfBoundsError3, SizeExceedsPaddingSizeError3;
 var init_Hex = __esm({
   "node_modules/ox/_esm/core/Hex.js"() {
     init_Errors();
@@ -10188,7 +10257,7 @@ var init_Hex = __esm({
         });
       }
     };
-    InvalidHexValueError = class extends BaseError3 {
+    InvalidHexValueError2 = class extends BaseError3 {
       constructor(value) {
         super(`Value \`${value}\` is an invalid hex value.`, {
           metaMessages: [
@@ -13134,6 +13203,91 @@ var init_defineChain = __esm({
   }
 });
 
+// node_modules/viem/_esm/utils/encoding/fromRlp.js
+function fromRlp(value, to = "hex") {
+  const bytes = (() => {
+    if (typeof value === "string") {
+      if (value.length > 3 && value.length % 2 !== 0)
+        throw new InvalidHexValueError(value);
+      return hexToBytes(value);
+    }
+    return value;
+  })();
+  const cursor = createCursor(bytes, {
+    recursiveReadLimit: Number.POSITIVE_INFINITY
+  });
+  const result = fromRlpCursor(cursor, to);
+  if (cursor.position < cursor.bytes.length)
+    throw new RlpTrailingBytesError({
+      count: cursor.bytes.length - cursor.position
+    });
+  return result;
+}
+function fromRlpCursor(cursor, to = "hex", recursiveDepth = 0) {
+  if (recursiveDepth >= rlpDepthLimit)
+    throw new RlpDepthLimitExceededError({ limit: rlpDepthLimit });
+  if (cursor.bytes.length === 0)
+    return to === "hex" ? bytesToHex(cursor.bytes) : cursor.bytes;
+  const prefix = cursor.readByte();
+  if (prefix < 128)
+    cursor.decrementPosition(1);
+  if (prefix < 192) {
+    const length2 = readLength(cursor, prefix, 128);
+    const bytes = cursor.readBytes(length2);
+    return to === "hex" ? bytesToHex(bytes) : bytes;
+  }
+  const length = readLength(cursor, prefix, 192);
+  return readList(cursor, length, to, recursiveDepth + 1);
+}
+function readLength(cursor, prefix, offset) {
+  if (offset === 128 && prefix < 128)
+    return 1;
+  if (prefix <= offset + 55)
+    return prefix - offset;
+  if (prefix === offset + 55 + 1)
+    return cursor.readUint8();
+  if (prefix === offset + 55 + 2)
+    return cursor.readUint16();
+  if (prefix === offset + 55 + 3)
+    return cursor.readUint24();
+  if (prefix === offset + 55 + 4)
+    return cursor.readUint32();
+  throw new BaseError2("Invalid RLP prefix");
+}
+function readList(cursor, length, to, recursiveDepth) {
+  const position = cursor.position;
+  const value = [];
+  while (cursor.position - position < length)
+    value.push(fromRlpCursor(cursor, to, recursiveDepth));
+  if (cursor.position - position !== length)
+    throw new RlpListBoundaryExceededError({
+      consumed: cursor.position - position,
+      declared: length
+    });
+  return value;
+}
+var rlpDepthLimit;
+var init_fromRlp = __esm({
+  "node_modules/viem/_esm/utils/encoding/fromRlp.js"() {
+    init_base();
+    init_encoding();
+    init_cursor2();
+    init_toBytes();
+    init_toHex();
+    rlpDepthLimit = 1024;
+  }
+});
+
+// node_modules/viem/_esm/utils/hash/isHash.js
+function isHash(hash4) {
+  return isHex(hash4) && hash4.length === 66;
+}
+var init_isHash = __esm({
+  "node_modules/viem/_esm/utils/hash/isHash.js"() {
+    init_isHex();
+  }
+});
+
 // node_modules/viem/_esm/utils/promise/withTimeout.js
 function withTimeout(fn, { errorInstance = new Error("timed out"), timeout, signal }) {
   return new Promise((resolve, reject) => {
@@ -15079,7 +15233,7 @@ function assert5(signature, options = {}) {
   if (signature.s < 0n || signature.s > maxUint2562)
     throw new InvalidSError({ value: signature.s });
   if (typeof signature.yParity === "number" && signature.yParity !== 0 && signature.yParity !== 1)
-    throw new InvalidYParityError({ value: signature.yParity });
+    throw new InvalidYParityError2({ value: signature.yParity });
 }
 function fromBytes3(signature) {
   return fromHex4(fromBytes(signature));
@@ -15096,7 +15250,7 @@ function fromHex4(signature) {
     try {
       return vToYParity(yParity2);
     } catch {
-      throw new InvalidYParityError({ value: yParity2 });
+      throw new InvalidYParityError2({ value: yParity2 });
     }
   })();
   if (typeof yParity === "undefined")
@@ -15150,7 +15304,7 @@ function fromRpc2(signature) {
     if (typeof v === "number" && typeof yParity2 !== "number")
       yParity2 = vToYParity(v);
     if (typeof yParity2 !== "number")
-      throw new InvalidYParityError({ value: signature.yParity });
+      throw new InvalidYParityError2({ value: signature.yParity });
     return yParity2;
   })();
   return {
@@ -15176,7 +15330,7 @@ function vToYParity(v) {
     return v % 2 === 0 ? 1 : 0;
   throw new InvalidVError({ value: v });
 }
-var InvalidSerializedSizeError2, MissingPropertiesError, InvalidRError, InvalidSError, InvalidYParityError, InvalidVError;
+var InvalidSerializedSizeError2, MissingPropertiesError, InvalidRError, InvalidSError, InvalidYParityError2, InvalidVError;
 var init_Signature = __esm({
   "node_modules/ox/_esm/core/Signature.js"() {
     init_Errors();
@@ -15232,7 +15386,7 @@ var init_Signature = __esm({
         });
       }
     };
-    InvalidYParityError = class extends BaseError3 {
+    InvalidYParityError2 = class extends BaseError3 {
       constructor({ value }) {
         super(`Value \`${value}\` is an invalid y-parity value. Y-parity must be 0 or 1.`);
         Object.defineProperty(this, "name", {
@@ -15465,6 +15619,362 @@ var init_verifyTypedData = __esm({
     init_getAddress();
     init_isAddressEqual();
     init_recoverTypedDataAddress();
+  }
+});
+
+// node_modules/viem/_esm/utils/transaction/getSerializedTransactionType.js
+function getSerializedTransactionType(serializedTransaction) {
+  const serializedType = sliceHex(serializedTransaction, 0, 1);
+  if (serializedType === "0x04")
+    return "eip7702";
+  if (serializedType === "0x03")
+    return "eip4844";
+  if (serializedType === "0x02")
+    return "eip1559";
+  if (serializedType === "0x01")
+    return "eip2930";
+  if (serializedType !== "0x" && hexToNumber(serializedType) >= 192)
+    return "legacy";
+  throw new InvalidSerializedTransactionTypeError({ serializedType });
+}
+var init_getSerializedTransactionType = __esm({
+  "node_modules/viem/_esm/utils/transaction/getSerializedTransactionType.js"() {
+    init_transaction();
+    init_slice();
+    init_fromHex();
+  }
+});
+
+// node_modules/viem/_esm/utils/transaction/parseTransaction.js
+function parseTransaction(serializedTransaction) {
+  const type = getSerializedTransactionType(serializedTransaction);
+  if (type === "eip1559")
+    return parseTransactionEIP1559(serializedTransaction);
+  if (type === "eip2930")
+    return parseTransactionEIP2930(serializedTransaction);
+  if (type === "eip4844")
+    return parseTransactionEIP4844(serializedTransaction);
+  if (type === "eip7702")
+    return parseTransactionEIP7702(serializedTransaction);
+  return parseTransactionLegacy(serializedTransaction);
+}
+function parseTransactionEIP7702(serializedTransaction) {
+  const transactionArray = toTransactionArray(serializedTransaction);
+  const [chainId, nonce, maxPriorityFeePerGas, maxFeePerGas, gas, to, value, data, accessList, authorizationList, v, r, s] = transactionArray;
+  if (transactionArray.length !== 10 && transactionArray.length !== 13)
+    throw new InvalidSerializedTransactionError({
+      attributes: {
+        chainId,
+        nonce,
+        maxPriorityFeePerGas,
+        maxFeePerGas,
+        gas,
+        to,
+        value,
+        data,
+        accessList,
+        authorizationList,
+        ...transactionArray.length > 9 ? {
+          v,
+          r,
+          s
+        } : {}
+      },
+      serializedTransaction,
+      type: "eip7702"
+    });
+  const transaction = {
+    chainId: hexToNumber(chainId),
+    type: "eip7702"
+  };
+  if (isHex(to) && to !== "0x")
+    transaction.to = to;
+  if (isHex(gas) && gas !== "0x")
+    transaction.gas = hexToBigInt(gas);
+  if (isHex(data) && data !== "0x")
+    transaction.data = data;
+  if (isHex(nonce))
+    transaction.nonce = nonce === "0x" ? 0 : hexToNumber(nonce);
+  if (isHex(value) && value !== "0x")
+    transaction.value = hexToBigInt(value);
+  if (isHex(maxFeePerGas) && maxFeePerGas !== "0x")
+    transaction.maxFeePerGas = hexToBigInt(maxFeePerGas);
+  if (isHex(maxPriorityFeePerGas) && maxPriorityFeePerGas !== "0x")
+    transaction.maxPriorityFeePerGas = hexToBigInt(maxPriorityFeePerGas);
+  if (accessList.length !== 0 && accessList !== "0x")
+    transaction.accessList = parseAccessList(accessList);
+  if (authorizationList.length !== 0 && authorizationList !== "0x")
+    transaction.authorizationList = parseAuthorizationList(authorizationList);
+  assertTransactionEIP7702(transaction);
+  const signature = transactionArray.length === 13 ? parseEIP155Signature(transactionArray) : void 0;
+  return { ...signature, ...transaction };
+}
+function parseTransactionEIP4844(serializedTransaction) {
+  const transactionOrWrapperArray = toTransactionArray(serializedTransaction);
+  const hasNetworkWrapper = transactionOrWrapperArray.length === 4;
+  const transactionArray = hasNetworkWrapper ? transactionOrWrapperArray[0] : transactionOrWrapperArray;
+  const wrapperArray = hasNetworkWrapper ? transactionOrWrapperArray.slice(1) : [];
+  const [chainId, nonce, maxPriorityFeePerGas, maxFeePerGas, gas, to, value, data, accessList, maxFeePerBlobGas, blobVersionedHashes, v, r, s] = transactionArray;
+  const [blobs, commitments, proofs] = wrapperArray;
+  if (!(transactionArray.length === 11 || transactionArray.length === 14))
+    throw new InvalidSerializedTransactionError({
+      attributes: {
+        chainId,
+        nonce,
+        maxPriorityFeePerGas,
+        maxFeePerGas,
+        gas,
+        to,
+        value,
+        data,
+        accessList,
+        ...transactionArray.length > 9 ? {
+          v,
+          r,
+          s
+        } : {}
+      },
+      serializedTransaction,
+      type: "eip4844"
+    });
+  const transaction = {
+    blobVersionedHashes,
+    chainId: hexToNumber(chainId),
+    to,
+    type: "eip4844"
+  };
+  if (isHex(gas) && gas !== "0x")
+    transaction.gas = hexToBigInt(gas);
+  if (isHex(data) && data !== "0x")
+    transaction.data = data;
+  if (isHex(nonce))
+    transaction.nonce = nonce === "0x" ? 0 : hexToNumber(nonce);
+  if (isHex(value) && value !== "0x")
+    transaction.value = hexToBigInt(value);
+  if (isHex(maxFeePerBlobGas) && maxFeePerBlobGas !== "0x")
+    transaction.maxFeePerBlobGas = hexToBigInt(maxFeePerBlobGas);
+  if (isHex(maxFeePerGas) && maxFeePerGas !== "0x")
+    transaction.maxFeePerGas = hexToBigInt(maxFeePerGas);
+  if (isHex(maxPriorityFeePerGas) && maxPriorityFeePerGas !== "0x")
+    transaction.maxPriorityFeePerGas = hexToBigInt(maxPriorityFeePerGas);
+  if (accessList.length !== 0 && accessList !== "0x")
+    transaction.accessList = parseAccessList(accessList);
+  if (blobs && commitments && proofs)
+    transaction.sidecars = toBlobSidecars({
+      blobs,
+      commitments,
+      proofs
+    });
+  assertTransactionEIP4844(transaction);
+  const signature = transactionArray.length === 14 ? parseEIP155Signature(transactionArray) : void 0;
+  return { ...signature, ...transaction };
+}
+function parseTransactionEIP1559(serializedTransaction) {
+  const transactionArray = toTransactionArray(serializedTransaction);
+  const [chainId, nonce, maxPriorityFeePerGas, maxFeePerGas, gas, to, value, data, accessList, v, r, s] = transactionArray;
+  if (!(transactionArray.length === 9 || transactionArray.length === 12))
+    throw new InvalidSerializedTransactionError({
+      attributes: {
+        chainId,
+        nonce,
+        maxPriorityFeePerGas,
+        maxFeePerGas,
+        gas,
+        to,
+        value,
+        data,
+        accessList,
+        ...transactionArray.length > 9 ? {
+          v,
+          r,
+          s
+        } : {}
+      },
+      serializedTransaction,
+      type: "eip1559"
+    });
+  const transaction = {
+    chainId: hexToNumber(chainId),
+    type: "eip1559"
+  };
+  if (isHex(to) && to !== "0x")
+    transaction.to = to;
+  if (isHex(gas) && gas !== "0x")
+    transaction.gas = hexToBigInt(gas);
+  if (isHex(data) && data !== "0x")
+    transaction.data = data;
+  if (isHex(nonce))
+    transaction.nonce = nonce === "0x" ? 0 : hexToNumber(nonce);
+  if (isHex(value) && value !== "0x")
+    transaction.value = hexToBigInt(value);
+  if (isHex(maxFeePerGas) && maxFeePerGas !== "0x")
+    transaction.maxFeePerGas = hexToBigInt(maxFeePerGas);
+  if (isHex(maxPriorityFeePerGas) && maxPriorityFeePerGas !== "0x")
+    transaction.maxPriorityFeePerGas = hexToBigInt(maxPriorityFeePerGas);
+  if (accessList.length !== 0 && accessList !== "0x")
+    transaction.accessList = parseAccessList(accessList);
+  assertTransactionEIP1559(transaction);
+  const signature = transactionArray.length === 12 ? parseEIP155Signature(transactionArray) : void 0;
+  return { ...signature, ...transaction };
+}
+function parseTransactionEIP2930(serializedTransaction) {
+  const transactionArray = toTransactionArray(serializedTransaction);
+  const [chainId, nonce, gasPrice, gas, to, value, data, accessList, v, r, s] = transactionArray;
+  if (!(transactionArray.length === 8 || transactionArray.length === 11))
+    throw new InvalidSerializedTransactionError({
+      attributes: {
+        chainId,
+        nonce,
+        gasPrice,
+        gas,
+        to,
+        value,
+        data,
+        accessList,
+        ...transactionArray.length > 8 ? {
+          v,
+          r,
+          s
+        } : {}
+      },
+      serializedTransaction,
+      type: "eip2930"
+    });
+  const transaction = {
+    chainId: hexToNumber(chainId),
+    type: "eip2930"
+  };
+  if (isHex(to) && to !== "0x")
+    transaction.to = to;
+  if (isHex(gas) && gas !== "0x")
+    transaction.gas = hexToBigInt(gas);
+  if (isHex(data) && data !== "0x")
+    transaction.data = data;
+  if (isHex(nonce))
+    transaction.nonce = nonce === "0x" ? 0 : hexToNumber(nonce);
+  if (isHex(value) && value !== "0x")
+    transaction.value = hexToBigInt(value);
+  if (isHex(gasPrice) && gasPrice !== "0x")
+    transaction.gasPrice = hexToBigInt(gasPrice);
+  if (accessList.length !== 0 && accessList !== "0x")
+    transaction.accessList = parseAccessList(accessList);
+  assertTransactionEIP2930(transaction);
+  const signature = transactionArray.length === 11 ? parseEIP155Signature(transactionArray) : void 0;
+  return { ...signature, ...transaction };
+}
+function parseTransactionLegacy(serializedTransaction) {
+  const transactionArray = fromRlp(serializedTransaction, "hex");
+  const [nonce, gasPrice, gas, to, value, data, chainIdOrV_, r, s] = transactionArray;
+  if (!(transactionArray.length === 6 || transactionArray.length === 9))
+    throw new InvalidSerializedTransactionError({
+      attributes: {
+        nonce,
+        gasPrice,
+        gas,
+        to,
+        value,
+        data,
+        ...transactionArray.length > 6 ? {
+          v: chainIdOrV_,
+          r,
+          s
+        } : {}
+      },
+      serializedTransaction,
+      type: "legacy"
+    });
+  const transaction = {
+    type: "legacy"
+  };
+  if (isHex(to) && to !== "0x")
+    transaction.to = to;
+  if (isHex(gas) && gas !== "0x")
+    transaction.gas = hexToBigInt(gas);
+  if (isHex(data) && data !== "0x")
+    transaction.data = data;
+  if (isHex(nonce))
+    transaction.nonce = nonce === "0x" ? 0 : hexToNumber(nonce);
+  if (isHex(value) && value !== "0x")
+    transaction.value = hexToBigInt(value);
+  if (isHex(gasPrice) && gasPrice !== "0x")
+    transaction.gasPrice = hexToBigInt(gasPrice);
+  assertTransactionLegacy(transaction);
+  if (transactionArray.length === 6)
+    return transaction;
+  const chainIdOrV = isHex(chainIdOrV_) && chainIdOrV_ !== "0x" ? hexToBigInt(chainIdOrV_) : 0n;
+  if (s === "0x" && r === "0x") {
+    if (chainIdOrV > 0)
+      transaction.chainId = Number(chainIdOrV);
+    return transaction;
+  }
+  const v = chainIdOrV;
+  const chainId = Number((v - 35n) / 2n);
+  if (chainId > 0)
+    transaction.chainId = chainId;
+  else if (v !== 27n && v !== 28n)
+    throw new InvalidLegacyVError({ v });
+  transaction.v = v;
+  transaction.s = s;
+  transaction.r = r;
+  transaction.yParity = v % 2n === 0n ? 1 : 0;
+  return transaction;
+}
+function toTransactionArray(serializedTransaction) {
+  return fromRlp(`0x${serializedTransaction.slice(4)}`, "hex");
+}
+function parseAccessList(accessList_) {
+  const accessList = [];
+  for (let i = 0; i < accessList_.length; i++) {
+    const [address3, storageKeys] = accessList_[i];
+    if (!isAddress(address3, { strict: false }))
+      throw new InvalidAddressError({ address: address3 });
+    accessList.push({
+      address: address3,
+      storageKeys: storageKeys.map((key) => isHash(key) ? key : trim(key))
+    });
+  }
+  return accessList;
+}
+function parseAuthorizationList(serializedAuthorizationList) {
+  const authorizationList = [];
+  for (let i = 0; i < serializedAuthorizationList.length; i++) {
+    const [chainId, address3, nonce, yParity, r, s] = serializedAuthorizationList[i];
+    authorizationList.push({
+      address: address3,
+      chainId: chainId === "0x" ? 0 : hexToNumber(chainId),
+      nonce: nonce === "0x" ? 0 : hexToNumber(nonce),
+      ...parseEIP155Signature([yParity, r, s])
+    });
+  }
+  return authorizationList;
+}
+function parseEIP155Signature(transactionArray) {
+  const signature = transactionArray.slice(-3);
+  const yParity = signature[0] === "0x" ? 0n : hexToBigInt(signature[0]);
+  if (yParity !== 0n && yParity !== 1n)
+    throw new InvalidYParityError({ yParity });
+  const v = yParity === 0n ? 27n : 28n;
+  return {
+    r: padHex(signature[1], { size: 32 }),
+    s: padHex(signature[2], { size: 32 }),
+    v,
+    yParity: v === 27n ? 0 : 1
+  };
+}
+var init_parseTransaction = __esm({
+  "node_modules/viem/_esm/utils/transaction/parseTransaction.js"() {
+    init_address();
+    init_transaction();
+    init_isAddress();
+    init_toBlobSidecars();
+    init_isHex();
+    init_pad();
+    init_trim();
+    init_fromHex();
+    init_fromRlp();
+    init_isHash();
+    init_assertTransaction();
+    init_getSerializedTransactionType();
   }
 });
 
@@ -20778,6 +21288,31 @@ function serializeTransactionCIP64(transaction, signature) {
   ]);
 }
 var MAX_MAX_FEE_PER_GAS = maxUint256;
+function assertTransactionCIP42(transaction) {
+  const { chainId, maxPriorityFeePerGas, gasPrice, maxFeePerGas, to, feeCurrency, gatewayFee, gatewayFeeRecipient } = transaction;
+  if (chainId <= 0)
+    throw new InvalidChainIdError({ chainId });
+  if (to && !isAddress(to))
+    throw new InvalidAddressError({ address: to });
+  if (gasPrice)
+    throw new BaseError2("`gasPrice` is not a valid CIP-42 Transaction attribute.");
+  if (isPresent(maxFeePerGas) && maxFeePerGas > MAX_MAX_FEE_PER_GAS)
+    throw new FeeCapTooHighError({ maxFeePerGas });
+  if (isPresent(maxPriorityFeePerGas) && isPresent(maxFeePerGas) && maxPriorityFeePerGas > maxFeePerGas)
+    throw new TipAboveFeeCapError({ maxFeePerGas, maxPriorityFeePerGas });
+  if (isPresent(gatewayFee) && isEmpty(gatewayFeeRecipient) || isPresent(gatewayFeeRecipient) && isEmpty(gatewayFee)) {
+    throw new BaseError2("`gatewayFee` and `gatewayFeeRecipient` must be provided together.");
+  }
+  if (isPresent(feeCurrency) && !isAddress(feeCurrency)) {
+    throw new BaseError2("`feeCurrency` MUST be a token address for CIP-42 transactions.");
+  }
+  if (isPresent(gatewayFeeRecipient) && !isAddress(gatewayFeeRecipient)) {
+    throw new InvalidAddressError(gatewayFeeRecipient);
+  }
+  if (isEmpty(feeCurrency) && isEmpty(gatewayFeeRecipient)) {
+    throw new BaseError2("Either `feeCurrency` or `gatewayFeeRecipient` must be provided for CIP-42 transactions.");
+  }
+}
 function assertTransactionCIP64(transaction) {
   const { chainId, maxPriorityFeePerGas, gasPrice, maxFeePerGas, to, feeCurrency } = transaction;
   if (chainId <= 0)
@@ -23177,6 +23712,182 @@ init_simulateContract();
 init_prepareTransactionRequest();
 init_sendRawTransaction();
 
+// node_modules/viem/_esm/celo/parsers.js
+init_transaction();
+
+// node_modules/viem/_esm/op-stack/parsers.js
+init_transaction();
+init_isHex();
+init_slice();
+init_fromHex();
+init_parseTransaction();
+function parseTransaction2(serializedTransaction) {
+  const serializedType = sliceHex(serializedTransaction, 0, 1);
+  if (serializedType === "0x7e")
+    return parseTransactionDeposit(serializedTransaction);
+  return parseTransaction(serializedTransaction);
+}
+function parseTransactionDeposit(serializedTransaction) {
+  const transactionArray = toTransactionArray(serializedTransaction);
+  const [sourceHash, from16, to, mint, value, gas, isSystemTx, data] = transactionArray;
+  if (transactionArray.length !== 8 || !isHex(sourceHash) || !isHex(from16))
+    throw new InvalidSerializedTransactionError({
+      attributes: {
+        sourceHash,
+        from: from16,
+        gas,
+        to,
+        mint,
+        value,
+        isSystemTx,
+        data
+      },
+      serializedTransaction,
+      type: "deposit"
+    });
+  const transaction = {
+    sourceHash,
+    from: from16,
+    type: "deposit"
+  };
+  if (isHex(gas) && gas !== "0x")
+    transaction.gas = hexToBigInt(gas);
+  if (isHex(to) && to !== "0x")
+    transaction.to = to;
+  if (isHex(mint) && mint !== "0x")
+    transaction.mint = hexToBigInt(mint);
+  if (isHex(value) && value !== "0x")
+    transaction.value = hexToBigInt(value);
+  if (isHex(isSystemTx) && isSystemTx !== "0x")
+    transaction.isSystemTx = hexToBool(isSystemTx);
+  if (isHex(data) && data !== "0x")
+    transaction.data = data;
+  assertTransactionDeposit(transaction);
+  return transaction;
+}
+
+// node_modules/viem/_esm/celo/parsers.js
+init_isHex();
+init_slice();
+init_fromHex();
+init_parseTransaction();
+function parseTransaction3(serializedTransaction) {
+  const serializedType = sliceHex(serializedTransaction, 0, 1);
+  if (serializedType === "0x7c")
+    return parseTransactionCIP42(serializedTransaction);
+  if (serializedType === "0x7b")
+    return parseTransactionCIP64(serializedTransaction);
+  return parseTransaction2(serializedTransaction);
+}
+function parseTransactionCIP42(serializedTransaction) {
+  const transactionArray = toTransactionArray(serializedTransaction);
+  const [chainId, nonce, maxPriorityFeePerGas, maxFeePerGas, gas, feeCurrency, gatewayFeeRecipient, gatewayFee, to, value, data, accessList, v, r, s] = transactionArray;
+  if (transactionArray.length !== 15 && transactionArray.length !== 12) {
+    throw new InvalidSerializedTransactionError({
+      attributes: {
+        chainId,
+        nonce,
+        maxPriorityFeePerGas,
+        maxFeePerGas,
+        gas,
+        feeCurrency,
+        to,
+        gatewayFeeRecipient,
+        gatewayFee,
+        value,
+        data,
+        accessList,
+        ...transactionArray.length > 12 ? {
+          v,
+          r,
+          s
+        } : {}
+      },
+      serializedTransaction,
+      type: "cip42"
+    });
+  }
+  const transaction = {
+    chainId: hexToNumber(chainId),
+    type: "cip42"
+  };
+  if (isHex(to) && to !== "0x")
+    transaction.to = to;
+  if (isHex(gas) && gas !== "0x")
+    transaction.gas = hexToBigInt(gas);
+  if (isHex(data) && data !== "0x")
+    transaction.data = data;
+  if (isHex(nonce) && nonce !== "0x")
+    transaction.nonce = hexToNumber(nonce);
+  if (isHex(value) && value !== "0x")
+    transaction.value = hexToBigInt(value);
+  if (isHex(feeCurrency) && feeCurrency !== "0x")
+    transaction.feeCurrency = feeCurrency;
+  if (isHex(gatewayFeeRecipient) && gatewayFeeRecipient !== "0x")
+    transaction.gatewayFeeRecipient = gatewayFeeRecipient;
+  if (isHex(gatewayFee) && gatewayFee !== "0x")
+    transaction.gatewayFee = hexToBigInt(gatewayFee);
+  if (isHex(maxFeePerGas) && maxFeePerGas !== "0x")
+    transaction.maxFeePerGas = hexToBigInt(maxFeePerGas);
+  if (isHex(maxPriorityFeePerGas) && maxPriorityFeePerGas !== "0x")
+    transaction.maxPriorityFeePerGas = hexToBigInt(maxPriorityFeePerGas);
+  if (accessList.length !== 0 && accessList !== "0x")
+    transaction.accessList = parseAccessList(accessList);
+  assertTransactionCIP42(transaction);
+  return transaction;
+}
+function parseTransactionCIP64(serializedTransaction) {
+  const transactionArray = toTransactionArray(serializedTransaction);
+  const [chainId, nonce, maxPriorityFeePerGas, maxFeePerGas, gas, to, value, data, accessList, feeCurrency, v, r, s] = transactionArray;
+  if (transactionArray.length !== 13 && transactionArray.length !== 10) {
+    throw new InvalidSerializedTransactionError({
+      attributes: {
+        chainId,
+        nonce,
+        maxPriorityFeePerGas,
+        maxFeePerGas,
+        gas,
+        to,
+        value,
+        data,
+        accessList,
+        feeCurrency,
+        ...transactionArray.length > 10 ? {
+          v,
+          r,
+          s
+        } : {}
+      },
+      serializedTransaction,
+      type: "cip64"
+    });
+  }
+  const transaction = {
+    chainId: hexToNumber(chainId),
+    type: "cip64"
+  };
+  if (isHex(to) && to !== "0x")
+    transaction.to = to;
+  if (isHex(gas) && gas !== "0x")
+    transaction.gas = hexToBigInt(gas);
+  if (isHex(data) && data !== "0x")
+    transaction.data = data;
+  if (isHex(nonce) && nonce !== "0x")
+    transaction.nonce = hexToNumber(nonce);
+  if (isHex(value) && value !== "0x")
+    transaction.value = hexToBigInt(value);
+  if (isHex(feeCurrency) && feeCurrency !== "0x")
+    transaction.feeCurrency = feeCurrency;
+  if (isHex(maxFeePerGas) && maxFeePerGas !== "0x")
+    transaction.maxFeePerGas = hexToBigInt(maxFeePerGas);
+  if (isHex(maxPriorityFeePerGas) && maxPriorityFeePerGas !== "0x")
+    transaction.maxPriorityFeePerGas = hexToBigInt(maxPriorityFeePerGas);
+  if (accessList.length !== 0 && accessList !== "0x")
+    transaction.accessList = parseAccessList(accessList);
+  assertTransactionCIP64(transaction);
+  return transaction;
+}
+
 // ../packages/remesso-sdk/src/context.ts
 var CANCEL_GRACE_MS = 3e4;
 var NOTED_NONCE_MS = 12e4;
@@ -23200,29 +23911,38 @@ function makeCtx(parts) {
         return true;
       } catch (e) {
         const said = String(e?.details ?? e?.message ?? e).toLowerCase();
-        if (/already known|known transaction|already imported|nonce too low|replacement transaction underpriced/.test(said)) return true;
+        if (/already known|known transaction|already imported|nonce too low/.test(said)) return true;
         if (attempt >= 2) return false;
         await new Promise((r) => setTimeout(r, attempt ? 1500 : 500));
       }
     }
   }
+  const seen = (hash4) => parts.pub.getTransaction({ hash: hash4 }).then(() => true, (e) => {
+    if (notFound(e)) return false;
+    throw e;
+  });
   async function settle(open) {
     await assertActive();
     if (open.cancel) {
       await resend(open.cancel.raw);
       return;
     }
-    const seen = await parts.pub.getTransaction({ hash: open.hash }).catch((e) => {
-      if (notFound(e)) return null;
-      throw e;
-    });
-    if (seen) return;
+    if (await seen(open.hash)) return;
     if (open.resend) {
       await resend(open.raw);
       return;
     }
-    if (!open.cancelNow || Date.now() - open.savedAt < CANCEL_GRACE_MS) return;
+    if (!open.cancelNow) return;
+    const young = CANCEL_GRACE_MS - (Date.now() - open.savedAt);
+    if (young > 0) {
+      await new Promise((r) => setTimeout(r, young));
+      await assertActive();
+      if (await seen(open.hash)) return;
+    }
     await open.cancelNow();
+  }
+  async function openAbove(latest) {
+    return (await Promise.all(journals.map((read) => read(latest)))).flat().filter((t) => t.nonce >= latest).sort((a, b) => a.nonce - b.nonce);
   }
   const request2 = async (url, init) => {
     let res;
@@ -23285,7 +24005,7 @@ function makeCtx(parts) {
         parts.pub.getTransactionCount({ address: address3, blockTag: "latest" }),
         parts.pub.getTransactionCount({ address: address3, blockTag: "pending" })
       ]);
-      const open = (await Promise.all(journals.map((read) => read(latest)))).flat().filter((t) => t.nonce >= latest).sort((a, b) => a.nonce - b.nonce);
+      const open = await openAbove(latest);
       for (const t of open) await settle(t);
       let nonce = Math.max(latest, pending, ...open.map((t) => t.nonce + 1));
       if (state.nonce > nonce && Date.now() - state.notedAt < NOTED_NONCE_MS) nonce = state.nonce;
@@ -23301,10 +24021,16 @@ function makeCtx(parts) {
       journals.push(read);
     },
     resend,
-    async signCancel(nonce, gasToken = null) {
+    async signCancel(nonce, gasToken = null, replaces) {
       const account2 = ctx.requireAccount();
       if (account2.type !== "local") throw new RemessoError("no_account", "cancelling a saved transaction needs a local account");
-      const fee = await gasFor(ctx, gasToken, 60000n);
+      let original = null;
+      try {
+        original = replaces ? parseTransaction3(replaces) : null;
+      } catch {
+        original = null;
+      }
+      const fee = original ? original.feeCurrency ? { feeCurrency: original.feeCurrency } : {} : await gasFor(ctx, gasToken, 60000n);
       const request3 = await prepareTransactionRequest(parts.pub, {
         account: account2,
         nonce,
@@ -23313,9 +24039,23 @@ function makeCtx(parts) {
         data: "0x",
         ...fee
       });
+      if (original) {
+        const outbid = (now2, then) => then === void 0 ? now2 : now2 === void 0 || now2 < then + then / 8n + 1n ? then + then / 8n + 1n : now2;
+        if (request3.maxFeePerGas !== void 0) {
+          request3.maxFeePerGas = outbid(request3.maxFeePerGas, original.maxFeePerGas ?? original.gasPrice);
+          request3.maxPriorityFeePerGas = outbid(request3.maxPriorityFeePerGas, original.maxPriorityFeePerGas ?? original.gasPrice);
+          if (request3.maxPriorityFeePerGas > request3.maxFeePerGas) request3.maxFeePerGas = request3.maxPriorityFeePerGas;
+        } else request3.gasPrice = outbid(request3.gasPrice, original.gasPrice ?? original.maxFeePerGas);
+      }
       await assertActive();
       const raw = await signTransaction(parts.pub, { ...request3, account: account2 });
       return { hash: keccak256(raw), raw };
+    },
+    async unblock(nonce) {
+      if (!parts.account) return;
+      const latest = await parts.pub.getTransactionCount({ address: parts.account.address, blockTag: "latest" });
+      if (latest >= nonce) return;
+      for (const t of await openAbove(latest)) if (t.nonce < nonce) await settle(t);
     }
   };
   const coordinator = parts.coordinator;
@@ -23328,7 +24068,7 @@ function makeCtx(parts) {
       resend: false,
       ...t.cancel ? { cancel: t.cancel } : {},
       cancelNow: async () => {
-        const cancel = await ctx.signCancel(t.nonce);
+        const cancel = await ctx.signCancel(t.nonce, null, t.raw);
         if (!coordinator.recordCancel) throw new RemessoError("invalid", "the coordinator saves signed writes but can't save their cancellation");
         await coordinator.recordCancel(scope, t.nonce, cancel);
         await resend(cancel.raw);
@@ -23583,7 +24323,7 @@ function makePay(ctx, policies) {
       await ctx.resend(rec.cancel.raw);
       return rec;
     }
-    const signed = await ctx.signCancel(rec.nonce, findToken(rec.token) ?? null);
+    const signed = await ctx.signCancel(rec.nonce, findToken(rec.token) ?? null, rec.raw);
     const next = { ...rec, cancel: signed };
     await save(next);
     await ctx.resend(signed.raw);
@@ -23646,15 +24386,18 @@ function makePay(ctx, policies) {
     if (receipt.transactionHash.toLowerCase() !== rec.hash.toLowerCase()) {
       throw new RemessoError("conflict", "the payment transaction was replaced; its replacement is not proof this invoice was paid", { hash: rec.hash, replacement: receipt.transactionHash });
     }
-    if (receipt.status !== "success") return { ...rec, status: "reverted" };
+    const settledAt = rec.settledAt ?? (/* @__PURE__ */ new Date()).toISOString();
+    if (receipt.status !== "success") return { ...rec, status: "reverted", settledAt };
     const paid = parseEventLogs({ abi: allowanceAbi, eventName: "Paid", logs: receipt.logs }).some(
       (log) => log.address.toLowerCase() === ALLOWANCE.toLowerCase() && log.args.id === BigInt(rec.policyId) && log.args.to.toLowerCase() === rec.to.toLowerCase() && log.args.amount === BigInt(rec.units) && log.args.memo === rec.memo
     );
     if (!paid) throw new RemessoError("conflict", "the transaction succeeded without this payment's Paid event; nothing is reported as paid", { hash: rec.hash });
-    return { ...rec, status: "confirmed" };
+    return { ...rec, status: "confirmed", settledAt };
   }
   async function broadcast(rec, waitMs) {
     await ctx.assertActive();
+    if (rec.cancel || lapsed(rec)) return await settled(await cancel(rec), waitMs);
+    await ctx.unblock(rec.nonce);
     await ctx.resend(rec.raw);
     const receipt = await ctx.pub.waitForTransactionReceipt({ hash: rec.hash, timeout: waitMs }).catch(() => null);
     if (!receipt) return rec;
@@ -23665,7 +24408,7 @@ function makePay(ctx, policies) {
   async function reconcile(rec) {
     const receipt = await receiptOf(ctx.pub, rec.hash);
     if (receipt) return outcome(rec, receipt);
-    if (rec.cancel && await receiptOf(ctx.pub, rec.cancel.hash)) return { ...rec, status: "expired" };
+    if (rec.cancel && await receiptOf(ctx.pub, rec.cancel.hash)) return { ...rec, status: "expired", settledAt: rec.settledAt ?? (/* @__PURE__ */ new Date()).toISOString() };
     const known = (hash4) => ctx.pub.getTransaction({ hash: hash4 }).then(() => true, (e) => {
       if (notFound2(e)) return false;
       throw e;
@@ -23768,8 +24511,7 @@ function makePay(ctx, policies) {
         prior = await reconcile(prior);
         await save(prior);
         if (prior.status === "unsent") {
-          if (prior.cancel || lapsed(prior)) prior = await settled(await cancel(prior), waitMs);
-          else prior = await broadcast(prior, waitMs);
+          prior = await broadcast(prior, waitMs);
         }
         if (prior.status === "confirmed") return result(prior, { repeat: true });
         if (prior.status === "reverted") {
@@ -23827,6 +24569,9 @@ function makePay(ctx, policies) {
       const done = await broadcast(rec, waitMs);
       if (done.status === "reverted") {
         throw new RemessoError("reverted", `the payment reverted on-chain, so nothing was paid: ${explorer(done.hash)}`, { hash: done.hash });
+      }
+      if (done.status === "expired") {
+        throw new RemessoError("refused", "the payment's deadline passed before it went out, so it was cancelled and nothing was paid. Use a new key to try again.", { hash: done.hash, cancellation: done.cancel?.hash, expired: true });
       }
       return result(done);
     });
@@ -24641,6 +25386,7 @@ function makeWalletRemittances(ctx, deps) {
       if (!known) {
         const used = await getTransactionCount(ctx.pub, { address: local().address, blockTag: "latest" });
         if (used > step.nonce) throw conflict("the remittance nonce was consumed but its original receipt is unavailable; reconcile the original hash before continuing", { hash: step.hash, nonce: step.nonce });
+        await ctx.unblock(step.nonce);
         await ctx.resend(step.raw);
       }
       if (Date.now() < deadline) found = await ctx.pub.waitForTransactionReceipt({ hash: step.hash, timeout: Math.max(1, deadline - Date.now()) }).catch(() => null);
@@ -24661,13 +25407,13 @@ function makeWalletRemittances(ctx, deps) {
     return parseEventLogs({ abi: executorAbi, eventName: "RunExecuted", logs: found.logs }).some((log) => same2(log.address, EXECUTOR) && log.args.id === BigInt(r.scheduleId) && same2(log.args.sender, r.payer) && same2(log.args.destination, r.to) && log.args.amountIn === BigInt(r.amountIn) && log.args.amountOut === BigInt(r.amount) && log.args.runsExecuted === 1);
   }
   async function state(r, atLeast = 0n) {
-    const { s, at } = await untilVisible(async () => {
+    const { s, at, fresh } = await untilVisible(async () => {
       const head = await ctx.pub.getBlock();
       const block = head.number !== null && head.number >= atLeast ? head : await ctx.pub.getBlock({ blockNumber: atLeast }).catch(() => head);
       const s2 = await ctx.pub.readContract({ address: EXECUTOR, abi: executorAbi, functionName: "getSchedule", args: [BigInt(r.scheduleId)], blockNumber: block.number });
       return { s: s2, at: block.timestamp, fresh: block.number !== null && block.number >= atLeast };
     }, (v) => v.fresh && !same2(v.s.sender, zeroAddress));
-    if (same2(s.sender, zeroAddress)) throw conflict("the payment's schedule isn't visible on-chain yet; retry this key", { scheduleId: r.scheduleId });
+    if (!fresh || same2(s.sender, zeroAddress)) return null;
     if (!same2(s.sender, r.payer) || !same2(s.destination, r.to) || !same2(s.token, r.token) || s.amountIn !== BigInt(r.amountIn) || s.interval !== INTERVAL || s.maxRuns !== 1 || s.payoutType !== 2) {
       throw conflict("the created schedule's immutable terms do not match this exact remittance; no payment is sent");
     }
@@ -24709,6 +25455,18 @@ function makeWalletRemittances(ctx, deps) {
       return String(e.message);
     }
   }
+  async function requestStanding(r) {
+    const req = await deps.getRequest(r.requestId).catch(() => null);
+    if (!req) return "waiting";
+    const answered = req.payment?.schedule;
+    if (answered && same2(answered.contract, EXECUTOR) && answered.id === r.scheduleId) {
+      r.requestBound = true;
+      await save(r);
+      return "bound";
+    }
+    if (answered) return "another payment answers it";
+    return req.status === "pending" ? "waiting" : `it is ${req.status}`;
+  }
   async function runnable(r, deadline) {
     const until = Math.min(deadline, Date.now() + RUN_RETRY_MS);
     for (; ; ) {
@@ -24722,6 +25480,7 @@ function makeWalletRemittances(ctx, deps) {
     }
   }
   async function approvalInFlight(r) {
+    await ctx.unblock(Number.MAX_SAFE_INTEGER);
     const used = await getTransactionCount(ctx.pub, { address: local().address, blockTag: "latest" });
     return (await deps.store.list(r.scope)).some((other) => other.key !== r.key && other.approval && other.approval.nonce >= used);
   }
@@ -24833,9 +25592,11 @@ function makeWalletRemittances(ctx, deps) {
       await save(r);
     }
     const requestError = await bind(r);
-    const { s, at } = await state(r, creation.blockNumber);
+    const current = await state(r, creation.blockNumber);
+    if (!current) return finish("approval", requestError);
+    const { s, at } = current;
     if (s.runsExecuted > 0) return await paid(r, requestError);
-    if (s.cancelled || at > s.expiresAt) throw notPaid(r, s);
+    if (s.cancelled || at > s.expiresAt) throw await unpaid(r, s);
     const stop = (reason) => abandon(r, reason, deadline, (stage) => finish(stage, requestError));
     if (r.cancellation) return await stop(r.cancelReason ?? "the payment couldn't be completed");
     if (Number(s.feeBps) !== r.feeBps || netOf(s.amountIn, Number(s.feeBps)) !== BigInt(r.amount)) {
@@ -24844,14 +25605,19 @@ function makeWalletRemittances(ctx, deps) {
     if (!s.active) {
       throw conflict("the payer paused this payment's schedule, so it isn't run now. Resume it with schedules.setActive, or cancel it with schedules.cancel", { scheduleId: r.scheduleId, paused: true });
     }
+    if (r.requestId && !r.requestBound) {
+      const standing = await requestStanding(r);
+      if (standing === "waiting") return finish("approval", requestError);
+      if (standing !== "bound") return await stop(`its request can't be answered by this payment any more: ${standing}`);
+    }
     if (!r.approval && !r.approvalSkipped) {
       if (Date.now() >= deadline || await approvalInFlight(r)) return finish("approval", requestError);
-      const current = await ctx.pub.readContract({ address: r.token, abi: erc20Abi2, functionName: "allowance", args: [r.payer, EXECUTOR] });
-      if (current >= UNLIMITED) {
+      const current2 = await ctx.pub.readContract({ address: r.token, abi: erc20Abi2, functionName: "allowance", args: [r.payer, EXECUTOR] });
+      if (current2 >= UNLIMITED) {
         r.approvalSkipped = true;
         await save(r);
       } else {
-        const approvalAmount = current + BigInt(r.amountIn);
+        const approvalAmount = current2 + BigInt(r.amountIn);
         await sendStep(r, "approval", await signLater(r, "approval", r.token, erc20Abi2, "approve", [EXECUTOR, approvalAmount]), { approvalAmount: approvalAmount.toString() });
       }
     }
@@ -24868,6 +25634,7 @@ function makeWalletRemittances(ctx, deps) {
       const refused = await runnable(r, deadline);
       if (refused !== null) {
         const now2 = await state(r);
+        if (!now2) return finish("execution", requestError);
         if (now2.s.runsExecuted > 0) return await paid(r, requestError);
         return await stop(`the contract wouldn't run the payment now (${refused})`);
       }
@@ -24877,10 +25644,12 @@ function makeWalletRemittances(ctx, deps) {
     if (!execution) return finish("execution", requestError);
     if (payment(execution, r)) {
       r.paymentHash = execution.transactionHash;
+      r.settledAt ??= (/* @__PURE__ */ new Date()).toISOString();
       await save(r);
       return finish("payment", requestError);
     }
     const after = await state(r, execution.blockNumber);
+    if (!after) return finish("execution", requestError);
     if (after.s.runsExecuted > 0) return await paid(r, requestError);
     if (execution.status !== "success") return await stop("running the payment reverted");
     throw conflict("the successful execution receipt has no matching exact RunExecuted payment");
@@ -24888,10 +25657,18 @@ function makeWalletRemittances(ctx, deps) {
       const hash4 = await paidHash(record);
       if (hash4 && hash4 !== record.paymentHash) {
         record.paymentHash = hash4;
+        record.settledAt ??= (/* @__PURE__ */ new Date()).toISOString();
         await save(record);
       }
       return finish("payment", error);
     }
+  }
+  async function unpaid(r, s) {
+    if (!r.settledAt) {
+      r.settledAt = (/* @__PURE__ */ new Date()).toISOString();
+      await save(r);
+    }
+    return notPaid(r, s);
   }
   function notPaid(r, s) {
     const why = r.cancellation && s.cancelled ? `${r.cancelReason ?? "the payment couldn't be completed"}, so its schedule was cancelled` : s.cancelled ? "the payer cancelled this payment's schedule before it ran" : "this payment's schedule expired before it ran";
@@ -24908,16 +25685,19 @@ function makeWalletRemittances(ctx, deps) {
     }
     const landed = await stepReceipt(r.cancellation, deadline);
     if (!landed) return finish("cancellation");
-    const { s, at } = await state(r, landed.blockNumber);
+    const after = await state(r, landed.blockNumber);
+    if (!after) return finish("cancellation");
+    const { s, at } = after;
     if (s.runsExecuted > 0) {
       const hash4 = await paidHash(r);
       if (hash4) {
         r.paymentHash = hash4;
+        r.settledAt ??= (/* @__PURE__ */ new Date()).toISOString();
         await save(r);
       }
       return finish("payment");
     }
-    if (s.cancelled || at > s.expiresAt) throw notPaid(r, s);
+    if (s.cancelled || at > s.expiresAt) throw await unpaid(r, s);
     throw conflict("the cancellation landed but the schedule is still live; retry this key", { scheduleId: r.scheduleId, cancellationHash: r.cancellation.hash });
   }
 }
@@ -25077,9 +25857,10 @@ function makeLifecycle(ctx, deps) {
     base.scheduleId = event.args.id;
     base.stage = r.execution ? "execution" : "approval";
     base.hash = r.execution?.hash ?? r.approval?.hash ?? r.creation.hash;
-    const s = await ctx.pub.readContract({ address: EXECUTOR, abi: executorAbi, functionName: "getSchedule", args: [event.args.id] });
-    if (!same3(s.sender, r.payer) || !same3(s.destination, r.to) || !same3(s.token, r.token) || s.amountIn !== BigInt(r.amountIn) || s.interval !== 3600n || s.maxRuns !== 1 || s.payoutType !== 2) throw conflict2("the schedule's immutable terms differ from this wallet remittance");
     const now2 = await ctx.pub.getBlock();
+    if (now2.number === null || now2.number < created.blockNumber) throw conflict2("the RPC hasn't reached the payment's creation block yet; read it again");
+    const s = await ctx.pub.readContract({ address: EXECUTOR, abi: executorAbi, functionName: "getSchedule", args: [event.args.id], blockNumber: now2.number });
+    if (!same3(s.sender, r.payer) || !same3(s.destination, r.to) || !same3(s.token, r.token) || s.amountIn !== BigInt(r.amountIn) || s.interval !== 3600n || s.maxRuns !== 1 || s.payoutType !== 2) throw conflict2("the schedule's immutable terms differ from this wallet remittance");
     let candidateError;
     for (const hash4 of [...new Set([r.paymentHash, r.execution?.hash].filter((v) => v != null))]) {
       try {
@@ -25186,8 +25967,7 @@ function makeLifecycle(ctx, deps) {
     const out = [], now2 = Date.now();
     if (options.funding !== "policy") {
       for (const r of await deps.store.list(remittanceScope(ctx))) {
-        const old = now2 - Date.parse(r.createdAt) > SETTLED_MS;
-        if (r.paymentHash && old || r.expiresAt * 1e3 < now2 - SETTLED_MS) continue;
+        if (r.settledAt ? now2 - Date.parse(r.settledAt) > SETTLED_MS : r.expiresAt * 1e3 < now2 - SETTLED_MS) continue;
         out.push({ funding: "wallet", record: r });
       }
     }
@@ -25200,7 +25980,8 @@ function makeLifecycle(ctx, deps) {
         if (owned) policies.set(r.key, owned);
       }
       for (const record of policies.values()) {
-        if (["confirmed", "reverted", "expired"].includes(record.status) && now2 - Date.parse(record.at) > SETTLED_MS) continue;
+        const settled = record.settledAt ? now2 - Date.parse(record.settledAt) > SETTLED_MS : now2 - Date.parse(record.at) > 7 * 864e5;
+        if (["confirmed", "reverted", "expired"].includes(record.status) && settled) continue;
         out.push({ funding: "policy", record });
       }
     }
@@ -25689,9 +26470,10 @@ function makeInvoices(ctx, deps) {
     verify,
     /** The immutable reservation pins this invoice to one signer/funding route even after an uncertain send. */
     async pay(invoice, options) {
-      const expected = await verify(invoice);
+      const expected = await verify(invoice, { allowExpired: true });
       if (!options || !["wallet", "policy"].includes(options.funding)) invalid("choose wallet or policy invoice funding explicitly");
       if (Object.keys(options).some((key) => !["funding", "policyId", "waitMs", "maxDebit"].includes(key))) invalid("invoice payment options contain unknown fields");
+      if (options.waitMs !== void 0 && (!Number.isSafeInteger(options.waitMs) || options.waitMs < 1 || options.waitMs > 12e4)) invalid("waitMs must be from 1 to 120000 milliseconds");
       if (options.policyId !== void 0 && (typeof options.policyId === "number" && !Number.isSafeInteger(options.policyId) || !/^[1-9]\d*$/.test(String(options.policyId)) || BigInt(options.policyId) >= 2n ** 256n)) invalid("invoice policyId must be a canonical positive uint256");
       const account2 = ctx.requireAccount();
       if (options.funding === "wallet" && !same5(account2.address, expected.payer)) throw new RemessoError("refused", "this wallet is not the payer named in the invoice");
@@ -25704,8 +26486,12 @@ function makeInvoices(ctx, deps) {
       const memo = expected.requestId ? void 0 : invoiceReference(expected.id);
       const started = options.funding === "policy" ? await priorPayment(ctx, expected.idempotencyKey) : await ctx.remittanceStore?.get(expected.idempotencyKey, remittanceScope(ctx));
       if (!started) {
+        if (expected.expiresAt <= Math.floor(Date.now() / 1e3)) throw new RemessoError("refused", "the invoice has expired");
         const quote = await deps.remittances.quote(options.funding === "policy" ? { funding: "policy", to: terms2.to, amount: terms2.amount, token: terms2.token, requestId: terms2.requestId, idempotencyKey: terms2.idempotencyKey, payer: expected.payer, ...options.policyId === void 0 ? {} : { policyId: options.policyId } } : { funding: "wallet", to: terms2.to, amount: terms2.amount, token: terms2.token, requestId: terms2.requestId, idempotencyKey: terms2.idempotencyKey });
         if (!quote.canSend) throw new RemessoError("refused", `this invoice can't be paid this way now: ${quote.issues.map((i) => i.message).join("; ")}`, { issues: quote.issues });
+        if (options.maxDebit !== void 0 && toUnits(options.maxDebit, token(expected.token)) < quote.grossDebit) {
+          throw new RemessoError("refused", `paying this invoice debits more than maxDebit ${options.maxDebit}`, { grossDebit: quote.grossDebit.toString() });
+        }
       }
       await store.reserve(expected.id, {
         funding: options.funding,
@@ -25947,7 +26733,7 @@ function fileStore(path = join(homedir(), ".remesso-sdk", "payments.json")) {
     try {
       const data = JSON.parse(readFileSync(path, "utf8"));
       if (data.version !== 1 || !Array.isArray(data.payments)) throw new Error("invalid payment store format");
-      if (data.payments.some((p) => !p || typeof p.deployment !== "string" || !(p.key === null || typeof p.key === "string") || !/^\d+$/.test(p.policyId) || !/^\d+$/.test(p.units) || !/^0x[0-9a-f]{40}$/i.test(p.to) || !/^0x[0-9a-f]{40}$/i.test(p.token) || !/^0x[0-9a-f]{64}$/i.test(p.hash) || !/^0x[0-9a-f]{64}$/i.test(p.memo) || !/^0x(?:[0-9a-f]{2})*$/i.test(p.raw) || !Number.isSafeInteger(p.nonce) || p.nonce < 0 || !Number.isFinite(Date.parse(p.at)) || p.validUntil !== void 0 && (!Number.isSafeInteger(p.validUntil) || p.validUntil <= 0) || !["sent", "confirmed", "reverted", "unsent", "dropped", "expired"].includes(p.status) || p.cancel !== void 0 && (!/^0x[0-9a-f]{64}$/i.test(p.cancel?.hash) || !/^0x(?:[0-9a-f]{2})+$/i.test(p.cancel?.raw)))) throw new Error("invalid payment record");
+      if (data.payments.some((p) => !p || typeof p.deployment !== "string" || !(p.key === null || typeof p.key === "string") || !/^\d+$/.test(p.policyId) || !/^\d+$/.test(p.units) || !/^0x[0-9a-f]{40}$/i.test(p.to) || !/^0x[0-9a-f]{40}$/i.test(p.token) || !/^0x[0-9a-f]{64}$/i.test(p.hash) || !/^0x[0-9a-f]{64}$/i.test(p.memo) || !/^0x(?:[0-9a-f]{2})*$/i.test(p.raw) || !Number.isSafeInteger(p.nonce) || p.nonce < 0 || !Number.isFinite(Date.parse(p.at)) || p.validUntil !== void 0 && (!Number.isSafeInteger(p.validUntil) || p.validUntil <= 0) || !["sent", "confirmed", "reverted", "unsent", "dropped", "expired"].includes(p.status) || p.cancel !== void 0 && (!/^0x[0-9a-f]{64}$/i.test(p.cancel?.hash) || !/^0x(?:[0-9a-f]{2})+$/i.test(p.cancel?.raw)) || p.settledAt !== void 0 && !Number.isFinite(Date.parse(p.settledAt)))) throw new Error("invalid payment record");
       return data.payments;
     } catch (e) {
       if (e.code === "ENOENT") return [];
@@ -25972,7 +26758,7 @@ function fileRemittanceStore(path = join(homedir(), ".remesso-sdk", "remittances
       if (data.version !== 1 || !Array.isArray(data.remittances)) throw new Error("invalid remittance store format");
       const keys = /* @__PURE__ */ new Set();
       for (const r of data.remittances) {
-        if (!r || typeof r.key !== "string" || !r.key.trim() || typeof r.scope !== "string" || !r.scope || ![r.payer, r.to, r.token].every(address3) || ![r.amount, r.amountIn, r.fee].every(uint2) || r.approvalAmount !== void 0 && !uint2(r.approvalAmount) || r.approvalSkipped !== void 0 && r.approvalSkipped !== true || r.cancelReason !== void 0 && typeof r.cancelReason !== "string" || !Number.isSafeInteger(r.feeBps) || r.feeBps < 0 || r.feeBps > 1e4 || !Number.isSafeInteger(r.expiresAt) || !Number.isSafeInteger(r.firstRunAt) || r.firstRunAt <= 0 || !Number.isFinite(Date.parse(r.createdAt)) || r.validUntil !== void 0 && (!Number.isSafeInteger(r.validUntil) || r.validUntil <= 0) || r.scheduleId !== void 0 && !uint2(r.scheduleId) || r.creationBlock !== void 0 && !uint2(r.creationBlock) || r.paymentHash !== void 0 && !hash4(r.paymentHash) || r.requestId !== void 0 && (typeof r.requestId !== "string" || !/^[\da-f]{8}(?:-[\da-f]{4}){3}-[\da-f]{12}$/i.test(r.requestId)) || r.requestBound !== void 0 && typeof r.requestBound !== "boolean") throw new Error("invalid remittance record");
+        if (!r || typeof r.key !== "string" || !r.key.trim() || typeof r.scope !== "string" || !r.scope || ![r.payer, r.to, r.token].every(address3) || ![r.amount, r.amountIn, r.fee].every(uint2) || r.approvalAmount !== void 0 && !uint2(r.approvalAmount) || r.approvalSkipped !== void 0 && r.approvalSkipped !== true || r.cancelReason !== void 0 && typeof r.cancelReason !== "string" || r.settledAt !== void 0 && !Number.isFinite(Date.parse(r.settledAt)) || !Number.isSafeInteger(r.feeBps) || r.feeBps < 0 || r.feeBps > 1e4 || !Number.isSafeInteger(r.expiresAt) || !Number.isSafeInteger(r.firstRunAt) || r.firstRunAt <= 0 || !Number.isFinite(Date.parse(r.createdAt)) || r.validUntil !== void 0 && (!Number.isSafeInteger(r.validUntil) || r.validUntil <= 0) || r.scheduleId !== void 0 && !uint2(r.scheduleId) || r.creationBlock !== void 0 && !uint2(r.creationBlock) || r.paymentHash !== void 0 && !hash4(r.paymentHash) || r.requestId !== void 0 && (typeof r.requestId !== "string" || !/^[\da-f]{8}(?:-[\da-f]{4}){3}-[\da-f]{12}$/i.test(r.requestId)) || r.requestBound !== void 0 && typeof r.requestBound !== "boolean") throw new Error("invalid remittance record");
         for (const step of [r.approval, r.creation, r.execution, r.cancellation]) if (step && (!hash4(step.hash) || typeof step.raw !== "string" || !/^0x(?:[\da-f]{2})+$/i.test(step.raw) || !Number.isSafeInteger(step.nonce) || step.nonce < 0)) throw new Error("invalid signed remittance step");
         const key = JSON.stringify([r.scope, r.key]);
         if (keys.has(key)) throw new Error("duplicate remittance key");
@@ -33195,11 +33981,33 @@ function paymentFailure(error) {
 async function payInternal(d, to, units, memo) {
   const missing = needSpending();
   if (missing) throw new RemessoError("refused", missing);
-  const scope = `${celo.id}:${ALLOWANCE.toLowerCase()}:${account.address.toLowerCase()}`;
-  const open = (await sdkStore.since(0)).filter((r) => r.deployment === scope && r.key?.startsWith("x402-topup:") && (r.status === "sent" || r.status === "unsent")).at(-1);
-  const paid = open ? await sdk.pay({ policyId: open.policyId, to: open.to, amount: formatUnits(BigInt(open.units), token(open.token).decimals), token: open.token, memo, idempotencyKey: open.key, waitMs: WAIT_MS }) : await sdk.pay({ policyId: d.policyId, to, amount: formatUnits(units, d._raw.t.decimals), token: TOKENS[d.token].address, memo, idempotencyKey: `x402-topup:${Date.now()}`, waitMs: WAIT_MS });
-  if (paid.status !== "confirmed") throw new RemessoError("timeout", `top-up is pending: ${explorer2(paid.hash)}. Call pay_x402 again to resume it; it won't top up twice.`, { hash: paid.hash });
+  const paid = await sdk.pay({
+    policyId: d.policyId,
+    to,
+    amount: formatUnits(units, d._raw.t.decimals),
+    token: TOKENS[d.token].address,
+    memo,
+    idempotencyKey: `x402-topup:${Date.now()}`,
+    waitMs: WAIT_MS
+  });
+  if (paid.status !== "confirmed") throw new RemessoError("timeout", `top-up is pending: ${explorer2(paid.hash)}. Call pay_x402 again once it lands; it won't top up twice.`, { hash: paid.hash });
   return paid.hash;
+}
+async function settleTopUps() {
+  const scope = `${celo.id}:${ALLOWANCE.toLowerCase()}:${account.address.toLowerCase()}`;
+  const open = (await sdkStore.since(0)).filter((r) => r.deployment === scope && r.key?.startsWith("x402-topup:") && (r.status === "sent" || r.status === "unsent"));
+  for (const r of open) {
+    const paid = await sdk.pay({
+      policyId: r.policyId,
+      to: r.to,
+      amount: formatUnits(BigInt(r.units), token(r.token).decimals),
+      token: r.token,
+      memo: "x402 top-up",
+      idempotencyKey: r.key,
+      waitMs: WAIT_MS
+    });
+    if (paid.status !== "confirmed") throw new RemessoError("timeout", `a top-up is still pending: ${explorer2(paid.hash)}. Call pay_x402 again once it lands; it won't top up twice.`, { hash: paid.hash });
+  }
 }
 async function payTool({ to, amount, token: token2, memo, idempotency_key, allow_repeat }) {
   const missing = needSpending();
@@ -33440,11 +34248,15 @@ server.tool(
       if (!pick) return fail(`the seller does not take ${t.label} on Celo; it offers ${accepts.map((a) => `${a.asset} on ${a.network}`).join(", ")}`);
       const price = BigInt(pick.amount ?? pick.maxAmountRequired);
       if (price > maxUnits) return fail(`price ${fmt(price, t)} is above max_amount ${max_amount}. Nothing signed.`);
-      const float = await pub.readContract({ address: t.address, abi: ERC20, functionName: "balanceOf", args: [account.address] });
+      let float = await pub.readContract({ address: t.address, abi: ERC20, functionName: "balanceOf", args: [account.address] });
       let topUp = null;
       if (float < price) {
         const missing = needSpending();
         if (missing) return fail(`the agent holds ${fmt(float, t)}, the price is ${fmt(price, t)}, and ${missing}`);
+        await settleTopUps();
+        float = await pub.readContract({ address: t.address, abi: ERC20, functionName: "balanceOf", args: [account.address] });
+      }
+      if (float < price) {
         const d = await policyFor(token2);
         let want = price - float + 20000n;
         if (want > d._raw.spendable) want = price - float;

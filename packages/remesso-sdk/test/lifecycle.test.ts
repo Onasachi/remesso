@@ -45,6 +45,8 @@ function receipt(hash: Hex, logs: TransactionReceipt["logs"], change: Partial<Tr
 function fixture() {
   const receipts = new Map<Hex, TransactionReceipt>();
   const state = { chainId: 42220, nonce: 0, finalized: 99n, canonical: blockHash, now: 1_999_999_999n, running: [] as ReturnType<typeof run>[], known: new Set<Hex>(),
+    // The schedule as a read at `blockNumber` sees it; unset, every read sees `schedule`.
+    scheduleAt: null as null | ((blockNumber: bigint | undefined) => Record<string, unknown>),
     schedule: { sender: signer.address, destination: recipient, token: asset.address, tokenOut: recipient, amountIn: 1002507n, interval: 3600n, maxRuns: 1, payoutType: 2, feeBps: 25, runsExecuted: 0, active: true, cancelled: false, expiresAt: 2_000_000_000n } };
   let receiptDelay = 0;
   let completedReads = 0;
@@ -56,8 +58,8 @@ function fixture() {
     getBlockNumber: async () => 100n,
     getBlock: async ({ blockTag, blockNumber }: { blockTag?: string; blockNumber?: bigint } = {}) => ({ number: blockTag === "finalized" ? state.finalized : blockNumber ?? 100n, hash: state.canonical, timestamp: state.now }),
     getContractEvents: async () => state.running,
-    readContract: async ({ functionName }: { functionName: string }) => functionName === "policy"
-      ? { owner, agent: signer.address, token: asset.address } : state.schedule,
+    readContract: async ({ functionName, blockNumber }: { functionName: string; blockNumber?: bigint }) => functionName === "policy"
+      ? { owner, agent: signer.address, token: asset.address } : state.scheduleAt?.(blockNumber) ?? state.schedule,
   } as unknown as PublicClient;
   const store = memoryStore(), walletStore = memoryRemittanceStore();
   const ctx = makeCtx({ pub, wallet: null, account: signer, store, remittanceStore: walletStore, dataSuffix: undefined, fetch,
@@ -217,4 +219,27 @@ Deno.test("lifecycle recovery visits saved operations sequentially and respects 
   assertEquals([f.calls.wallet.length, f.calls.policy.length], [1, 0]);
   await assertRejects(() => f.api().recoverPending({ limit: 0 }), RemessoError);
   const abort = new AbortController(); abort.abort(); await assertRejects(() => f.api().recoverPending({ signal: abort.signal }), RemessoError);
+});
+
+Deno.test("lifecycle reads a schedule at the block whose time it compares, so a paid one isn't called expired", async () => {
+  const f = fixture(); const r = f.walletRecord(); await f.walletStore.save(r);
+  f.receipts.set(hashes.creation, receipt(hashes.creation, [creation()]));
+  f.receipts.set(hashes.external, receipt(hashes.external, [run()]));
+  f.state.running = [run()];
+  f.state.now = 2_000_000_100n; // past the schedule's expiry
+  const ran = { ...f.state.schedule, runsExecuted: 1, active: false };
+  // A lagging node answers a read at no particular block with the state before the run.
+  f.state.scheduleAt = (blockNumber) => blockNumber === undefined ? f.state.schedule : ran;
+  assertEquals((await f.api().get(r.key)).status, "included");
+});
+
+Deno.test("listing counts how long ago a payment settled, not how long ago it was saved", async () => {
+  const f = fixture(); const hoursAgo = new Date(Date.now() - 3 * 3_600_000).toISOString();
+  f.receipts.set(hashes.policy, receipt(hashes.policy, [paid()]));
+  // Signed three hours ago, landed just now, not final yet: still listed.
+  await f.store.save(f.policy({ at: hoursAgo, status: "confirmed", settledAt: new Date().toISOString() }));
+  assertEquals((await f.api().listPending({ funding: "policy" })).map((o) => o.status), ["included"]);
+  // Settled three hours ago: final, and left out without a read.
+  await f.store.save(f.policy({ at: hoursAgo, status: "confirmed", settledAt: hoursAgo }));
+  assertEquals(await f.api().listPending({ funding: "policy" }), []);
 });

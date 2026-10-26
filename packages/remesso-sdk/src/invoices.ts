@@ -222,9 +222,12 @@ export function makeInvoices(ctx: Ctx, deps: { requests: Requests; remittances: 
     verify,
     /** The immutable reservation pins this invoice to one signer/funding route even after an uncertain send. */
     async pay(invoice: SignedInvoice, options: PayInvoiceOptions): Promise<RemittanceResult & { invoiceId: Hex }> {
-      const expected = await verify(invoice);
+      // Expiry is checked below, after any payment already made for it: a retry
+      // after the invoice expired must still learn that it was paid.
+      const expected = await verify(invoice, { allowExpired: true });
       if (!options || !["wallet", "policy"].includes(options.funding)) invalid("choose wallet or policy invoice funding explicitly");
       if (Object.keys(options).some((key) => !["funding", "policyId", "waitMs", "maxDebit"].includes(key))) invalid("invoice payment options contain unknown fields");
+      if (options.waitMs !== undefined && (!Number.isSafeInteger(options.waitMs) || options.waitMs < 1 || options.waitMs > 120_000)) invalid("waitMs must be from 1 to 120000 milliseconds");
       if (options.policyId !== undefined && ((typeof options.policyId === "number" && !Number.isSafeInteger(options.policyId)) || !/^[1-9]\d*$/.test(String(options.policyId)) || BigInt(options.policyId) >= 2n ** 256n)) invalid("invoice policyId must be a canonical positive uint256");
       const account = ctx.requireAccount();
       if (options.funding === "wallet" && !same(account.address, expected.payer)) throw new RemessoError("refused", "this wallet is not the payer named in the invoice");
@@ -241,10 +244,16 @@ export function makeInvoices(ctx: Ctx, deps: { requests: Requests; remittances: 
       // pinned to this route; a retry of a started one is answered as it is.
       const started = options.funding === "policy" ? await priorPayment(ctx, expected.idempotencyKey) : await ctx.remittanceStore?.get(expected.idempotencyKey, remittanceScope(ctx));
       if (!started) {
+        if (expected.expiresAt <= Math.floor(Date.now() / 1000)) throw new RemessoError("refused", "the invoice has expired");
         const quote = await deps.remittances.quote(options.funding === "policy"
           ? { funding: "policy", to: terms.to, amount: terms.amount, token: terms.token, requestId: terms.requestId, idempotencyKey: terms.idempotencyKey, payer: expected.payer, ...(options.policyId === undefined ? {} : { policyId: options.policyId }) }
           : { funding: "wallet", to: terms.to, amount: terms.amount, token: terms.token, requestId: terms.requestId, idempotencyKey: terms.idempotencyKey });
         if (!quote.canSend) throw new RemessoError("refused", `this invoice can't be paid this way now: ${quote.issues.map((i) => i.message).join("; ")}`, { issues: quote.issues });
+        // Checked before reserving: a cap the payment can't meet would leave the
+        // invoice pinned to a route that can never pay it.
+        if (options.maxDebit !== undefined && toUnits(options.maxDebit, tokenOf(expected.token)) < quote.grossDebit) {
+          throw new RemessoError("refused", `paying this invoice debits more than maxDebit ${options.maxDebit}`, { grossDebit: quote.grossDebit.toString() });
+        }
       }
       await store.reserve(expected.id, { funding: options.funding, signer: account.address, payer: expected.payer, key: expected.idempotencyKey,
         ...(options.policyId === undefined ? {} : { policyId: String(options.policyId) }) });

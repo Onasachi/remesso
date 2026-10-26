@@ -19,7 +19,7 @@ import { makePay, memo32, paymentScope, type PayInput, type PaymentResult } from
 import type { Policies, Policy } from "../src/policies.ts";
 import { makeRemittances } from "../src/remittances.ts";
 import { memoryRemittanceStore, type RemittanceRecord, type RemittanceStore } from "../src/remittance-store.ts";
-import { makeRequests, type Requests } from "../src/requests.ts";
+import { makeRequests, type Requests, type RequestStatus } from "../src/requests.ts";
 import type { Receipts } from "../src/receipts.ts";
 import { managedSigner } from "../src/signers.ts";
 import { memoryStore, type PaymentStore } from "../src/store.ts";
@@ -38,8 +38,8 @@ const lower = (v: unknown) => String(v).toLowerCase();
 function logJson(hash: Hex, address: Address, topics: readonly Hex[], data: Hex) {
   return { address, topics, data, transactionHash: hash, transactionIndex: "0x0", logIndex: "0x0", blockHash, blockNumber: "0x64", removed: false };
 }
-function receiptJson(hash: Hex, logs: unknown[], options: { status?: "0x1" | "0x0"; to?: Address } = {}) {
-  return { transactionHash: hash, transactionIndex: "0x0", blockHash, blockNumber: "0x64", from: agent.address, to: options.to ?? EXECUTOR,
+function receiptJson(hash: Hex, logs: unknown[], options: { status?: "0x1" | "0x0"; to?: Address; block?: bigint } = {}) {
+  return { transactionHash: hash, transactionIndex: "0x0", blockHash, blockNumber: toHex(options.block ?? 100n), from: agent.address, to: options.to ?? EXECUTOR,
     cumulativeGasUsed: "0x5208", gasUsed: "0x5208", effectiveGasPrice: "0x1", contractAddress: null, logs, logsBloom: `0x${"00".repeat(256)}`,
     status: options.status ?? "0x1", type: "0x2" };
 }
@@ -60,7 +60,7 @@ const cancelledLog = (hash: Hex) => logJson(hash, EXECUTOR, encodeEventTopics({ 
 /// A chain that records every broadcast and every transaction the SDK prepares.
 function chain() {
   const state = {
-    latest: 0, pending: 0, countFails: false,
+    latest: 0, pending: 0, countFails: false, head: 100n,
     receipts: new Map<string, Record<string, unknown>>(),
     mined: new Map<string, bigint>(),
     blockReceipts: new Map<string, Record<string, unknown>[]>(),
@@ -89,8 +89,12 @@ function chain() {
   Object.assign(pub, {
     getBalance: async () => 10n ** 18n,
     getGasPrice: async () => 1n,
-    getBlock: async ({ blockNumber }: { blockNumber?: bigint } = {}) => ({ number: blockNumber ?? 100n, hash: blockHash, timestamp: BigInt(now()) }),
-    getBlockNumber: async () => 100n,
+    // A node at `head`: a block past it doesn't exist yet.
+    getBlock: async ({ blockNumber }: { blockNumber?: bigint } = {}) => {
+      if (blockNumber !== undefined && blockNumber > state.head) throw new Error(`block ${blockNumber} is out of range`);
+      return { number: blockNumber ?? state.head, hash: blockHash, timestamp: BigInt(now()) };
+    },
+    getBlockNumber: async () => state.head,
     getContractEvents: async () => state.runs,
     simulateContract: async ({ functionName }: { functionName: string }) => { state.simulate(functionName); return {}; },
     readContract: async ({ functionName }: { functionName: string }) => {
@@ -236,7 +240,7 @@ Deno.test("a payment that failed before signing is never started by recovery", a
   assertEquals((await lifecycle.reconcile("abandoned", { funding: "wallet" })).status, "prepared");
   assertEquals(c.state.prepared, []);
   // Its own caller's retry still starts it.
-  await wallet.send({ to: recipient, amount: "1", token: "USDT", idempotencyKey: "abandoned", waitMs: 1 });
+  await wallet.send({ to: recipient, amount: "1", token: "USDT", idempotencyKey: "abandoned", waitMs: 1_000 });
   assertEquals(c.state.prepared.length, 1);
 });
 
@@ -320,4 +324,107 @@ Deno.test("a request that names no token is paid in the payer's chosen token, ne
   requested = "USDT";
   assertEquals((await assertRejects(() => requests.pay(id, { token: "USDC" }), RemessoError)).code, "refused");
   assertEquals(calls.length, 1);
+});
+
+// --- The second review: Codex's findings on the fixes above -------------------
+
+Deno.test("a request that can no longer be answered stops the payment before it is approved", async () => {
+  const c = chain(), wallets = memoryRemittanceStore(), ctx = context(c, memoryStore(), wallets);
+  const requestId = "bf0305f6-1ec5-4d42-9352-a09c84aa5f18";
+  const r = walletRecord(remittanceScope(ctx), { scheduleId: "7", creationBlock: "100", requestId });
+  await wallets.save(r); mineWallet(c, r);
+  let status: RequestStatus["status"] = "pending";
+  const wallet = makeWalletRemittances(ctx, {
+    store: wallets,
+    answer: async () => { throw new Error(`the request is ${status}`); },
+    getRequest: async () => ({ id: requestId, reference: requestId.replaceAll("-", ""), status, payer: agent.address,
+      requested: { to: recipient, amount: "1", token: "USDT", intervalSeconds: null, runs: 1 }, signed: null, payment: null }),
+  });
+  const input = { to: recipient, amount: "1", token: "USDT", idempotencyKey: r.key, requestId, waitMs: 50 };
+  // The backend can't bind it yet: wait, and sign nothing.
+  const waiting = await wallet.send(input);
+  assertEquals([waiting.status, waiting.stage, c.state.prepared.length], ["pending", "approval", 0]);
+  // Declined since. Before: approved and run anyway, an invoice that could never settle.
+  status = "declined";
+  const stopped = await wallet.send(input);
+  assertEquals([stopped.status, stopped.stage], ["pending", "cancellation"]);
+  assertEquals(c.state.prepared.map((t) => decodeFunctionData({ abi: executorAbi, data: t.data! }).functionName), ["cancelSchedule"]);
+});
+
+Deno.test("a young unsent write is waited out and cancelled, outbidding it, before anything is signed above it", async () => {
+  // Its own key: a process keeps one nonce record per signer, shared by tests.
+  const writer = privateKeyToAccount(toHex(31340, { size: 32 }));
+  const c = chain(); c.state.latest = 5;
+  const original = await writer.signTransaction({ chainId: 42220, type: "eip1559", nonce: 5, to: EXECUTOR, data: "0x1234", gas: 100_000n,
+    maxFeePerGas: 100_000_000_000n, maxPriorityFeePerGas: 20_000_000_000n });
+  const cancels: { nonce: number; hash: Hex; raw: Hex }[] = [];
+  const coordinator = {
+    runExclusive: async <T>(_scope: string, run: (lease: { assertActive(): Promise<void> }) => Promise<T>) => await run({ assertActive: async () => {} }),
+    // Saved 29 seconds ago: one second of its grace left.
+    openSigned: async () => [{ nonce: 5, hash: keccak256(original), raw: original, savedAt: Date.now() - 29_000, ...(cancels[0] ? { cancel: cancels[0] } : {}) }],
+    recordCancel: async (_scope: string, nonce: number, cancel: { hash: Hex; raw: Hex }) => { cancels.push({ nonce, ...cancel }); },
+  };
+  const ctx = makeCtx({ pub: c.pub, wallet: null, account: writer, endpoints, appOrigin: "https://remesso.test", dataSuffix: undefined, store: memoryStore(), fetch, coordinator });
+  // Before: skipped while young, and the next nonce went above it for good.
+  assertEquals(await ctx.nextNonce(), 6);
+  assertEquals(cancels.map((x) => x.nonce), [5]);
+  // A node holding the original keeps it unless the cancellation pays more.
+  const cancel = parseTransaction(cancels[0].raw) as { nonce?: number; to?: string; maxFeePerGas?: bigint; maxPriorityFeePerGas?: bigint };
+  assertEquals([cancel.nonce, lower(cancel.to)], [5, lower(writer.address)]);
+  assert(cancel.maxFeePerGas! > 112_500_000_000n && cancel.maxPriorityFeePerGas! > 22_500_000_000n);
+  assertEquals(c.state.sent, [cancels[0].raw]);
+});
+
+Deno.test("an underpriced replacement is a refusal, not an acceptance", async () => {
+  const pub = createPublicClient({ chain: celo, transport: custom({ request: async ({ method }) => {
+    if (method === "eth_sendRawTransaction") throw new Error("replacement transaction underpriced");
+    throw new Error(`unexpected RPC ${method}`);
+  } }) }) as unknown as PublicClient;
+  const ctx = makeCtx({ pub, wallet: null, account: agent, endpoints, appOrigin: "https://remesso.test", dataSuffix: undefined, store: memoryStore(), fetch });
+  assertEquals(await ctx.resend("0x02"), false);
+});
+
+Deno.test("a payment whose deadline passes while it is being saved is cancelled, never first sent late", async () => {
+  const c = chain(); c.state.latest = 5;
+  const realNow = Date.now;
+  let skew = 0;
+  const inner = memoryStore();
+  // A slow journal: forty seconds pass while the signed payment is saved.
+  const store: PaymentStore = { byKey: inner.byKey, since: inner.since, save: async (rec) => { await inner.save(rec); if (rec.key === "slow" && !rec.cancel) skew = 40_000; } };
+  Date.now = () => realNow() + skew;
+  try {
+    const ctx = context(c, store), pay = makePay(ctx, policies);
+    const result = await pay({ to: recipient, amount: "1", idempotencyKey: "slow", validUntil: Math.floor(realNow() / 1000) + 61, waitMs: 50 });
+    const saved = await inner.byKey("slow", paymentScope(ctx));
+    assert(saved?.cancel && result.cancellation === saved.cancel.hash);
+    // Before: its own bytes went out nine seconds after the deadline.
+    assertEquals(c.state.sent, [saved.cancel.raw]);
+  } finally { Date.now = realNow; }
+});
+
+Deno.test("waiting on another payment's approval sends it again if no node has it", async () => {
+  const c = chain(), wallets = memoryRemittanceStore(), ctx = context(c, memoryStore(), wallets);
+  const lost = "0x0a" as Hex;
+  await wallets.save(walletRecord(remittanceScope(ctx), { key: "older", scheduleId: "8", creationBlock: "100", creation: { hash: toHex(80, { size: 32 }), raw: "0x08", nonce: 1 },
+    approval: { hash: keccak256(lost), raw: lost, nonce: 3 }, approvalAmount: "1002507" }));
+  const r = walletRecord(remittanceScope(ctx), { scheduleId: "7", creationBlock: "100", creation: { hash: toHex(72, { size: 32 }), raw: "0x02", nonce: 2 } });
+  await wallets.save(r); mineWallet(c, r);
+  const result = await makeWalletRemittances(ctx, { store: wallets, ...unusedRequests }).send({ to: recipient, amount: "1", token: "USDT", idempotencyKey: r.key, waitMs: 50 });
+  assertEquals([result.status, result.stage], ["pending", "approval"]);
+  // Before: nothing sent, and nothing ever would be.
+  assert(c.state.sent.includes(lost));
+});
+
+Deno.test("schedule state from before a receipt we hold is no basis for cancelling", async () => {
+  const c = chain(), wallets = memoryRemittanceStore(), ctx = context(c, memoryStore(), wallets);
+  const ran = toHex(73, { size: 32 });
+  const r = walletRecord(remittanceScope(ctx), { scheduleId: "7", creationBlock: "100", approval: { hash: toHex(71, { size: 32 }), raw: "0x01", nonce: 2 }, approvalAmount: "1002507",
+    execution: { hash: ran, raw: "0x03", nonce: 3 } });
+  await wallets.save(r); mineWallet(c, r);
+  // Our runNow reverted at block 200, and this node has only reached block 100.
+  c.state.receipts.set(lower(ran), receiptJson(ran, [], { status: "0x0", block: 200n })); c.state.mined.set(lower(ran), 200n);
+  const result = await makeWalletRemittances(ctx, { store: wallets, ...unusedRequests }).send({ to: recipient, amount: "1", token: "USDT", idempotencyKey: r.key, waitMs: 50 });
+  // Before: it decided from block 100 and signed a cancellation.
+  assertEquals([result.status, result.stage], ["pending", "execution"]);
+  assertEquals([(await wallets.get(r.key, r.scope))?.cancellation, c.state.prepared.length], [undefined, 0]);
 });

@@ -16,6 +16,7 @@ import {
   toHex,
 } from "viem";
 import { prepareTransactionRequest, sendRawTransaction, signTransaction } from "viem/actions";
+import { parseTransaction } from "viem/celo";
 import { celo } from "viem/chains";
 import { erc20Abi } from "./abi.js";
 import { CHAIN_ID, type Token } from "./deployment.js";
@@ -77,8 +78,13 @@ export type Ctx = {
   /// accepted them, already had them, or their nonce is already used.
   resend(raw: Hex): Promise<boolean>;
   /// A signed no-op at `nonce`: whichever of it and the bytes it cancels
-  /// lands first is the only one that ever can.
-  signCancel(nonce: number, gasToken?: Token | null): Promise<{ hash: Hex; raw: Hex }>;
+  /// lands first is the only one that ever can. Given those bytes, it outbids
+  /// them, or a node holding them would keep them and refuse it.
+  signCancel(nonce: number, gasToken?: Token | null, replaces?: Hex): Promise<{ hash: Hex; raw: Hex }>;
+  /// Settle every journal's open transactions below `nonce`, as `nextNonce`
+  /// does: a retry of something stuck behind a lost broadcast fills the gap
+  /// instead of waiting for some new payment to.
+  unblock(nonce: number): Promise<void>;
 };
 
 // Multiple clients for the same signer in one process share a queue and nonce
@@ -87,7 +93,7 @@ const signers = new Map<string, { queue: Promise<unknown>; nonce: number; notedA
 
 const notFound = (e: unknown) => ["TransactionNotFoundError", "TransactionReceiptNotFoundError"].includes((e as { name?: string })?.name ?? "");
 
-export function makeCtx(parts: Omit<Ctx, "assertChain" | "requireAccount" | "post" | "get" | "serial" | "assertActive" | "nextNonce" | "noteNonce" | "addJournal" | "resend" | "signCancel">): Ctx {
+export function makeCtx(parts: Omit<Ctx, "assertChain" | "requireAccount" | "post" | "get" | "serial" | "assertActive" | "nextNonce" | "noteNonce" | "addJournal" | "resend" | "signCancel" | "unblock">): Ctx {
   const key = parts.account?.address.toLowerCase();
   const state = (key && signers.get(key)) || { queue: Promise.resolve(), nonce: 0, notedAt: 0 };
   if (key) signers.set(key, state);
@@ -105,31 +111,49 @@ export function makeCtx(parts: Omit<Ctx, "assertChain" | "requireAccount" | "pos
       } catch (e) {
         const said = String((e as { details?: string })?.details ?? (e as Error)?.message ?? e).toLowerCase();
         // The node has these bytes, or their nonce is spent: nothing to retry.
-        if (/already known|known transaction|already imported|nonce too low|replacement transaction underpriced/.test(said)) return true;
+        // An underpriced replacement is a refusal: other bytes hold the nonce.
+        if (/already known|known transaction|already imported|nonce too low/.test(said)) return true;
         if (attempt >= 2) return false;
         await new Promise((r) => setTimeout(r, attempt ? 1_500 : 500));
       }
     }
   }
 
-  /// One open transaction, before a new nonce is chosen above it.
+  const seen = (hash: Hex) => parts.pub.getTransaction({ hash }).then(() => true, (e: unknown) => {
+    if (notFound(e)) return false;
+    throw e; // an RPC that can't answer is no evidence the bytes are lost
+  });
+
+  /// One open transaction, before anything is signed above it.
   async function settle(open: OpenTx): Promise<void> {
     await assertActive();
     if (open.cancel) {
       await resend(open.cancel.raw);
       return;
     }
-    const seen = await parts.pub.getTransaction({ hash: open.hash }).catch((e: unknown) => {
-      if (notFound(e)) return null;
-      throw e; // an RPC that can't answer is no evidence the bytes are lost
-    });
-    if (seen) return; // mined after the count was read, or waiting in a mempool
+    if (await seen(open.hash)) return; // mined after the count was read, or in a mempool
     if (open.resend) {
       await resend(open.raw);
       return;
     }
-    if (!open.cancelNow || Date.now() - open.savedAt < CANCEL_GRACE_MS) return;
+    if (!open.cancelNow) return;
+    // Bytes saved moments ago may still be reaching a node behind the load
+    // balancer: wait out the grace rather than sign above a gap no retry of a
+    // later payment would ever come back to.
+    const young = CANCEL_GRACE_MS - (Date.now() - open.savedAt);
+    if (young > 0) {
+      await new Promise((r) => setTimeout(r, young));
+      await assertActive();
+      if (await seen(open.hash)) return;
+    }
     await open.cancelNow();
+  }
+
+  /// Every journal's transactions the chain hasn't used the nonce of yet.
+  async function openAbove(latest: number): Promise<OpenTx[]> {
+    return (await Promise.all(journals.map((read) => read(latest)))).flat()
+      .filter((t) => t.nonce >= latest)
+      .sort((a, b) => a.nonce - b.nonce);
   }
 
   const request = async <T>(url: string, init: RequestInit): Promise<T> => {
@@ -191,9 +215,7 @@ export function makeCtx(parts: Omit<Ctx, "assertChain" | "requireAccount" | "pos
         parts.pub.getTransactionCount({ address, blockTag: "latest" }),
         parts.pub.getTransactionCount({ address, blockTag: "pending" }),
       ]);
-      const open = (await Promise.all(journals.map((read) => read(latest)))).flat()
-        .filter((t) => t.nonce >= latest)
-        .sort((a, b) => a.nonce - b.nonce);
+      const open = await openAbove(latest);
       // Saved bytes go out again in nonce order, or are cancelled once they must
       // not land. Either way the nonce they hold gets used, so nothing signed
       // after them waits forever behind a broadcast that was lost.
@@ -214,16 +236,37 @@ export function makeCtx(parts: Omit<Ctx, "assertChain" | "requireAccount" | "pos
       journals.push(read);
     },
     resend,
-    async signCancel(nonce, gasToken = null) {
+    async signCancel(nonce, gasToken = null, replaces) {
       const account = ctx.requireAccount();
       if (account.type !== "local") throw new RemessoError("no_account", "cancelling a saved transaction needs a local account");
-      const fee = await gasFor(ctx, gasToken, 60_000n);
+      // A node holding the original keeps it unless its replacement pays the
+      // same fee currency and at least a tenth more on every fee; an eighth
+      // more clears that.
+      // Bytes that don't parse can't be waiting in any pool, so there is nothing to outbid.
+      type Fees = { feeCurrency?: Address; gasPrice?: bigint; maxFeePerGas?: bigint; maxPriorityFeePerGas?: bigint };
+      let original: Fees | null = null;
+      try { original = replaces ? parseTransaction(replaces as Parameters<typeof parseTransaction>[0]) as Fees : null; } catch { original = null; }
+      const fee = original ? (original.feeCurrency ? { feeCurrency: original.feeCurrency } : {}) : await gasFor(ctx, gasToken, 60_000n);
       const request = await prepareTransactionRequest(parts.pub, {
         account, nonce, to: account.address, value: 0n, data: "0x", ...fee,
-      } as never);
+      } as never) as { gasPrice?: bigint; maxFeePerGas?: bigint; maxPriorityFeePerGas?: bigint };
+      if (original) {
+        const outbid = (now?: bigint, then?: bigint) => then === undefined ? now : now === undefined || now < then + then / 8n + 1n ? then + then / 8n + 1n : now;
+        if (request.maxFeePerGas !== undefined) {
+          request.maxFeePerGas = outbid(request.maxFeePerGas, original.maxFeePerGas ?? original.gasPrice);
+          request.maxPriorityFeePerGas = outbid(request.maxPriorityFeePerGas, original.maxPriorityFeePerGas ?? original.gasPrice);
+          if (request.maxPriorityFeePerGas! > request.maxFeePerGas!) request.maxFeePerGas = request.maxPriorityFeePerGas;
+        } else request.gasPrice = outbid(request.gasPrice, original.gasPrice ?? original.maxFeePerGas);
+      }
       await assertActive();
       const raw = await signTransaction(parts.pub, { ...request, account } as never);
       return { hash: keccak256(raw), raw };
+    },
+    async unblock(nonce) {
+      if (!parts.account) return;
+      const latest = await parts.pub.getTransactionCount({ address: parts.account.address, blockTag: "latest" });
+      if (latest >= nonce) return;
+      for (const t of await openAbove(latest)) if (t.nonce < nonce) await settle(t);
     },
   };
 
@@ -235,7 +278,7 @@ export function makeCtx(parts: Omit<Ctx, "assertChain" | "requireAccount" | "pos
       nonce: t.nonce, hash: t.hash, raw: t.raw, savedAt: t.savedAt, resend: false,
       ...(t.cancel ? { cancel: t.cancel } : {}),
       cancelNow: async () => {
-        const cancel = await ctx.signCancel(t.nonce);
+        const cancel = await ctx.signCancel(t.nonce, null, t.raw);
         if (!coordinator.recordCancel) throw new RemessoError("invalid", "the coordinator saves signed writes but can't save their cancellation");
         await coordinator.recordCancel(scope, t.nonce, cancel);
         await resend(cancel.raw);

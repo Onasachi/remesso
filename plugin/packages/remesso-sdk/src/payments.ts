@@ -129,7 +129,7 @@ export function makePay(ctx: Ctx, policies: Policies) {
       await ctx.resend(rec.cancel.raw);
       return rec;
     }
-    const signed = await ctx.signCancel(rec.nonce, findToken(rec.token) ?? null);
+    const signed = await ctx.signCancel(rec.nonce, findToken(rec.token) ?? null, rec.raw);
     const next: PaymentRecord = { ...rec, cancel: signed };
     await save(next);
     await ctx.resend(signed.raw);
@@ -194,13 +194,14 @@ export function makePay(ctx: Ctx, policies: Policies) {
     if (receipt.transactionHash.toLowerCase() !== rec.hash.toLowerCase()) {
       throw new RemessoError("conflict", "the payment transaction was replaced; its replacement is not proof this invoice was paid", { hash: rec.hash, replacement: receipt.transactionHash });
     }
-    if (receipt.status !== "success") return { ...rec, status: "reverted" };
+    const settledAt = rec.settledAt ?? new Date().toISOString();
+    if (receipt.status !== "success") return { ...rec, status: "reverted", settledAt };
     const paid = parseEventLogs({ abi: allowanceAbi, eventName: "Paid", logs: receipt.logs }).some((log) =>
       log.address.toLowerCase() === ALLOWANCE.toLowerCase() && log.args.id === BigInt(rec.policyId) &&
       log.args.to.toLowerCase() === rec.to.toLowerCase() && log.args.amount === BigInt(rec.units) && log.args.memo === rec.memo
     );
     if (!paid) throw new RemessoError("conflict", "the transaction succeeded without this payment's Paid event; nothing is reported as paid", { hash: rec.hash });
-    return { ...rec, status: "confirmed" };
+    return { ...rec, status: "confirmed", settledAt };
   }
 
   /// Broadcast a recorded payment and wait for its receipt. A failed
@@ -208,6 +209,10 @@ export function makePay(ctx: Ctx, policies: Policies) {
   /// the record keeps the hash either way.
   async function broadcast(rec: PaymentRecord, waitMs: number): Promise<PaymentRecord> {
     await ctx.assertActive();
+    // Saving can be slow: checked again here, so bytes never first go out late.
+    if (rec.cancel || lapsed(rec)) return await settled(await cancel(rec), waitMs);
+    // Anything stuck below it would hold it up: fill that gap first.
+    await ctx.unblock(rec.nonce);
     await ctx.resend(rec.raw);
     const receipt = await ctx.pub.waitForTransactionReceipt({ hash: rec.hash, timeout: waitMs }).catch(() => null);
     if (!receipt) return rec;
@@ -223,7 +228,7 @@ export function makePay(ctx: Ctx, policies: Policies) {
     const receipt = await receiptOf(ctx.pub, rec.hash);
     if (receipt) return outcome(rec, receipt);
     // Its cancellation landed instead, so the payment never can.
-    if (rec.cancel && await receiptOf(ctx.pub, rec.cancel.hash)) return { ...rec, status: "expired" };
+    if (rec.cancel && await receiptOf(ctx.pub, rec.cancel.hash)) return { ...rec, status: "expired", settledAt: rec.settledAt ?? new Date().toISOString() };
     const known = (hash: Hex) => ctx.pub.getTransaction({ hash }).then(() => true, (e: unknown) => {
       if (notFound(e)) return false;
       throw e;
@@ -345,8 +350,7 @@ export function makePay(ctx: Ctx, policies: Policies) {
           // Signed and recorded, never sent. Before its deadline its own bytes
           // go now: same payment, same nonce, so still at most once. After it,
           // a no-op takes the nonce, so it can never land late.
-          if (prior.cancel || lapsed(prior)) prior = await settled(await cancel(prior), waitMs);
-          else prior = await broadcast(prior, waitMs);
+          prior = await broadcast(prior, waitMs);
         }
         if (prior.status === "confirmed") return result(prior, { repeat: true });
         if (prior.status === "reverted") {
@@ -408,6 +412,9 @@ export function makePay(ctx: Ctx, policies: Policies) {
       const done = await broadcast(rec, waitMs);
       if (done.status === "reverted") {
         throw new RemessoError("reverted", `the payment reverted on-chain, so nothing was paid: ${explorer(done.hash)}`, { hash: done.hash });
+      }
+      if (done.status === "expired") {
+        throw new RemessoError("refused", "the payment's deadline passed before it went out, so it was cancelled and nothing was paid. Use a new key to try again.", { hash: done.hash, cancellation: done.cancel?.hash, expired: true });
       }
       return result(done);
     });

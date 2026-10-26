@@ -5,7 +5,7 @@ import { makeCtx } from "../src/context.ts";
 import { ALLOWANCE, EXECUTOR, token } from "../src/deployment.ts";
 import { RemessoError } from "../src/errors.ts";
 import { INVOICE_DOMAIN, INVOICE_TYPES, invoiceReference, invoiceTypedData, makeInvoices, memoryInvoiceStore, type InvoiceStore, type SignedInvoice, type SignInvoiceInput } from "../src/invoices.ts";
-import { memo32 } from "../src/payments.ts";
+import { memo32, paymentScope } from "../src/payments.ts";
 import type { Receipts, PaymentProof, VerifyPaymentInput } from "../src/receipts.ts";
 import type { Remittances, SendRemittanceInput } from "../src/remittances.ts";
 import type { Requests, RequestStatus } from "../src/requests.ts";
@@ -48,7 +48,7 @@ function fixture(options: { signer?: typeof seller | null; store?: InvoiceStore;
       create: async () => { calls.create++; return { id: requestId, reference: requestId.replaceAll("-", ""), link: "https://sdk.test/invoice", status: "pending" }; },
     } as unknown as Requests,
     remittances: {
-      quote: async () => { calls.quote++; return { canSend: !options.quoteIssue, issues: options.quoteIssue ? [{ code: "run_limits", message: options.quoteIssue }] : [] }; },
+      quote: async () => { calls.quote++; return { canSend: !options.quoteIssue, grossDebit: 2_506_266n, issues: options.quoteIssue ? [{ code: "run_limits", message: options.quoteIssue }] : [] }; },
       send: async (terms: SendRemittanceInput) => { calls.send.push(terms); if (options.sendFailure) throw new RemessoError("http", "unknown broadcast outcome");
       return { funding: "policy", status: "confirmed", payer: buyer.address, fee: 0n, hash: txHash, policyId: 7n,
         to: seller.address, amount: 2_500_000n, token: usd.address, sent: "2.5 USDT", explorer: `https://sdk.test/tx/${txHash}` }; },
@@ -284,4 +284,32 @@ Deno.test("invoice receipt must be canonical and included within its signed vali
 
 Deno.test("invoice type definition is stable and excludes the signature from replay identity", () => {
   assertEquals(INVOICE_TYPES.Invoice.map((field) => field.name), ["issuer", "payer", "recipient", "token", "amount", "orderId", "nonce", "issuedAt", "expiresAt", "requestId"]);
+});
+
+Deno.test("a paid invoice retried after it expires reports its payment; an unpaid one stays refused", async () => {
+  const { api } = fixture();
+  const signed = await api.sign(input);
+  const historical = { ...signed, message: { ...signed.message, issuedAt: now - 120, expiresAt: now - 60 } };
+  historical.signature = await seller.signTypedData(invoiceTypedData(historical));
+  const f = fixture({ signer: agent });
+  const terms = await f.api.verify(historical, { allowExpired: true });
+  assertEquals((await assertRejects(() => f.api.pay(historical, { funding: "policy", policyId: 7n }), RemessoError)).message, "the invoice has expired");
+  // Paid while it was valid. Before: the retry answered "expired" and never looked.
+  await f.ctx.store.save({ key: terms.idempotencyKey, deployment: paymentScope(f.ctx), owner: buyer.address, policyId: "7", to: seller.address, units: "2500000",
+    token: usd.address as Address, memo: memo32(invoiceReference(terms.id)), hash: txHash, nonce: 1, raw: "0x01", status: "confirmed", at: new Date().toISOString() });
+  const paid = await f.api.pay(historical, { funding: "policy", policyId: 7n });
+  assertEquals([paid.status, f.calls.send.length], ["confirmed", 1]);
+});
+
+Deno.test("payment options that can't work are refused before the invoice is reserved", async () => {
+  const invoice = await fixture().api.sign({ ...input, requestId }), store = memoryInvoiceStore();
+  const wallet = fixture({ signer: buyer, store });
+  // The payment debits 2.506266 with its fee; a 2.5 cap can never pay it.
+  assertEquals((await assertRejects(() => wallet.api.pay(invoice, { funding: "wallet", maxDebit: "2.5" }), RemessoError)).code, "refused");
+  assertEquals((await assertRejects(() => wallet.api.pay(invoice, { funding: "wallet", waitMs: 0 }), RemessoError)).code, "invalid");
+  assertEquals(wallet.calls.send.length, 0);
+  // Before: the cap was checked only after reserving, and this route was refused as key_reused.
+  const policy = fixture({ signer: agent, store });
+  await policy.api.pay(invoice, { funding: "policy", policyId: 7n });
+  assertEquals(policy.calls.send.length, 1);
 });

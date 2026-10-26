@@ -468,19 +468,26 @@ function paymentFailure(error) {
   return { ...fail(`Payment operation needs attention (${code}): ${error instanceof RemessoError ? error.message : refusal(error)}. Keep the SAME key and inspect its original transaction before retrying.`),
     structuredContent: { ok: false, error: { code, retryable: ["http", "timeout", "no_gas"].includes(code), sideEffects: "unknown" } } };
 }
-/// A top-up still on its way is resumed under its own key rather than sent
-/// again; once it has landed the next one gets a new key. So a retried
-/// pay_x402 can't top up twice, and repeated top-ups aren't refused as repeats.
+/// Each top-up has its own key, so it isn't refused as a repeat of the last.
 async function payInternal(d, to, units, memo) {
   const missing = needSpending();
   if (missing) throw new RemessoError("refused", missing);
-  const scope = `${celo.id}:${SDK_ALLOWANCE.toLowerCase()}:${account.address.toLowerCase()}`;
-  const open = (await sdkStore.since(0)).filter((r) => r.deployment === scope && r.key?.startsWith("x402-topup:") && (r.status === "sent" || r.status === "unsent")).at(-1);
-  const paid = open
-    ? await sdk.pay({ policyId: open.policyId, to: open.to, amount: formatUnits(BigInt(open.units), sdkToken(open.token).decimals), token: open.token, memo, idempotencyKey: open.key, waitMs: WAIT_MS })
-    : await sdk.pay({ policyId: d.policyId, to, amount: formatUnits(units, d._raw.t.decimals), token: TOKENS[d.token].address, memo, idempotencyKey: `x402-topup:${Date.now()}`, waitMs: WAIT_MS });
-  if (paid.status !== "confirmed") throw new RemessoError("timeout", `top-up is pending: ${explorer(paid.hash)}. Call pay_x402 again to resume it; it won't top up twice.`, { hash: paid.hash });
+  const paid = await sdk.pay({ policyId: d.policyId, to, amount: formatUnits(units, d._raw.t.decimals), token: TOKENS[d.token].address, memo,
+    idempotencyKey: `x402-topup:${Date.now()}`, waitMs: WAIT_MS });
+  if (paid.status !== "confirmed") throw new RemessoError("timeout", `top-up is pending: ${explorer(paid.hash)}. Call pay_x402 again once it lands; it won't top up twice.`, { hash: paid.hash });
   return paid.hash;
+}
+/// Top-ups still on their way, settled before deciding another is needed: a
+/// retried pay_x402 then can't top up twice. Whether one that landed earlier
+/// still funds anything is for the balance to say: it may already be spent.
+async function settleTopUps() {
+  const scope = `${celo.id}:${SDK_ALLOWANCE.toLowerCase()}:${account.address.toLowerCase()}`;
+  const open = (await sdkStore.since(0)).filter((r) => r.deployment === scope && r.key?.startsWith("x402-topup:") && (r.status === "sent" || r.status === "unsent"));
+  for (const r of open) {
+    const paid = await sdk.pay({ policyId: r.policyId, to: r.to, amount: formatUnits(BigInt(r.units), sdkToken(r.token).decimals), token: r.token,
+      memo: "x402 top-up", idempotencyKey: r.key, waitMs: WAIT_MS });
+    if (paid.status !== "confirmed") throw new RemessoError("timeout", `a top-up is still pending: ${explorer(paid.hash)}. Call pay_x402 again once it lands; it won't top up twice.`, { hash: paid.hash });
+  }
 }
 async function payTool({ to, amount, token, memo, idempotency_key, allow_repeat }) {
   const missing = needSpending();
@@ -747,11 +754,15 @@ server.tool(
       if (price > maxUnits) return fail(`price ${fmt(price, t)} is above max_amount ${max_amount}. Nothing signed.`);
 
       // 2. Top up the agent's own float through the policy if it is short.
-      const float = await pub.readContract({ address: t.address, abi: ERC20, functionName: "balanceOf", args: [account.address] });
+      let float = await pub.readContract({ address: t.address, abi: ERC20, functionName: "balanceOf", args: [account.address] });
       let topUp = null;
       if (float < price) {
         const missing = needSpending();
         if (missing) return fail(`the agent holds ${fmt(float, t)}, the price is ${fmt(price, t)}, and ${missing}`);
+        await settleTopUps();
+        float = await pub.readContract({ address: t.address, abi: ERC20, functionName: "balanceOf", args: [account.address] });
+      }
+      if (float < price) {
         const d = await policyFor(token);
         // Take a little more than the price so the agent can also pay gas in the token.
         let want = price - float + 20_000n;
