@@ -61,7 +61,7 @@ One-off payments funded from this client's wallet or from a spending policy. The
 
 Returns `Promise<RemittanceResult>`. Both kinds have `funding`, `status` (`confirmed` or `pending`), `payer` (whose money moved), `to`, `token`, `amount` in base units and `fee`. A policy payment also has the [`pay`](#payinput) result's fields, including `cancellation` when its deadline passed before it was sent. A wallet payment also has `stage`, `amountIn`, `feeBps`, `scheduleId`, the hash of each transaction it sent (`createHash`, `approvalHash`, `executionHash`, `cancellationHash`), `repeat`, and `request` for the request's binding. Its `hash` is the transaction that paid, once there is one.
 
-`pending` may still be paid: retry the same key, never a new one. A wallet payment is one schedule with a single payment, created, approved and run by the SDK; Remesso's executor may run it first, and either way it pays once. If it can't be completed, its schedule is cancelled, and only after that lands is it reported as not paid: a `refused` error with `details.cancelled`. One that expired unpaid has `details.expired`.
+`pending` may still be paid: retry the same key, never a new one. A wallet payment is one schedule with a single payment, created, approved and run by the SDK; Remesso's executor may run it first, and either way it pays once. With `requestId`, it is approved and run only once the request names its schedule, and cancelled if the request can no longer be answered. If it can't be completed, its schedule is cancelled, and only after that lands is it reported as not paid: a `refused` error with `details.cancelled`. One that expired unpaid has `details.expired`.
 
 ### `remittances.quote(input, options?)`
 
@@ -78,7 +78,7 @@ Quotes, refuses a payment that can't be sent or that costs more than `maxDebit`,
 | Method | What it does |
 |---|---|
 | `remittances.get(key, { funding? }?)` | Reads a saved payment and what the chain says about it. Signs and sends nothing. |
-| `remittances.listPending({ funding? }?)` | The saved payments not yet final, failed, cancelled or expired, paused ones included. |
+| `remittances.listPending({ funding? }?)` | The saved payments not yet final, failed, cancelled or expired, paused ones included. Ones that settled more than two hours ago are left out. |
 | `remittances.reconcile(key, { funding?, waitMs? }?)` | Continues a payment that has started: sends its saved transactions, or a wallet payment's remaining steps. Never starts a payment. |
 | `remittances.wait(key, options?)` | Waits for `included` (the default) or `finalized`. Sends nothing. `timeoutMs` 1 to 86,400,000, default 20 minutes; `intervalMs` 1 to 60,000, default 1,500; `signal`; `funding`. |
 | `remittances.recoverPending(options?)` | One pass of `reconcile` over started payments, oldest first. `limit` 1 to 1,000, default 25, bounds the work; `funding`, `waitMs` and `signal` as above. |
@@ -94,7 +94,7 @@ A wallet payment whose step reverted while its schedule is live is `needs_reconc
 | `invoices.sign(input)` | Signs an invoice's exact terms as its recipient, optionally for an existing one-off request. |
 | `invoices.create(input)` | Creates a one-off request with the same terms, then signs them. |
 | `invoices.verify(invoice, { allowExpired? }?)` | Checks the invoice's form, signature and expiry. Returns its terms, an `id` derived from them, and the `idempotencyKey` that pays it. Pays nothing. |
-| `invoices.pay(invoice, options)` | Verifies it, quotes the payment and refuses one that can't be made now, reserves the invoice for this route, then pays its exact terms. `funding` is required; `policyId` for a policy, `maxDebit`, `waitMs`. Returns the payment and `invoiceId`. |
+| `invoices.pay(invoice, options)` | Verifies it, quotes the payment and refuses one that can't be made now or exceeds `maxDebit`, reserves the invoice for this route, then pays its exact terms. A retry after the invoice expired reports a payment made in time. `funding` is required; `policyId` for a policy, `maxDebit`, `waitMs`. Returns the payment and `invoiceId`. |
 | `invoices.verifyPayment(invoice, input)` | Checks a transaction is this invoice's payment, on its terms and in its validity window. Finalized by default. Returns `{ invoiceId, orderId, payment }`. |
 
 `sign` and `create` take `payer`, a decimal `amount`, `token`, `orderId` and `expiresAt` in Unix seconds. `recipient` defaults to, and must be, the signing account. `nonce` (32 random bytes) and `issuedAt` (now) are defaults: keep them to rebuild the same invoice.

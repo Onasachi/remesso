@@ -67,7 +67,7 @@ A session lock is held from reading the journal to broadcasting, so connect dire
 
 Every transaction is saved before it is broadcast. If a broadcast fails, the SDK retries it at once, and before signing anything new it sends again any saved transaction the network still doesn't have, lowest nonce first. So one lost broadcast can't hold up every transaction after it.
 
-A saved transaction that must no longer land is cancelled instead of sent: the SDK signs a transaction that does nothing at the same nonce, and only one of the two can ever be mined. This happens to a policy payment still unsent close to its `validUntil`, and to a contract write (a schedule or a policy) whose caller was told it couldn't be broadcast.
+A saved transaction that must no longer land is cancelled instead of sent: the SDK signs a transaction that does nothing at the same nonce, and only one of the two can ever be mined. The no-op pays more than the original, so a node still holding the original takes the no-op instead. This happens to a policy payment still unsent close to its `validUntil`, including one whose deadline passes while it is being saved, and to a contract write (a schedule or a policy) whose caller was told it couldn't be broadcast; one saved in the last 30 seconds is given that long to arrive first.
 
 ## Quote and bound a payment
 
@@ -126,7 +126,7 @@ console.log(terms.id, sent.status, sent.hash);
 
 For policy funding the invoice names the policy owner as the payer, and the agent pays with `invoices.pay(invoice, { funding: "policy", policyId })`.
 
-`pay` quotes the payment before anything else, and refuses one that can't be made now. It then reserves the invoice for this payment route, signer and key, so no other route can pay it as well. Keep that reservation after a payment whose outcome is uncertain. The default reservation store is memory; workers share the Postgres one.
+`pay` quotes the payment before anything else, and refuses one that can't be made now or that would debit more than `maxDebit`. It then reserves the invoice for this payment route, signer and key, so no other route can pay it as well. A retry after the invoice expired still reports a payment made while it was valid. Keep that reservation after a payment whose outcome is uncertain. The default reservation store is memory; workers share the Postgres one.
 
 An invoice made with `sign()` and no request is tied to its payment only by the payment's memo, which carries `invoiceReference(invoice id)`. A schedule's payment has no memo, so such an invoice is paid from a policy; to pay from a wallet, make the invoice with `create()`.
 
@@ -196,7 +196,7 @@ const recovered = await agent.remittances.recoverPending({ limit: 25, waitMs: 5_
 console.log(pending.length, recovered.length);
 ```
 
-`get()` and `listPending()` only read: the saved payment and what the chain says about it. `reconcile()` and `recoverPending()` continue payments that have started: they send saved transactions, and finish a wallet payment's remaining steps. They never start a payment, and never start a new one under an old key. A payment saved but never signed, for example because signing failed, is left for its own caller to retry.
+`get()` and `listPending()` only read: the saved payment and what the chain says about it. `listPending()` leaves out payments that settled more than two hours ago. `reconcile()` and `recoverPending()` continue payments that have started: they send saved transactions, and finish a wallet payment's remaining steps. They never start a payment, and never start a new one under an old key. A payment saved but never signed, for example because signing failed, is left for its own caller to retry.
 
 The statuses are `prepared`, `awaiting_approval`, `signed`, `broadcast`, `included`, `finalized`, `failed`, `cancelled`, `paused`, `expired` and `needs_reconciliation`. A wallet payment whose step reverted while its schedule is still live is `needs_reconciliation`, not `failed`: it could still be paid, and reconciling cancels it. A transaction whose nonce was used by something else, with no receipt to show what, also needs a person to look at its hash; the SDK never pays it again.
 

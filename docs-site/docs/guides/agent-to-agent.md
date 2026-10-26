@@ -74,7 +74,7 @@ const sent = await buyer.remittances.send({
 console.log(sent.status, sent.stage, sent.hash);
 ```
 
-The request must name this wallet as the payer and these exact terms. A `confirmed` result carries `hash`, the transaction that paid.
+The request must name this wallet as the payer and these exact terms. The SDK approves and runs the payment only once Remesso has recorded that this payment answers the request, since that is what the seller checks; if the request was declined or answered by another payment in the meantime, the payment is cancelled instead. A `confirmed` result carries `hash`, the transaction that paid.
 
 A `pending` result may still be paid. Call `send` again with the same key and terms, at any time: the SDK continues the same payment from its journal and never creates a second one. Don't retry a pending payment under a new key; that is a second payment. `stage` says where it stands: `creation`, `approval`, `execution` or `cancellation`.
 

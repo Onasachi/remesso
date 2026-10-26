@@ -1108,12 +1108,34 @@ every test it had and still had ways to pay twice and to stall a signer.
   readiness uses the SDK's `gasNeeded(PAY_GAS, price, "payment")`; read tools
   work with an allowance override (`needAllowance` vs `needSpending`); legacy
   records whose hash isn't their bytes' are accepted and never resent.
-  `esbuild --alias:viem=viem` gives the bundle one viem (1.16 MB; Codex's had
-  two, 1.79 MB). The directory's scan held 1.68 MB and passed 866 KB; 1.16 MB
+  `esbuild --alias:viem=viem` gives the bundle one viem (1.19 MB; Codex's had
+  two, 1.79 MB). The directory's scan held 1.68 MB and passed 866 KB; 1.19 MB
   hasn't been tried. `plugin/` ships the SDK files the bundle reads (from
   esbuild's metafile) and the SDK's `package.json` (its `sideEffects: false`
   changes the output), so `plugin/mcp` rebuilds byte-identical.
-- **Validated 2026-10-26, after the fixes:** 171 SDK tests and 10 Postgres
+- **A second review (Codex, 2026-10-26) found 11 more, all fixed** with a
+  failing-first test each:
+  - a lifecycle read of the schedule not pinned to the block whose time it
+    compared, so a paid schedule read as expired;
+  - a request-bound wallet payment run though its request could no longer be
+    bound: now it is approved and run only once the request names the
+    schedule, and cancelled if the request can't be answered;
+  - a young unsent write skipped rather than waited out, stranding what was
+    signed above it;
+  - a deadline passing while a payment was saved, then sent late;
+  - cancellations at the original's fees, which a pool holding the original
+    refuses: they now pay an eighth more, in its fee currency, and an
+    underpriced replacement counts as refused;
+  - a wait on another payment's lost approval that never resent it;
+  - stale schedule state used once its wait timed out;
+  - an expired invoice's retry that never looked for its payment, and a
+    `maxDebit` checked only after the invoice was reserved;
+  - listings filtered by when a payment was saved: records now carry
+    `settledAt`;
+  - an MCP top-up resumed as if its old funds were still there: pending
+    top-ups are settled, then the balance decides.
+  `ctx.unblock(nonce)` repairs the gap below a stuck payment on its own retry.
+- **Validated 2026-10-26, after both rounds:** 181 SDK tests and 10 Postgres
   ones, `npx remesso-sdk dev --smoke` (19), `fork-wallet-pay.ts` (25),
   `fork-sdk.ts`, `fork-sdk-agent-to-agent.ts` (59), `sdk-production-e2e.ts`
   (17), 105 doc samples, the docs build. `test/review.test.ts` holds one
