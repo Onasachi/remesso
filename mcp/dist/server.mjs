@@ -34040,7 +34040,7 @@ async function payTool({ to, amount, token: token2, memo, idempotency_key, allow
 }
 var server = new McpServer({
   name: "remesso-wallet",
-  version: "0.6.0",
+  version: "0.6.1",
   icons: [{ src: `${APP}/icon.png`, mimeType: "image/png", sizes: ["512x512"] }]
 });
 server.tool(

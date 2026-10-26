@@ -4,7 +4,7 @@
 
 `remesso-sdk` is a TypeScript library for payments in stablecoins on Celo, between people and between agents. A payer signs once and Remesso's executor sends each payment when it is due; an agent pays from its own wallet or within a policy a person set; and the recipient checks every payment on the chain and hears about it from a signed webhook.
 
-These are the pages of https://docs.remesso.xyz for remesso-sdk 0.3.0-rc.1, each as Markdown. All of them in one file: https://docs.remesso.xyz/llms-full.txt. Coding assistants can load them as the remesso-sdk skill: https://docs.remesso.xyz/docs/build-with-ai
+These are the pages of https://docs.remesso.xyz for remesso-sdk 0.3.0, each as Markdown. All of them in one file: https://docs.remesso.xyz/llms-full.txt. Coding assistants can load them as the remesso-sdk skill: https://docs.remesso.xyz/docs/build-with-ai
 
 ## Get started
 

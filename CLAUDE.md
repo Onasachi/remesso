@@ -121,7 +121,8 @@ deno run --allow-read --allow-write --allow-run --allow-env docs-site/scripts/ch
 deno run --allow-read --allow-write scripts/build-docs-data.ts --check
 (cd docs-site && npm install && npm run build)   # fails on any broken link or anchor
 # the same pages for AI assistants: llms.txt, llms-full.txt, each page as .md, and
-# the remesso-sdk skill's references. Re-run without --check after any docs change.
+# the remesso-sdk skill's references. Re-run without --check after any docs change
+# or SDK version bump, then scripts/build-plugin.sh, which copies the skill.
 deno run --allow-read --allow-write scripts/build-ai-docs.ts --check
 
 # builder codes (Phase 6): an integrator's ERC-8021 code rides on every run
@@ -1056,7 +1057,7 @@ reconcile.
 - `scripts/fork-sdk.ts` covers a broadcast lost on the way: it goes out later
   with its own bytes, paid once.
 
-**The agent-to-agent platform: 0.3.0, published as 0.3.0-rc.1.** Written with Codex
+**The agent-to-agent platform: remesso-sdk 0.3.0** (0.3.0-rc.1 before it). Written with Codex
 on 2026-10-26, then reviewed and fixed the same day: Codex's version passed
 every test it had and still had ways to pay twice and to stall a signer.
 
@@ -1119,7 +1120,7 @@ every test it had and still had ways to pay twice and to stall a signer.
 - **`managedSigner`** refuses high-s signatures. **`remesso-sdk/tools`** keeps
   only scheme and host of URLs in what a model reads (RPC keys sit in paths),
   except Remesso's hosts and Celoscan.
-- **The MCP wallet is 0.6.0** and pays through the SDK. Its x402 top-ups are
+- **The MCP wallet is 0.6.1** and pays through the SDK. Its x402 top-ups are
   keyed `x402-topup:<ms>` and a pending one is resumed, not repeated; `pay`
   with a request uses the agent's token when the request names none; its
   readiness uses the SDK's `gasNeeded(PAY_GAS, price, "payment")`; read tools
@@ -1167,7 +1168,8 @@ every test it had and still had ways to pay twice and to stall a signer.
     `pending`.
   - Re-run with `--wallet-only`, it passed: schedule #8 is the first
     wallet-funded payment on mainnet.
-  - The fix isn't in a published SDK yet.
+  - remesso-sdk 0.3.0 and remesso-wallet 0.6.1 carry the fix; the wallet
+    and the plugin also ship the `remesso-sdk` skill.
 - **Still open:** each wallet payment uses a schedule id, and `sync-schedules`
   scans ids 25 at a time every 5 minutes; past roughly 7,000 completed ones,
   new schedules stop being discovered. `index-events` already records every
