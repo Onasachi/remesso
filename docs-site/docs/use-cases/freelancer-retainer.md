@@ -182,10 +182,6 @@ Accepted isn't the same as paid. A request reads `accepted` once a schedule answ
 
 ## Test it safely
 
-:::warning Real money
-There is no testnet. These programs move real wARS on Celo mainnet. Use keys that hold only what you're willing to lose.
-:::
-
 1. Use a second wallet you control as the client. Give it about 1,510 wARS and a little CELO.
 2. Ask for `AMOUNT=1500` with `runs: 1`, the smallest payment the executor sends.
 3. Start `receiver.ts`, then sign the schedule from the client wallet.

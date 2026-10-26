@@ -146,10 +146,6 @@ The schedule can't change once it's signed. The parent can pause it, resume it, 
 
 ## Test it safely
 
-:::warning Real money
-There is no testnet. The allowance moves real cNGN on Celo mainnet. Test with keys that hold only what you're willing to lose.
-:::
-
 1. Run `child.ts` with `AMOUNT=1300`, the smallest payment the executor sends. For a quick test, change `runs` to 1.
 2. Give the parent wallet about 1,304 cNGN and a little CELO, then run `parent.ts` and answer `y`.
 3. Remesso finds the schedule within about five minutes and sends the first payment. The child's terminal prints it, with the cash-out link, and marks it final about half an hour later.

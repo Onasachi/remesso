@@ -50,10 +50,6 @@ The payer's signature is the authority. The contract checks every payment agains
 
 ## Before you start
 
-:::warning Real money, unaudited contracts
-Remesso runs on Celo mainnet only: there is no testnet, so every example moves real money. The contracts are live and have not been audited by a person. Start with small amounts, a dollar rather than a payroll, and keys that hold only what you are willing to lose.
-:::
-
 - You need Node 20 or later, and a little USDT on Celo for your first payment.
 - The SDK runs on a server or in a script with a private key. In a browser it works with the user's own wallet.
 - Every payment Remesso sends is between the equivalent of 1 and 1,000 dollars. See [fees, limits and gas](./guides/fees-and-gas.md).

@@ -109,10 +109,6 @@ To skip a while without cancelling, pause with `schedules.setActive(scheduleId, 
 
 ## Test it safely
 
-:::warning Real money
-There is no testnet. This moves real USDT on Celo mainnet. Test with keys that hold only what you're willing to lose.
-:::
-
 1. Use a second wallet you control as the family's wallet. A MiniPay wallet works, and shows the USDT arriving.
 2. Sign with `receive: "1"` and `runs: 1`: about 1.0025 USDT leaves the sender's wallet.
 3. Start `notify.ts` with the schedule id. The payment goes out within about five minutes, and the message follows once it's final, about half an hour later.
