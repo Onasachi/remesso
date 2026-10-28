@@ -3,7 +3,8 @@
 /// USD → wARS and USD → wBRL from two independent on-chain sources, side by
 /// side: Textile's RFQ makers (bid/ask, indicative) and the Uniswap v3 pool
 /// (what it returns at the caller's size, with price impact). A flag says when
-/// they disagree. wCOP is answered honestly: no on-chain market on Celo.
+/// they disagree. wCOP, wMXN, wCLP and wPEN are answered honestly: no on-chain
+/// market on Celo.
 ///
 /// Input (all optional): `{"usd": 100}` — the size to price the pool at,
 /// default 100, capped at 100,000 so nobody prices a pool at a size it
@@ -17,7 +18,7 @@ export const service = {
   path: "latam-rate",
   name: "latam-rate",
   description:
-    "Live USD-to-wARS and USD-to-wBRL on Celo from Textile's RFQ makers and the Uniswap pool, side by side, with a flag when they disagree. wCOP has no on-chain market on Celo and is reported as such.",
+    "Live USD-to-wARS and USD-to-wBRL on Celo from Textile's RFQ makers and the Uniswap pool, side by side, with a flag when they disagree. wCOP, wMXN, wCLP and wPEN have no on-chain market on Celo and are reported as such.",
   priceUnits: Deno.env.get("LATAM_RATE_PRICE_UNITS") ?? "1000",
   input: { usd: "optional number, the trade size to price the pool at (default 100, max 100000)" },
   parse: (b) => {

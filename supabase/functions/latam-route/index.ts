@@ -1,5 +1,6 @@
-/// `latam-route` — how to get a given amount of pesos or reais to someone in
-/// Argentina, Brazil or Colombia on Celo, sold over x402.
+/// `latam-route` — how to get a given amount of pesos, reais or soles to
+/// someone in Argentina, Brazil, Colombia, Mexico, Chile or Peru on Celo, sold
+/// over x402.
 ///
 /// One call returns what a remittance agent needs to act: which token, how
 /// many dollars it takes at this size and from which venue (with price impact),
@@ -29,10 +30,10 @@ export const service = {
   path: "latam-route",
   name: "latam-route",
   description:
-    "A route to deliver pesos or reais on Celo: token, dollars needed at your size and from which venue, Ripio buy/cash-out links and a prefilled Remesso schedule link. Argentina (wARS) and Brazil (wBRL) are priced on-chain; Colombia (wCOP) has no on-chain market on Celo and gets the Ripio route only.",
+    "A route to deliver pesos, reais or soles on Celo: token, dollars needed at your size and from which venue, Ripio buy/cash-out links and a prefilled Remesso schedule link. Argentina (wARS) and Brazil (wBRL) are priced on-chain; Colombia (wCOP), Mexico (wMXN), Chile (wCLP) and Peru (wPEN) have no on-chain market on Celo and get the Ripio route only.",
   priceUnits: Deno.env.get("LATAM_ROUTE_PRICE_UNITS") ?? "2000",
   input: {
-    country: "AR | BR | CO (or ARS/BRL/COP, wARS/wBRL/wCOP)",
+    country: "AR | BR | CO | MX | CL | PE (or the currency, ARS..., or the token, wARS...)",
     amount: "number — how much the recipient should get, in local currency unless currency is USD",
     currency: "optional, LOCAL (default) or USD",
     recipient: "optional 0x address, prefilled into the links",
@@ -41,7 +42,7 @@ export const service = {
   parse: (b) => {
     const o = (b ?? {}) as Record<string, unknown>;
     const c = corridor(typeof o.country === "string" ? o.country : undefined);
-    if (!c) return { error: "country must be AR, BR or CO" };
+    if (!c) return { error: "country must be AR, BR, CO, MX, CL or PE" };
     if (typeof o.amount !== "number" || !(o.amount > 0)) return { error: "amount must be a positive number" };
     const currency = String(o.currency ?? "LOCAL").toUpperCase() === "USD" ? "USD" : "LOCAL";
     if (currency === "USD" && o.amount > 100_000) return { error: "amount above 100000 USD" };
@@ -57,7 +58,8 @@ export const service = {
       cashOut: ripioLink("cashout", c, { address: recipient }),
     };
 
-    // No on-chain market (wCOP): the route is Ripio alone, said plainly.
+    // No on-chain market (wCOP, wMXN, wCLP, wPEN): the route is Ripio alone,
+    // said plainly.
     if (c.ticker === null && c.poolFee === null) {
       return {
         country: c.country,

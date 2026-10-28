@@ -28,7 +28,8 @@
 ///   TO=0x…            who gets paid                        (required)
 ///   AMOUNT=1          per transfer, in whole tokens        (required; at
 ///                     least $1 worth: Remesso's executor sends nothing smaller)
-///   TOKEN=USDT        USDT | USDC | USDm | USAT | wARS | wBRL | wCOP  (default USDT)
+///   TOKEN=USDT        USDT | USDC | USDm | USAT | wARS | wBRL | wCOP |
+///                     wMXN | wCLP | wPEN                   (default USDT)
 ///   EVERY=week        week | fortnight | month | quarter   (default week)
 ///   RUNS=2            how many transfers                   (default 2)
 ///   TRIGGER=remesso   allow early sending                  (default: none)
@@ -61,11 +62,15 @@ const TOKENS: Record<string, { address: `0x${string}`; decimals: number; minRun:
   USDM: { address: "0x765DE816845861e75A25fCA122bb6898B8B1282a", decimals: 18, minRun: "1" },
   CUSD: { address: "0x765DE816845861e75A25fCA122bb6898B8B1282a", decimals: 18, minRun: "1" },
   USAT: { address: "0xD2ab3C9A02DBBAB236BfEC45D1d755DF4267F771", decimals: 6, minRun: "1" },
-  // Ripio's local-currency stablecoins, allowed on V4 2026-10-06. 18dp, and
-  // not dollars: amounts are pesos and reais.
+  // Ripio's local-currency stablecoins: wARS, wBRL and wCOP allowed on V4
+  // 2026-10-06, wMXN, wCLP and wPEN on V5 2026-10-28. 18dp, and not dollars:
+  // amounts are pesos, reais and soles.
   WARS: { address: "0x0DC4F92879B7670e5f4e4e6e3c801D229129D90D", decimals: 18, minRun: "1500" },
   WBRL: { address: "0xD76f5Faf6888e24D9F04Bf92a0c8B921FE4390e0", decimals: 18, minRun: "5" },
-  WCOP: { address: "0x8a1D45e102e886510e891d2Ec656a708991e2D76", decimals: 18, minRun: "3200" },
+  WCOP: { address: "0x8a1D45e102e886510e891d2Ec656a708991e2D76", decimals: 18, minRun: "3100" },
+  WMXN: { address: "0x337E7456B420bD3481e7FA61fA9850343d610d34", decimals: 18, minRun: "18" },
+  WCLP: { address: "0x61D450a098b6a7f69fC4b98CE68198fe59768651", decimals: 18, minRun: "950" },
+  WPEN: { address: "0x4F34c8b3b5FB6D98Da888F0feA543d4d9C9F2eBE", decimals: 18, minRun: "3" },
 };
 
 const CADENCE: Record<string, number> = {

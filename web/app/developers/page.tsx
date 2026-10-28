@@ -345,8 +345,8 @@ export default function DevelopersPage() {
           </li>
           <li>
             <span className="text-ink">Per payment, the executor sends the equivalent of 1 to 1,000 dollars</span>: 1
-            to 1,000 USDT, USDC, USA₮ or USDm; 1,500 to 1.5 million wARS; 5 to 5,000 wBRL; 3,200 to 3.2 million wCOP;
-            1,300 to 1.3 million cNGN. Outside that a schedule is valid on-chain and never runs, so the SDK refuses it
+            to 1,000 USDT, USDC, USA₮ or USDm; 1,500 to 1.5 million wARS; 5 to 5,000 wBRL; 3,100 to 3.1 million wCOP;
+            18 to 18,000 wMXN; 950 to 950,000 wCLP; 3 to 3,000 wPEN; 1,300 to 1.3 million cNGN. Outside that a schedule is valid on-chain and never runs, so the SDK refuses it
             before signing. <span className="text-ink">runLimits(token)</span> gives the bounds, and{" "}
             <Out href="https://engaboljiqudghvzmebq.supabase.co/functions/v1/agent">/agent</Out> publishes them under{" "}
             <span className="text-ink">limits.perRun</span>.

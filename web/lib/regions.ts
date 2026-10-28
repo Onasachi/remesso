@@ -8,7 +8,9 @@ export type Region = "usd" | "latam" | "ng";
 
 export const REGIONS: Array<{ key: Region; label: string; long: string; icon?: string; flags: string }> = [
   { key: "usd", label: "Dollars", long: "Dollars", icon: "paid", flags: "" },
-  { key: "latam", label: "LatAm", long: "Latin America", flags: "🇦🇷🇧🇷🇨🇴" },
+  // A globe, not six flags: the switch splits a phone's width in three, and
+  // six flags beside "LatAm" overflow a third of 375px (three just fit).
+  { key: "latam", label: "LatAm", long: "Latin America", icon: "public", flags: "" },
   { key: "ng", label: "Nigeria", long: "Nigeria", flags: "🇳🇬" },
 ];
 
@@ -18,11 +20,22 @@ export function regionOf(t: TokenInfo): Region {
   return "latam";
 }
 
-const FLAG: Partial<Record<TokenInfo["currency"], string>> = { ARS: "🇦🇷", BRL: "🇧🇷", COP: "🇨🇴", NGN: "🇳🇬" };
+const FLAG: Partial<Record<TokenInfo["currency"], string>> = {
+  ARS: "🇦🇷",
+  BRL: "🇧🇷",
+  COP: "🇨🇴",
+  MXN: "🇲🇽",
+  CLP: "🇨🇱",
+  PEN: "🇵🇪",
+  NGN: "🇳🇬",
+};
 const COUNTRY: Partial<Record<TokenInfo["currency"], string>> = {
   ARS: "Argentina",
   BRL: "Brazil",
   COP: "Colombia",
+  MXN: "Mexico",
+  CLP: "Chile",
+  PEN: "Peru",
   NGN: "Nigeria",
 };
 

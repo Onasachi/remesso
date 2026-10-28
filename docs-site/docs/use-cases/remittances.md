@@ -15,9 +15,9 @@ Someone working in London supports family in Lagos, and sends money every month.
 
 The family's wallet and their way to cash out decide the token:
 
-- **In MiniPay, pay USDT, USDC, USDm or USA₮.** MiniPay shows only those four. It doesn't show cNGN or Ripio's wARS, wBRL and wCOP: a recipient paid in those needs another wallet.
+- **In MiniPay, pay USDT, USDC, USDm or USA₮.** MiniPay shows only those four. It doesn't show cNGN or Ripio's local-currency tokens: a recipient paid in those needs another wallet.
 - **For naira, pay USDT.** On Celo, USDT is the token Textile pairs with cNGN. The recipient opens Textile with their own wallet, swaps USDT to cNGN, and uses "Withdraw NGN" to a Nigerian bank account in their own name: `https://app.textilecredit.com/s/swap?sell=USDT&buy=cNGN&chainId=42220`.
-- **For pesos or reais, pay wARS or wBRL.** The recipient cashes out on Ripio's ramp, for example `https://ramp.ripio.com/off-ramp?country=AR&chain=42220&token=WARS` for Argentina, or `country=BR` with `token=WBRL` for Brazil.
+- **For pesos, reais or soles, pay the country's Ripio token:** wARS, wBRL, wCOP, wMXN, wCLP or wPEN. The recipient cashes out on Ripio's ramp, for example `https://ramp.ripio.com/off-ramp?country=AR&chain=42220&token=WARS` for Argentina, or `country=BR` with `token=WBRL` for Brazil. Which countries Ripio ramps on Celo is Ripio's to decide.
 
 Remesso never pays into a bank account on the sender's behalf. The family receives tokens in their own wallet, and cashes them out themselves, if and when they choose.
 
