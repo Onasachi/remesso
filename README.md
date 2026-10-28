@@ -1,36 +1,67 @@
 # Remesso
 
-**Send money home on a schedule, in the currency your family spends — signed
-once, carried out by an agent on Celo.**
+**Agent-to-agent remittance rails on Celo: agents pay agents across borders,
+in the currency the recipient spends, on mandates and spending limits a human
+signs on-chain.**
 
 [App](https://remesso.xyz) ·
+[Docs](https://docs.remesso.xyz) ·
 [Demo video](https://youtu.be/rxV5KtJocZ8) ·
 [Agent document](https://engaboljiqudghvzmebq.supabase.co/functions/v1/agent) ·
 [Hackathon write-up](docs/submission.md)
 
-Families split across borders pay each other on a rhythm: rent every month,
-school fees every term, a parent's allowance every week. Remesso turns that
-into one decision. The sender signs a mandate once — who, how much, how often,
-until when — and Remesso's agent pays it on Celo mainnet from then on, without
-asking again and without ever holding the money.
+Money crosses borders on a rhythm: rent every month, school fees every term, a
+parent's allowance every week. More of that work is being handed to AI agents,
+and there is no rail built for one agent to pay another across a border. x402
+covers a one-off API call; a remittance also needs a request the recipient's
+side can send, a payment made once however often it is retried, a mandate that
+repeats, a receipt both sides can check, and the currency the family actually
+spends.
 
-- **Eleven currencies.** USDT, USDC, USDm and USA₮, which MiniPay shows; Ripio's
-  wARS, wBRL, wCOP, wMXN, wCLP and wPEN for Argentina, Brazil, Colombia,
-  Mexico, Chile and Peru; and cNGN for Nigeria.
-  The recipient receives exactly the token sent. Nothing is converted.
-- **Built for MiniPay.** Inside MiniPay the recipient is a contact or a phone
-  number, never an address.
-- **The contract is the authority.** The agent can only do what was signed, and
-  nobody can redirect, resize or extend a payment.
-- **Agents can use it too.** Four paid services over x402, a published skill
-  that pays in USA₮ by default, and mandates one program can sign for another.
-- **A Claude plugin with its own wallet.** Claude gets a Celo address and can
-  pay people, other agents and x402 APIs, but only within limits you set
-  on-chain from your own wallet.
+Remesso is that rail, live on Celo mainnet. Money never sits with Remesso:
+every payment moves straight from the payer's wallet to the recipient's.
+
+- **Mandates.** A payer signs one schedule — who, how much, how often, until
+  when, in which currency — and Remesso's agent pays it from then on. The
+  contract is the authority: nobody can redirect, resize or extend a payment.
+- **Spending policies.** A human caps their agent on-chain from their own
+  wallet: one token, a cap per payment and per day, a total, an expiry. A
+  prompt-injected agent hits the same caps as an honest one.
+- **Agent-to-agent payments.** One agent asks to be paid; the other pays from
+  its own wallet or its policy, once per idempotency key. Remesso reads the
+  payment from the chain, binds it to the request and sends a signed webhook,
+  and either side can verify it from the chain alone.
+- **Eleven tokens in eight currencies.** USDT, USDC, USDm and USA₮, which
+  MiniPay shows; Ripio's wARS, wBRL, wCOP, wMXN, wCLP and wPEN for Argentina,
+  Brazil, Colombia, Mexico, Chile and Peru; and cNGN for Nigeria. The recipient
+  receives exactly the token sent. Nothing is converted.
+- **Built for agents and the people behind them.** `remesso-sdk` on npm, an
+  agent wallet for Claude Code, Codex and Cursor, a Claude app connector, four
+  x402 services payable in nine stablecoins, and a MiniPay app where a
+  recipient is a contact or a phone number, never an address.
 
 ---
 
 ## How it works
+
+### An agent-to-agent remittance
+
+1. **The recipient's agent asks.** `requests.create`, or a signed invoice, asks
+   a payer's wallet for an exact amount in one token, once or every month. The
+   request shows in the payer's app, and the payer's agent reads it with
+   `payment_requests`.
+2. **The payer's agent pays.** `remittances.send` pays it once, from the agent's
+   own wallet or its spending policy, and answers the request. A recurring
+   request is answered with a mandate, which Remesso's agent pays every month.
+3. **Remesso confirms it from the chain.** The indexer records the payment and
+   binds it to the request — from the wallet asked, to the address that asked,
+   made after the request — and the recipient's agent gets a signed
+   `payment.received`, then `payment.finalized` once Celo finalizes the block.
+4. **The recipient's agent checks it.** `receipts.verify` confirms payer,
+   recipient, token and amount on the chain, with no key and no trust in
+   Remesso.
+
+### A mandate, step by step
 
 1. **The sender signs once.** Two transactions in their own wallet: `approve`
    the token, then `createSchedule` on `RemessoExecutorV5` with the recipient,
@@ -58,7 +89,7 @@ approve + createSchedule ──────────────────�
                          execute-due-runs    every minute ──▶ runnability() ─▶ executeRun()
                            └─▶ runs ─▶ history ◀── Goldsky subgraph (seconds, not polls)
 
-Another agent ─▶ POST /trigger-run ─▶ 402 ─▶ signed USA₮/USDC/USD₮ ─▶ runNow()
+Another agent ─▶ POST /trigger-run ─▶ 402 ─▶ signed in any of 9 stablecoins ─▶ runNow()
                                         Celo's x402 facilitator settles and pays the gas
 ```
 
@@ -109,7 +140,7 @@ currency, rounded so it only ever gets stricter. Balance totals and the
 "unusual schedule" check count dollar tokens only.
 
 **Ramps are links, not integrations.** Ripio's hosted ramp buys and cashes out
-pesos and reais from a local bank account, and its links carry the wallet:
+pesos, reais and soles from a local bank account, and its links carry the wallet:
 the sender's to buy, the recipient's to cash out. Textile swaps USDT into cNGN
 and withdraws cNGN to a Nigerian bank through Noblocks (about ₦1 per cNGN).
 Textile takes no wallet in a link, so the app says which wallet to connect
@@ -142,7 +173,7 @@ Remesso is tested in MiniPay's developer mode and is not yet a listed Mini App.
 
 ---
 
-## The agent
+## Remesso's own agent
 
 | | |
 |---|---|
@@ -180,7 +211,7 @@ pinned byte for byte to `@celo/attribution-tags`.
 
 ---
 
-## For other agents
+## For developers and agents
 
 ### TypeScript: remesso-sdk
 
@@ -188,8 +219,14 @@ pinned byte for byte to `@celo/attribution-tags`.
 npm install remesso-sdk viem
 ```
 
-Schedules, agent payments a retry can't pay twice, payment requests, payment
-events and signed webhooks, on viem.
+The rails as a library, on viem: `remittances.send` for agent-to-agent
+payments from a wallet or a policy, payment requests and signed invoices,
+payment events and signed webhooks, `receipts.verify`, mandates and policy
+payments a retry can't pay twice, and builder codes that credit an app's
+volume to it on Celo. [docs.remesso.xyz](https://docs.remesso.xyz) covers it
+end to end, with six use cases and an API reference, every code sample
+type-checked against the SDK, and ships the same pages as `llms.txt` and a
+`remesso-sdk` skill for coding assistants.
 [remesso.xyz/developers](https://remesso.xyz/developers) goes from install to
 a mainnet payment and its webhook in about 15 minutes.
 
@@ -219,15 +256,19 @@ the payment flow and what the contract refuses, on one page.
 | `await_setup` | Waits while the human sets the limits, then confirms the wallet is ready |
 | `link_policy` | Links a policy by id; rarely needed, since policies naming the agent are found on their own |
 | `limits` | What the agent may still spend now, read from the chain |
-| `pay` | Sends USD₮, USDC or USA₮ from your wallet, within the policy |
+| `pay` | Sends USD₮, USDC or USA₮ from your wallet, within the policy, once per idempotency key |
+| `payment_requests` | Payment requests addressed to your wallet: who is asking, how much, how often |
+| `decline_request` | Turns a request down with a signature |
 | `pay_x402` | Pays any x402 price on Celo, never above `max_amount`; tops the agent up through the policy, so those payments pass the same caps |
 | `request_payment` | Asks a person or agent to pay this agent on a Remesso schedule |
 | `find_agent` | Looks up another agent's wallet in the ERC-8004 registry |
 
 **Agent to agent:** find the other agent on-chain with `find_agent`, then pay
 it once with `pay`, per call with `pay_x402`, or ask it to pay you on a
-schedule with `request_payment`. Every payment is an ordinary Celo transaction
-carrying the `remesso` attribution tag.
+schedule with `request_payment`. What other agents ask of you shows in
+`payment_requests`, answered with `pay` or turned down with `decline_request`.
+Every payment is an ordinary Celo transaction carrying the `remesso`
+attribution tag.
 
 Needs Node.js 20 or later. The wallet is a local MCP server, so it runs in
 Claude Code and Cowork, not on claude.ai. The plugin lives in
@@ -278,8 +319,8 @@ Cursor and Codex.
 ### Paid services over x402
 
 Sold through **Celo's facilitator** (`https://api.x402.celo.org`). The payer
-signs a token authorisation and the facilitator submits it and pays the gas,
-so **the payer needs no CELO**.
+signs an authorisation — for the pesos, a Permit2 transfer and a permit — and
+the facilitator submits it and pays the gas, so **the payer needs no CELO**.
 
 | Service | Endpoint (`/functions/v1/…`) | Price | What it does |
 |---|---|---|---|
@@ -297,7 +338,8 @@ so **the payer needs no CELO**.
 - **x402 v2 on the wire, v1 still accepted.** The price list travels in the
   `PAYMENT-REQUIRED` header, the payment in `PAYMENT-SIGNATURE` and the receipt
   in `PAYMENT-RESPONSE`. Verified with the official `@x402/fetch` and
-  `@x402/evm` 2.28.0 paying in USA₮ at default settings.
+  `@x402/evm` 2.28.0 paying in USA₮ at default settings, and in wARS through
+  Permit2 on 2026-10-28 (`0xcff27a83…e846`).
 - **Nobody pays for a failure.** A request that cannot succeed is refused
   before a price is quoted. The order is verify → simulate → settle → run: a
   run that would revert charges nothing, and one payment buys exactly one run.
@@ -309,16 +351,17 @@ so **the payer needs no CELO**.
 The plugin above includes them. For any other agent that reads Agent Skills:
 
 ```bash
-npx -y remesso-wallet skills                    # remesso, remesso-x402, remesso-wallet into ~/.agents/skills
+npx -y remesso-wallet skills                    # remesso, remesso-x402, remesso-wallet, remesso-sdk into ~/.agents/skills
 npx -y remesso-wallet skills ~/.claude/skills   # the same, for Claude Code
 ```
 
 `remesso-x402` ships a ready-to-run payer (`scripts/pay.mjs`) and a
 `manifest.json` generated from the live 402 responses, never typed by hand
-(`scripts/build-skill-manifest.ts --check` fails on drift). It stops before
-signing if the wallet holds no USA₮, and refuses any quote above `--max`.
+(`scripts/build-skill-manifest.ts --check` fails on drift). It pays in USA₮ by
+default or in any of the nine (`--asset wARS`), stops before signing if the
+wallet holds none of the token, and refuses any quote above `--max`.
 
-### Mandates between programs
+### Mandates between agents
 
 An agent can be the payer, the payee, or both.
 
@@ -360,10 +403,12 @@ action can reach it:
   grants and by every limit they signed.
 - **A commission** of 25 bps, with `MAX_FEE_BPS` capped at 50 in code.
 
-Proof on mainnet, all from our own test wallets: the first peso payment
+Proof on mainnet, all from our own test wallets: the first wallet-funded
+agent-to-agent payment (`0xafa1e88d…7e6b`), the first peso payment
 (`0x4eaf6976…9cdc`), the first cNGN payments (`0x90423b80…8bd0`,
 `0xb8051faa…fce9`), x402 payments in USA₮ through the official SDK and through
-the skill, and an agent collecting early on a mandate another agent signed.
+the skill, the first x402 payment in wARS (`0xcff27a83…e846`), and an agent
+collecting early on a mandate another agent signed.
 [docs/submission.md](docs/submission.md) lists each transaction.
 
 ---
@@ -373,11 +418,12 @@ the skill, and an agent collecting early on a mandate another agent signed.
 ```
 contracts/          Foundry: RemessoExecutor V1–V5 and RemessoAgentAllowance, 96 tests.
 indexer/            Goldsky subgraph over the executor, read by the UI only.
-skills/             remesso, remesso-x402 and remesso-wallet, plus the manifest index and schema.
+skills/             remesso, remesso-x402, remesso-wallet and remesso-sdk, plus the manifest index and schema.
 mcp/                The plugin's agent wallet: a local MCP server (src/), bundled to dist/.
 plugin/             The Claude plugin as it ships, built by scripts/build-plugin.sh.
 packages/remesso-wallet/  The same wallet on npm, for Codex, Cursor and other MCP hosts.
 packages/remesso-sdk/     The TypeScript SDK on npm, generated in part from the live deployment.
+docs-site/          The developer docs at docs.remesso.xyz (Docusaurus), held to the SDK's source.
 examples/           An agent paying Remesso, or creating a schedule itself.
 scripts/            check-env, x402-buy, agent-pay, e2e-agent-test, build-skill-manifest, build-plugin.
 docs/               submission, AGENTS, invite kit, screenshots, cNGN bank payouts.
@@ -393,6 +439,8 @@ supabase/
     rate-service/           naira-rate over x402.
     latam-rate/, latam-route/   Peso and real pricing and routing over x402.
     agent/                  The public capability document.
+    index-events/, payment-events/, webhooks/, deliver-webhooks/
+                            The receiving side: payments read from the chain, signed webhooks.
     request-payment/        "Pay me here": prefills a payer's form.
     ai-assist/              Drafts a schedule from a sentence; scores and classifies.
     self-verify/, self-webhook/   Optional identity check with Self.
@@ -476,5 +524,5 @@ the code.
   so a wallet is bound to an anonymous session, and switching wallets moves the
   binding. It shows a schedule list and never moves money: the contract checks
   the signer for everything that does.
-- **Schedules do not migrate.** Schedules on V3 and earlier remain on-chain but
-  will not run, and a sender must re-create them on V4.
+- **Schedules do not migrate.** Schedules on V4 and earlier remain on-chain but
+  will not run, and a sender re-creates them on V5.
