@@ -18,9 +18,9 @@
 /// `verify_jwt = false`: the payment is the authentication.
 import {
   decodePayment,
-  ASSETS,
   paymentRequired,
   priced,
+  priceList,
   requirements,
   settle,
   settlementHeaders,
@@ -55,15 +55,9 @@ Deno.serve(async (req) => {
         "Live USDT/NGN and USDC/NGN rates from on-chain RFQ makers: bid, ask " +
         "and last, with mid and spread when both sides are quoted and null " +
         "for both when the market is one-sided.",
-      // One price, several currencies: every accepted asset is 6dp, so the
-      // same number of base units is the same money in each.
-      price: {
-        amount: PRICE_UNITS,
-        decimals: 6,
-        assets: ASSETS.map((a) => ({ symbol: a.symbol, address: a.address })),
-        protocol: "x402",
-        network: "celo",
-      },
+      // One dollar price, and what it is in each accepted asset at that
+      // asset's own scale: 1,000 units of USDC, 1.5×10^18 of wARS.
+      price: { ...priceList(PRICE_UNITS), protocol: "x402", network: "celo" },
       call: "POST with an X-PAYMENT header; POST without one to see the 402.",
     });
   }

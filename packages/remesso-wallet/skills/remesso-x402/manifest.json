@@ -3,7 +3,7 @@
   "manifestVersion": 1,
   "name": "remesso-x402",
   "version": "1.0.0",
-  "description": "Pay Remesso's paid HTTP services on Celo mainnet over x402 v2 — in USA₮ by default (USDC and USD₮ also accepted), gasless for the payer. Use it to buy live NGN rates or to bring a scheduled stablecoin payment forward.",
+  "description": "Pay Remesso's paid HTTP services on Celo mainnet over x402 v2 — in USA₮ by default (USDC, USD₮ and Ripio's wARS, wBRL, wCOP, wMXN, wCLP and wPEN also accepted), gasless for the payer. Use it to buy live NGN rates, peso and real prices and delivery routes, or to bring a scheduled stablecoin payment forward.",
   "skill": {
     "entry": "SKILL.md",
     "url": "https://bitbucket.org/crackedstudios/remesso/raw/main/skills/remesso-x402/SKILL.md"
@@ -39,6 +39,7 @@
         "symbol": "USDC",
         "address": "0xcebA9300f2b948710d2653dD7B07f33A8B32118C",
         "decimals": 6,
+        "transfer": "eip3009",
         "eip712": {
           "name": "USDC",
           "version": "2"
@@ -48,6 +49,7 @@
         "symbol": "USD₮",
         "address": "0x48065fbBE25f71C9282ddf5e1cD6D6A887483D5e",
         "decimals": 6,
+        "transfer": "eip3009",
         "eip712": {
           "name": "Tether USD",
           "version": "1"
@@ -57,8 +59,69 @@
         "symbol": "USA₮",
         "address": "0xD2ab3C9A02DBBAB236BfEC45D1d755DF4267F771",
         "decimals": 6,
+        "transfer": "eip3009",
         "eip712": {
           "name": "Tether America USD",
+          "version": "1"
+        }
+      },
+      {
+        "symbol": "wARS",
+        "address": "0x0DC4F92879B7670e5f4e4e6e3c801D229129D90D",
+        "decimals": 18,
+        "transfer": "permit2",
+        "eip712": {
+          "name": "Peso Argentino",
+          "version": "1"
+        }
+      },
+      {
+        "symbol": "wBRL",
+        "address": "0xD76f5Faf6888e24D9F04Bf92a0c8B921FE4390e0",
+        "decimals": 18,
+        "transfer": "permit2",
+        "eip712": {
+          "name": "Real Brasileño",
+          "version": "1"
+        }
+      },
+      {
+        "symbol": "wCOP",
+        "address": "0x8a1D45e102e886510e891d2Ec656a708991e2D76",
+        "decimals": 18,
+        "transfer": "permit2",
+        "eip712": {
+          "name": "Peso Colombiano",
+          "version": "1"
+        }
+      },
+      {
+        "symbol": "wMXN",
+        "address": "0x337E7456B420bD3481e7FA61fA9850343d610d34",
+        "decimals": 18,
+        "transfer": "permit2",
+        "eip712": {
+          "name": "Peso Mexicano",
+          "version": "1"
+        }
+      },
+      {
+        "symbol": "wCLP",
+        "address": "0x61D450a098b6a7f69fC4b98CE68198fe59768651",
+        "decimals": 18,
+        "transfer": "permit2",
+        "eip712": {
+          "name": "Peso Chileno",
+          "version": "1"
+        }
+      },
+      {
+        "symbol": "wPEN",
+        "address": "0x4F34c8b3b5FB6D98Da888F0feA543d4d9C9F2eBE",
+        "decimals": 18,
+        "transfer": "permit2",
+        "eip712": {
+          "name": "Sol Peruano",
           "version": "1"
         }
       }
@@ -81,12 +144,23 @@
       "price": {
         "amount": "1000",
         "decimals": 6,
-        "usd": 0.001
+        "usd": 0.001,
+        "assets": {
+          "0xcebA9300f2b948710d2653dD7B07f33A8B32118C": "1000",
+          "0x48065fbBE25f71C9282ddf5e1cD6D6A887483D5e": "1000",
+          "0xD2ab3C9A02DBBAB236BfEC45D1d755DF4267F771": "1000",
+          "0x0DC4F92879B7670e5f4e4e6e3c801D229129D90D": "1500000000000000000",
+          "0xD76f5Faf6888e24D9F04Bf92a0c8B921FE4390e0": "5000000000000000",
+          "0x8a1D45e102e886510e891d2Ec656a708991e2D76": "3100000000000000000",
+          "0x337E7456B420bD3481e7FA61fA9850343d610d34": "18000000000000000",
+          "0x61D450a098b6a7f69fC4b98CE68198fe59768651": "950000000000000000",
+          "0x4F34c8b3b5FB6D98Da888F0feA543d4d9C9F2eBE": "3000000000000000"
+        }
       }
     },
     {
       "name": "latam-rate",
-      "description": "Live USD-to-wARS and USD-to-wBRL on Celo from two independent on-chain sources side by side — Textile's RFQ makers and the Uniswap pool at your size — with a flag when they disagree. wCOP has no on-chain market on Celo and is reported as such, never priced from elsewhere.",
+      "description": "Live USD-to-wARS and USD-to-wBRL on Celo from two independent on-chain sources side by side — Textile's RFQ makers and the Uniswap pool at your size — with a flag when they disagree. wCOP, wMXN, wCLP and wPEN have no on-chain market on Celo and are reported as such, never priced from elsewhere.",
       "endpoint": "https://engaboljiqudghvzmebq.supabase.co/functions/v1/latam-rate",
       "method": "POST",
       "input": {
@@ -95,16 +169,27 @@
       "price": {
         "amount": "1000",
         "decimals": 6,
-        "usd": 0.001
+        "usd": 0.001,
+        "assets": {
+          "0xcebA9300f2b948710d2653dD7B07f33A8B32118C": "1000",
+          "0x48065fbBE25f71C9282ddf5e1cD6D6A887483D5e": "1000",
+          "0xD2ab3C9A02DBBAB236BfEC45D1d755DF4267F771": "1000",
+          "0x0DC4F92879B7670e5f4e4e6e3c801D229129D90D": "1500000000000000000",
+          "0xD76f5Faf6888e24D9F04Bf92a0c8B921FE4390e0": "5000000000000000",
+          "0x8a1D45e102e886510e891d2Ec656a708991e2D76": "3100000000000000000",
+          "0x337E7456B420bD3481e7FA61fA9850343d610d34": "18000000000000000",
+          "0x61D450a098b6a7f69fC4b98CE68198fe59768651": "950000000000000000",
+          "0x4F34c8b3b5FB6D98Da888F0feA543d4d9C9F2eBE": "3000000000000000"
+        }
       }
     },
     {
       "name": "latam-route",
-      "description": "How to deliver an amount of pesos or reais on Celo: the token, the dollars it takes at your size and from which venue (with price impact), Ripio's public buy and cash-out links and a prefilled Remesso schedule link. Moves nothing and signs nothing. Argentina and Brazil are priced on-chain; Colombia gets the Ripio route only.",
+      "description": "How to deliver an amount of pesos, reais or soles on Celo: the token, the dollars it takes at your size and from which venue (with price impact), Ripio's public buy and cash-out links and a prefilled Remesso schedule link. Moves nothing and signs nothing. Argentina and Brazil are priced on-chain; Colombia, Mexico, Chile and Peru get the Ripio route only.",
       "endpoint": "https://engaboljiqudghvzmebq.supabase.co/functions/v1/latam-route",
       "method": "POST",
       "input": {
-        "country": "AR | BR | CO",
+        "country": "AR | BR | CO | MX | CL | PE",
         "amount": "number, in local currency unless currency is USD",
         "currency": "optional LOCAL (default) | USD",
         "recipient": "optional 0x address to prefill",
@@ -113,7 +198,18 @@
       "price": {
         "amount": "2000",
         "decimals": 6,
-        "usd": 0.002
+        "usd": 0.002,
+        "assets": {
+          "0xcebA9300f2b948710d2653dD7B07f33A8B32118C": "2000",
+          "0x48065fbBE25f71C9282ddf5e1cD6D6A887483D5e": "2000",
+          "0xD2ab3C9A02DBBAB236BfEC45D1d755DF4267F771": "2000",
+          "0x0DC4F92879B7670e5f4e4e6e3c801D229129D90D": "3000000000000000000",
+          "0xD76f5Faf6888e24D9F04Bf92a0c8B921FE4390e0": "10000000000000000",
+          "0x8a1D45e102e886510e891d2Ec656a708991e2D76": "6200000000000000000",
+          "0x337E7456B420bD3481e7FA61fA9850343d610d34": "36000000000000000",
+          "0x61D450a098b6a7f69fC4b98CE68198fe59768651": "1900000000000000000",
+          "0x4F34c8b3b5FB6D98Da888F0feA543d4d9C9F2eBE": "6000000000000000"
+        }
       }
     },
     {
@@ -127,7 +223,18 @@
       "price": {
         "amount": "10000",
         "decimals": 6,
-        "usd": 0.01
+        "usd": 0.01,
+        "assets": {
+          "0xcebA9300f2b948710d2653dD7B07f33A8B32118C": "10000",
+          "0x48065fbBE25f71C9282ddf5e1cD6D6A887483D5e": "10000",
+          "0xD2ab3C9A02DBBAB236BfEC45D1d755DF4267F771": "10000",
+          "0x0DC4F92879B7670e5f4e4e6e3c801D229129D90D": "15000000000000000000",
+          "0xD76f5Faf6888e24D9F04Bf92a0c8B921FE4390e0": "50000000000000000",
+          "0x8a1D45e102e886510e891d2Ec656a708991e2D76": "31000000000000000000",
+          "0x337E7456B420bD3481e7FA61fA9850343d610d34": "180000000000000000",
+          "0x61D450a098b6a7f69fC4b98CE68198fe59768651": "9500000000000000000",
+          "0x4F34c8b3b5FB6D98Da888F0feA543d4d9C9F2eBE": "30000000000000000"
+        }
       }
     }
   ],

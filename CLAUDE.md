@@ -38,7 +38,8 @@ deno run --allow-all scripts/fork-e2e-runs.ts
 deno test --allow-env --allow-read --allow-write --allow-run --allow-net --allow-sys \
   supabase/functions/_shared/cngn.test.ts
 
-# x402 builder-code — pins our 402 declaration to @x402/extensions' own output
+# x402 — pins our 402's builder-code and gas-sponsoring declarations to @x402/extensions'
+# own output, and runs the official client against a wFIAT price (Permit2)
 deno test --allow-env --allow-read --allow-net supabase/functions/_shared/x402.test.ts
 
 # pre-flight agent — what it tells a sender about an upcoming payment, and how urgently
@@ -342,6 +343,18 @@ not from our token lists: the form's picker and `/agent` both do this, so
 nothing is offered before the contract takes it. MiniPay shows none of the
 wFIAT; the form warns the recipient needs another wallet.
 
+**wMXN, wCLP and wPEN (Mexico, Chile, Peru), added 2026-10-28**, the day after
+Celo's x402 facilitator listed them. They are in both token tables, the
+corridors and the Ripio links, and `contracts/script/setup-v5.sh` allows them
+on V5 (it skips what is already set). Celo has no market for them: no Uniswap
+pool against USDT or USDC at any fee tier and no Textile ticker, so
+`latam-rate` and `latam-route` answer "none on Celo", as for wCOP. Little
+exists on Celo yet: total supply ~13,190 wMXN, ~1,005,000 wCLP and ~603 wPEN
+when added. `unitsPerUsd` is 18, 950 and 3 (open.er-api: 18.67, 989, 3.45,
+rounded down). wCOP went from 3,200 to 3,100 the same day: the peso had
+gained to 3,143, so its cap allowed $1,018. Ripio's ramp refuses automated
+reads, so whether it ramps the three on Celo wasn't checked.
+
 ## MiniPay: recipients are phone numbers — live 2026-10-11
 
 MiniPay's listing rules forbid typing or pasting an address ("no arbitrary
@@ -579,13 +592,32 @@ hackathon credits x402 volume **by `payTo`** — `X402_PAY_TO`, the cold owner
 `0xcDEA…3Ae2`, not the executor. `x402-pay.ts` (us paying) speaks v1, which has
 no extensions, so our purchases cannot carry `s` until it moves to v2.
 
-**Two currencies, one price.** `_shared/x402.ts` holds `ASSETS` — USDC and
-USA₮ — and a 402 offers both; the same `maxAmountRequired` is correct for each
-only because both are 6dp. x402 **v1's payload carries no asset**, so the
-seller cannot tell from `X-PAYMENT` which one the payer signed for:
-`verifyAny()` tries the candidates in order and settlement must reuse the entry
-that verified. Adding an 18dp asset (Ripio's wARS and friends) means pricing
-per asset AND `assetTransferMethod: "permit2"`, which is a different code path.
+**One dollar price, nine currencies (2026-10-28).** `_shared/x402.ts` holds
+`ASSETS`: USDC, USD₮ and USA₮ (6dp, EIP-3009) and Ripio's six wFIAT (18dp,
+Permit2), all settled by Celo's facilitator. A service's price is in dollars at
+6dp; `amountIn` converts it at the backend's own `unitsPerUsd`, so $0.001 is
+1,000 units of USDC and 1.5 wARS (1.5×10^18). The wFIAT entries carry
+`assetTransferMethod: "permit2"` in `extra`, and while one is on offer the v2
+402 declares `eip2612GasSponsoring` (verbatim from `@x402/extensions`): the
+client then signs an EIP-2612 permit to Permit2 too, and the facilitator lands
+it, so the payer needs no CELO. Without the declaration a wallet that never
+approved Permit2 gets `412 permit2_allowance_required`.
+- **cNGN is not offered.** It is Permit2 without EIP-2612: its first payer must
+  approve Permit2 with CELO, and Celo's guide says not to declare sponsoring on
+  a cNGN route. One 402 has one set of extensions.
+- **The 402 header is UTF-8 base64**, as `@x402/core` encodes and decodes it.
+  `btoa` alone is Latin-1, and wBRL's EIP-712 name is "Real Brasileño": its
+  signatures would have been for a domain nobody uses. Payments decode UTF-8
+  too, and the description no longer has to be Latin-1.
+- x402 **v1's payload carries no asset**, so the seller cannot tell from
+  `X-PAYMENT` which one the payer signed for: `verify()` tries the candidates
+  in order and settlement must reuse the entry that verified. The v1 body
+  lists only the three EIP-3009 assets, and those are a v1 payment's only
+  candidates.
+- A payer's client must read the chain (`schemeOptions.rpcUrl`) to sign the
+  permit, and must allow a wFIAT in its spend controls: the stock client signs
+  only USDC, USD₮ and USA₮ by default. `skills/remesso-x402/scripts/pay.mjs`
+  does both (`--asset wARS`).
 USA₮'s domain is `Tether America USD` v1 — not the symbol — and its 18dp fee
 adapter `0x0357EE22…80C4` reports the same `symbol()`, so match on address.
 
@@ -601,11 +633,12 @@ peso/real pricing and routing. Both read two independent sources side by side
 (`_shared/latam.ts`): Textile's public ticker feed (the one `rate-service`
 reads) and the Uniswap USDT pools on Celo — wARS 1bps `0x5D8e…2391`, wBRL
 1bps `0x01c3…` (~88k wBRL: 1.2% impact at $5k, so the route switches venue).
-wCOP has neither and is answered as "none on Celo". Ripio is links only.
-Both run through `_shared/x402-serve.ts` (400 before price, answer RELEASED only
-after settlement — computed first so "unavailable" charges nobody); **its description must be Latin-1** — it rides in the base64
-PAYMENT-REQUIRED header and `btoa` throws on "→", which made every paid call
-a 500 locally before it was caught.
+wCOP, wMXN, wCLP and wPEN have neither and are answered as "none on Celo".
+Ripio is links only. Both run through `_shared/x402-serve.ts` (400 before
+price, answer RELEASED only after settlement — computed first so "unavailable"
+charges nobody). Its description rides in the base64 PAYMENT-REQUIRED header,
+where `btoa` used to throw on "→" and made every paid call a 500 locally
+before it was caught; the header is UTF-8 now.
 
 `trigger-run` sells one early send over x402 — an agent pays $0.01 USDC, one
 run fires ahead of cadence. The caller buys timing and nothing else. Order is

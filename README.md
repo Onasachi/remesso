@@ -14,8 +14,9 @@ into one decision. The sender signs a mandate once — who, how much, how often,
 until when — and Remesso's agent pays it on Celo mainnet from then on, without
 asking again and without ever holding the money.
 
-- **Eight currencies.** USDT, USDC, USDm and USA₮, which MiniPay shows; Ripio's
-  wARS, wBRL and wCOP for Argentina, Brazil and Colombia; and cNGN for Nigeria.
+- **Eleven currencies.** USDT, USDC, USDm and USA₮, which MiniPay shows; Ripio's
+  wARS, wBRL, wCOP, wMXN, wCLP and wPEN for Argentina, Brazil, Colombia,
+  Mexico, Chile and Peru; and cNGN for Nigeria.
   The recipient receives exactly the token sent. Nothing is converted.
 - **Built for MiniPay.** Inside MiniPay the recipient is a contact or a phone
   number, never an address.
@@ -90,6 +91,9 @@ skill read that allowlist rather than a list of ours.
 | **wARS** (Ripio) | Argentine peso | 18 | — | ✅ | Ripio ramp |
 | **wBRL** (Ripio) | Brazilian real | 18 | — | ✅ | Ripio ramp |
 | **wCOP** (Ripio) | Colombian peso | 18 | — | ✅ | Ripio ramp |
+| **wMXN** (Ripio) | Mexican peso | 18 | — | ✅ | Ripio ramp |
+| **wCLP** (Ripio) | Chilean peso | 18 | — | ✅ | Ripio ramp |
+| **wPEN** (Ripio) | Peruvian sol | 18 | — | ✅ | Ripio ramp |
 | **cNGN** | Nigerian naira | 6 | — | ✅ | Textile: swap USDT→cNGN, Withdraw NGN to a bank |
 
 Every schedule uses the **Direct** rail: the recipient gets the token the
@@ -281,10 +285,13 @@ so **the payer needs no CELO**.
 |---|---|---|---|
 | `naira-rate` | `rate-service` | 0.001 | Live USDT/NGN and USDC/NGN: bid, ask and last |
 | `latam-rate` | `latam-rate` | 0.001 | USD→wARS and USD→wBRL from two on-chain sources side by side (Textile's maker quotes and the Uniswap pool at your size), flagged when they disagree by more than 1% |
-| `latam-route` | `latam-route` | 0.002 | How to deliver pesos or reais: the token, the dollars needed, the best venue at that size, and Ripio and Remesso links |
+| `latam-route` | `latam-route` | 0.002 | How to deliver pesos, reais or soles: the token, the dollars needed, the best venue at that size, and Ripio and Remesso links |
 | `trigger-run` | `trigger-run` | 0.01 | Brings one payment of a schedule forward, only if its sender allowed early sends |
 
-- **Currencies:** USA₮, USDC and USD₮, at the same price in each.
+- **Currencies:** USA₮, USDC and USD₮, at the same price in each, and Ripio's
+  wARS, wBRL, wCOP, wMXN, wCLP and wPEN at the same price in local currency.
+  The wFIAT settle through Permit2 with an EIP-2612 permit the facilitator
+  sponsors, so their payers need no CELO either.
 - **Paid to:** `0xcDEA4Cc4191Ec9A5d8fD1a6B17e3F4C84E993Ae2`, the same on every
   service.
 - **x402 v2 on the wire, v1 still accepted.** The price list travels in the
@@ -342,7 +349,7 @@ agent.
 | Agent / executor (hot) | `0xA351d65c15b8a342B6ECbC7f2B9eFE62B17cdb21`, which pays gas only |
 | Treasury | `0x2dA4cd408bd8051385B5Dd113F8beD56E4F9F134`, where the commission lands |
 | Earlier versions | V4 `0x288b7cDD…5816009` (2026-09-22 to 2026-10-16; owner `0xcDEA…3Ae2`, executor `0x3c75…9Cd1`), V3 `0xd2e68acd…7e08f`, V2 `0x218414aD…DB0e95D2`, V1 `0xC7eF75fC…1189`, all superseded. Schedules do not migrate between contracts. |
-| Tokens | USDT `0x48065fbB…483D5e` · USDC `0xcebA9300…32118C` · USDm `0x765DE816…B1282a` · USA₮ `0xD2ab3C9A…67F771` · wARS `0x0DC4F928…29D90D` · wBRL `0xD76f5Faf…4390e0` · wCOP `0x8a1D45e1…91e2D76` · cNGN `0xF6829D73…271a4f` |
+| Tokens | USDT `0x48065fbB…483D5e` · USDC `0xcebA9300…32118C` · USDm `0x765DE816…B1282a` · USA₮ `0xD2ab3C9A…67F771` · wARS `0x0DC4F928…29D90D` · wBRL `0xD76f5Faf…4390e0` · wCOP `0x8a1D45e1…91e2D76` · wMXN `0x337E7456…610d34` · wCLP `0x61D450a0…768651` · wPEN `0x4F34c8b3…9F2eBE` · cNGN `0xF6829D73…271a4f` |
 
 What V4 adds over V3, each fixed in the schedule at signing so no later owner
 action can reach it:

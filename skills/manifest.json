@@ -12,7 +12,7 @@
     },
     {
       "name": "remesso-x402",
-      "description": "Pay Remesso's paid HTTP services on Celo mainnet over x402 v2 — in USA₮ by default (USDC and USD₮ also accepted), gasless for the payer. Use it to buy live NGN rates or to bring a scheduled stablecoin payment forward.",
+      "description": "Pay Remesso's paid HTTP services on Celo mainnet over x402 v2 — in USA₮ by default (USDC, USD₮ and Ripio's wARS, wBRL, wCOP, wMXN, wCLP and wPEN also accepted), gasless for the payer. Use it to buy live NGN rates, peso and real prices and delivery routes, or to bring a scheduled stablecoin payment forward.",
       "skill": "https://bitbucket.org/crackedstudios/remesso/raw/main/skills/remesso-x402/SKILL.md",
       "manifest": "https://bitbucket.org/crackedstudios/remesso/raw/main/skills/remesso-x402/manifest.json",
       "install": "npx -y remesso-wallet skills"

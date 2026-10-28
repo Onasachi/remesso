@@ -24,7 +24,7 @@ type Accept = {
   amount: string;
   payTo: string;
   maxTimeoutSeconds: number;
-  extra: { name: string; version: string };
+  extra: { name: string; version: string; assetTransferMethod?: string };
 };
 
 /// The v2 price list rides in a base64 `PAYMENT-REQUIRED` header; an unpaid
@@ -34,44 +34,59 @@ async function quote(url: string): Promise<{ accepts: Accept[]; extensions?: Rec
   await res.body?.cancel();
   const h = res.headers.get("payment-required");
   if (res.status !== 402 || !h) throw new Error(`${url}: expected a v2 402, got ${res.status}`);
-  return JSON.parse(atob(h));
+  // UTF-8, as @x402/core encodes it: wBRL's EIP-712 name is "Real Brasileño".
+  return JSON.parse(new TextDecoder().decode(Uint8Array.from(atob(h), (c) => c.charCodeAt(0))));
 }
 
 const agent = await (await fetch(`${FUNCTIONS}/agent`)).json();
 const live = await quote(`${FUNCTIONS}/rate-service`);
 
 // Symbols and decimals are not in a 402 — only addresses and EIP-712 domains.
-// Taken from the capability document, matched by ADDRESS: each of these has an
-// 18dp fee adapter on Celo reporting the same symbol().
-const named = new Map<string, string>();
+// Taken from the capability document, matched by ADDRESS: USD₮, USDC and USA₮
+// each have an 18dp fee adapter on Celo reporting the same symbol().
+type Priced = { symbol: string; address: string; decimals: number; amount: string };
+const named = new Map<string, Priced>();
 for (const s of agent.services ?? []) {
-  for (const a of s.payment?.assets ?? []) named.set(a.address.toLowerCase(), a.symbol);
+  for (const a of (s.payment?.assets ?? []) as Priced[]) named.set(a.address.toLowerCase(), a);
 }
 const DISPLAY: Record<string, string> = { USDT: "USD₮", USAT: "USA₮" };
 
 const assets = live.accepts.map((a) => {
-  const symbol = named.get(a.asset.toLowerCase()) ?? "?";
+  const known = named.get(a.asset.toLowerCase());
+  if (!known || typeof known.decimals !== "number") throw new Error(`${a.asset} is in the 402 but /agent gives no symbol and decimals`);
   return {
-    symbol: DISPLAY[symbol] ?? symbol,
+    symbol: DISPLAY[known.symbol] ?? known.symbol,
     address: a.asset,
-    decimals: 6,
-    eip712: a.extra,
+    decimals: known.decimals,
+    // Permit2 for the wFIAT: the payer signs a Permit2 transfer and an
+    // EIP-2612 permit the facilitator sponsors, not an EIP-3009 authorisation.
+    transfer: a.extra.assetTransferMethod ?? "eip3009",
+    eip712: { name: a.extra.name, version: a.extra.version },
   };
 });
-if (assets.some((a) => a.symbol === "?")) throw new Error("a 402 asset is missing from /agent");
 
 // Every paid service's price, from /agent. trigger-run only quotes for a
 // schedule that allows it (403 otherwise, before any price), so its amount
 // cannot be read from an anonymous 402 the way rate-service's is.
 const services = (agent.services ?? [])
   .filter((s: { payment?: { protocol?: string } }) => s.payment?.protocol === "x402")
-  .map((s: { name: string; description: string; endpoint: string; method: string; input?: unknown; payment: { amount: string } }) => ({
+  .map((s: { name: string; description: string; endpoint: string; method: string; input?: unknown; payment: { amount: string; assets: Priced[] } }) => ({
     name: s.name,
     description: s.description,
     endpoint: s.endpoint,
     method: s.method,
     input: s.input ?? (s.name === "trigger-run" ? { scheduleId: "number — an on-chain V4 schedule id" } : {}),
-    price: { amount: s.payment.amount, decimals: 6, usd: Number(s.payment.amount) / 1e6 },
+    // The dollar price, and the same price in each asset's own base units.
+    price: {
+      amount: s.payment.amount,
+      decimals: 6,
+      usd: Number(s.payment.amount) / 1e6,
+      assets: Object.fromEntries(assets.map((a) => {
+        const amount = s.payment.assets.find((p) => p.address.toLowerCase() === a.address.toLowerCase())?.amount;
+        if (!amount) throw new Error(`/agent gives ${s.name} no price in ${a.symbol}`);
+        return [a.address, amount];
+      })),
+    },
   }));
 
 const payTo = [...new Set(live.accepts.map((a) => a.payTo))];
@@ -83,8 +98,8 @@ const x402Manifest = {
   name: "remesso-x402",
   version: "1.0.0",
   description:
-    "Pay Remesso's paid HTTP services on Celo mainnet over x402 v2 — in USA₮ by default (USDC and USD₮ also accepted), gasless for the payer. " +
-    "Use it to buy live NGN rates or to bring a scheduled stablecoin payment forward.",
+    "Pay Remesso's paid HTTP services on Celo mainnet over x402 v2 — in USA₮ by default (USDC, USD₮ and Ripio's wARS, wBRL, wCOP, wMXN, wCLP and wPEN also accepted), gasless for the payer. " +
+    "Use it to buy live NGN rates, peso and real prices and delivery routes, or to bring a scheduled stablecoin payment forward.",
   skill: { entry: "SKILL.md", url: `${RAW}/skills/remesso-x402/SKILL.md` },
   homepage: APP,
   repository: "https://bitbucket.org/crackedstudios/remesso",
@@ -105,7 +120,7 @@ const x402Manifest = {
       "https://api.x402.celo.org",
     gas: "paid by the facilitator — the payer needs the token, not CELO",
     // What the skill pays in unless told otherwise. A preference, not a
-    // requirement: every asset below is accepted at the same price.
+    // requirement: every asset below is accepted at the same dollar price.
     defaultAsset: assets.find((a) => a.symbol === "USA₮")?.address ?? null,
     assets,
     builderCode: (live.extensions?.["builder-code"] as { info?: unknown } | undefined)?.info ?? null,

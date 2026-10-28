@@ -23456,8 +23456,38 @@ var deployment = {
       "currency": "COP",
       "directAllowed": true,
       "feeCurrency": null,
-      "minPerRun": "3200000000000000000000",
-      "maxPerRun": "3200000000000000000000000"
+      "minPerRun": "3100000000000000000000",
+      "maxPerRun": "3100000000000000000000000"
+    },
+    {
+      "symbol": "wMXN",
+      "address": "0x337E7456B420bD3481e7FA61fA9850343d610d34",
+      "decimals": 18,
+      "currency": "MXN",
+      "directAllowed": true,
+      "feeCurrency": null,
+      "minPerRun": "18000000000000000000",
+      "maxPerRun": "18000000000000000000000"
+    },
+    {
+      "symbol": "wCLP",
+      "address": "0x61D450a098b6a7f69fC4b98CE68198fe59768651",
+      "decimals": 18,
+      "currency": "CLP",
+      "directAllowed": true,
+      "feeCurrency": null,
+      "minPerRun": "950000000000000000000",
+      "maxPerRun": "950000000000000000000000"
+    },
+    {
+      "symbol": "wPEN",
+      "address": "0x4F34c8b3b5FB6D98Da888F0feA543d4d9C9F2eBE",
+      "decimals": 18,
+      "currency": "PEN",
+      "directAllowed": true,
+      "feeCurrency": null,
+      "minPerRun": "3000000000000000000",
+      "maxPerRun": "3000000000000000000000"
     },
     {
       "symbol": "cNGN",
@@ -34040,7 +34070,7 @@ async function payTool({ to, amount, token: token2, memo, idempotency_key, allow
 }
 var server = new McpServer({
   name: "remesso-wallet",
-  version: "0.6.1",
+  version: "0.6.2",
   icons: [{ src: `${APP}/icon.png`, mimeType: "image/png", sizes: ["512x512"] }]
 });
 server.tool(

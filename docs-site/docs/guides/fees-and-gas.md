@@ -111,7 +111,7 @@ The token it uses is the one the transaction is about:
 - **creating or managing a policy:** the policy's token;
 - **an agent payment:** the policy's token, but held by the agent's own key, since the agent pays its gas. Most agents hold none, so they need a little CELO.
 
-USDT, USDC, USDm and USA₮ can pay gas: the "Pays gas" column in the table above. wARS, wBRL, wCOP and cNGN can't, so a payer funding a schedule in them needs some CELO.
+USDT, USDC, USDm and USA₮ can pay gas: the "Pays gas" column in the table above. Ripio's tokens and cNGN can't, so a payer funding a schedule in them needs some CELO.
 
 Gas paid in a token costs a little more gas than gas paid in CELO. In our mainnet test on 2026-10-25, a wallet holding no CELO sent an approval, a `createPolicy` and a `revoke`, which used 115,469, 211,253 and 115,498 gas. The three cost 0.007028 USDT in all.
 
@@ -131,7 +131,7 @@ try {
 
 An early send brings one payment of a schedule forward, when its payer granted a trigger (see [Let a payment be sent early](./schedules.md#let-a-payment-be-sent-early)):
 
-- **Through Remesso,** for a schedule whose trigger is `"remesso"`: `trigger-run` costs 0.01 USDC, USDT or USA₮, paid over x402. The x402 facilitator pays the settlement's gas, and Remesso's executor pays for the run. See the [HTTP API](../reference/http-api.md).
+- **Through Remesso,** for a schedule whose trigger is `"remesso"`: `trigger-run` costs 0.01 USDC, USDT or USA₮, or the same in a Ripio token, paid over x402. The x402 facilitator pays the settlement's gas, and Remesso's executor pays for the run. See the [HTTP API](../reference/http-api.md).
 - **Yourself,** when your own address is the trigger: call `runNow` on the contract, and pay its gas.
 
 An early send costs no extra fee beyond the 0.25% the payment carries anyway, and it never adds a payment.

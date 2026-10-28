@@ -6,6 +6,13 @@ Source: https://docs.remesso.xyz/docs/resources/changelog
 
 Releases of [`remesso-sdk`](https://www.npmjs.com/package/remesso-sdk) on npm.
 
+## 0.3.1
+
+Released 28 October 2026.
+
+- **Three more currencies.** Ripio's wMXN, wCLP and wPEN (Mexican peso, Chilean peso, Peruvian sol) can be scheduled and paid like the other local-currency tokens: 18 to 18,000 wMXN, 950 to 950,000 wCLP and 3 to 3,000 wPEN per payment.
+- **wCOP's per-payment limits are 3,100 to 3.1 million**, from 3,200 to 3.2 million. The Colombian peso gained on the dollar, and the limits stay at or under $1,000.
+
 ## 0.3.0
 
 Released 26 October 2026, after 0.3.0-rc.1 the same day.
