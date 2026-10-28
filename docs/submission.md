@@ -2,7 +2,7 @@
 
 **Agent-to-agent remittance rails on Celo: agents pay agents across borders, in the currency the recipient spends, on mandates and spending limits a human signs on-chain.**
 
-Live on Celo mainnet · App: https://remesso.xyz · Docs: https://docs.remesso.xyz · Demo video: https://youtu.be/rxV5KtJocZ8 · Repo: https://bitbucket.org/crackedstudios/remesso
+Live on Celo mainnet · App: https://remesso.xyz · Docs: https://docs.remesso.xyz · Demo video: https://youtu.be/rxV5KtJocZ8 · Repo: https://github.com/Onasachi/remesso
 
 ---
 
