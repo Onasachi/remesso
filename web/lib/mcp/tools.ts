@@ -264,7 +264,7 @@ export function remessoTools(origin: string): Tool[] {
     name: "check_wallet",
     title: "Check a wallet's balances",
     description:
-      "Read a Celo wallet's stablecoin balances (USD₮, USDC, USDm, USA₮, cNGN, wARS, wBRL, wCOP) and how much of each it " +
+      "Read a Celo wallet's stablecoin balances (USD₮, USDC, USDm, USA₮, cNGN, wARS, wBRL, wCOP, wMXN, wCLP, wPEN) and how much of each it " +
       "has approved for Remesso schedules. Use it before preparing a payment to check the user can cover it.",
     inputSchema: {
       type: "object",

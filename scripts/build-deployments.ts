@@ -56,6 +56,9 @@ const CURRENCY: Record<string, string> = {
   wARS: "ARS",
   wBRL: "BRL",
   wCOP: "COP",
+  wMXN: "MXN",
+  wCLP: "CLP",
+  wPEN: "PEN",
   cNGN: "NGN",
 };
 

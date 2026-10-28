@@ -17,10 +17,10 @@
 ///
 /// `rate-service` and `trigger-run` predate this and follow the same order by hand.
 import {
-  ASSETS,
   decodePayment,
   paymentRequired,
   priced,
+  priceList,
   requirements,
   settle,
   settlementHeaders,
@@ -40,7 +40,7 @@ export type PaidService<I> = {
   path: string;
   name: string;
   description: string;
-  /// Base units, 6dp — the same number in every accepted asset.
+  /// The dollar price, 6dp; each accepted asset is quoted at its own scale.
   priceUnits: string;
   /// Shown free on GET, so discovery never costs money.
   input: Record<string, string>;
@@ -51,12 +51,9 @@ export type PaidService<I> = {
 };
 
 export function servePaid<I>(svc: PaidService<I>) {
-  // The description rides in the base64 PAYMENT-REQUIRED header, and the
-  // encoder takes Latin-1 only: one "→" in it and every paid request is a 500
-  // (found locally 2026-10-11, before it shipped). Refuse at boot instead.
-  if (/[^\x00-\xff]/.test(svc.description)) {
-    throw new Error(`${svc.path}: description must be Latin-1 — it is sent in the 402 header`);
-  }
+  // The description rides in the base64 PAYMENT-REQUIRED header. That header
+  // is UTF-8 now (`x402.ts`); it was Latin-1, and one "→" made every paid
+  // request a 500 (found locally 2026-10-11, before it shipped).
   Deno.serve(async (req) => {
     if (req.method === "OPTIONS") return new Response(null, { headers: CORS });
     const resource = `${(Deno.env.get("SUPABASE_URL") ?? "").replace(/\/+$/, "")}/functions/v1/${svc.path}`;
@@ -66,13 +63,7 @@ export function servePaid<I>(svc: PaidService<I>) {
         name: svc.name,
         description: svc.description,
         input: svc.input,
-        price: {
-          amount: svc.priceUnits,
-          decimals: 6,
-          assets: ASSETS.map((a) => ({ symbol: a.symbol, address: a.address })),
-          protocol: "x402",
-          network: "celo",
-        },
+        price: { ...priceList(svc.priceUnits), protocol: "x402", network: "celo" },
         call: "POST with a PAYMENT-SIGNATURE (v2) or X-PAYMENT (v1) header; POST without one to see the 402.",
       });
     }
@@ -117,7 +108,8 @@ export function servePaid<I>(svc: PaidService<I>) {
     }
 
     // The answer is produced first and released only once settlement lands.
-    // Settling consumes the payer's EIP-3009 nonce on-chain; handing the
+    // Settling consumes the payer's nonce on-chain (EIP-3009's, or Permit2's
+    // for the wFIAT); handing the
     // answer over before that let one signature be replayed, or cancelled,
     // for free answers (solidity-auditor scan 2026-10-16).
     const paid = await settle(payment, check.matched, what);

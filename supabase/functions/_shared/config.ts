@@ -26,17 +26,23 @@ export const CELO = {
 ///
 /// `unitsPerUsd` scales the backend's dollar cap into each token's own units.
 /// For the dollar stablecoins it is 1. For Ripio's wFIAT it is a rough rate,
-/// rounded DOWN from the market on 2026-10-06 (Textile: USD→ARS 1,597,
-/// USD→BRL 4.98; open.er-api: USD→COP 3,286). Rounding down and letting the
-/// peso fall both make the cap stricter in dollar terms, so a stale number
-/// errs toward refusing a run, never toward allowing a bigger one. It is a
-/// backstop on the on-chain envelope, not a price anything is paid at.
+/// rounded DOWN from the market (wARS, wBRL on 2026-10-06 from Textile: USD→ARS
+/// 1,597, USD→BRL 4.98; the rest on 2026-10-28 from open.er-api: USD→COP 3,143,
+/// MXN 18.67, CLP 989, PEN 3.45). Rounding down and letting the peso fall both
+/// make the cap stricter in dollar terms, so a stale number errs toward
+/// refusing a run, never toward allowing a bigger one. A peso that gains
+/// breaks that: wCOP was 3,200 until the peso passed it, and a cap that
+/// rounded up let a payment worth $1,018 through. Re-read when adding a token.
+/// It is a backstop on the on-chain envelope, not a price a schedule pays at.
+/// x402 uses it to quote a service's dollar price in a local currency
+/// (`x402.ts`), where rounding down charges a little under the dollar price.
 ///
-/// wARS, wBRL and wCOP are the three wFIAT Celo's x402 facilitator lists
-/// (`/supported`, 2026-10-06), verified on-chain the same day: 18dp, proxies.
-/// A schedule in one only exists once the owner has called
-/// `setDirectToken(token, true)` on V4 — until then `createSchedule` reverts
-/// with TokenNotAllowed and this entry simply names a token nobody can use.
+/// The six wFIAT are the ones Celo's x402 facilitator lists (`/supported`):
+/// wARS, wBRL and wCOP since 2026-10-06, wMXN, wCLP and wPEN since 2026-10-27.
+/// Each was verified on-chain when it was added: 18dp, proxies. A schedule in
+/// one only exists once the owner has called `setDirectToken(token, true)` —
+/// until then `createSchedule` reverts with TokenNotAllowed and this entry
+/// simply names a token nobody can use.
 export const DIRECT_TOKENS = [
   { symbol: "USDT", address: "0x48065fbbe25f71c9282ddf5e1cd6d6a887483d5e", decimals: 6, unitsPerUsd: 1 },
   { symbol: "USDC", address: "0xcebA9300f2b948710d2653dD7B07f33A8B32118C", decimals: 6, unitsPerUsd: 1 },
@@ -44,7 +50,10 @@ export const DIRECT_TOKENS = [
   { symbol: "USA₮", address: "0xD2ab3C9A02DBBAB236BfEC45D1d755DF4267F771", decimals: 6, unitsPerUsd: 1 },
   { symbol: "wARS", address: "0x0DC4F92879B7670e5f4e4e6e3c801D229129D90D", decimals: 18, unitsPerUsd: 1500 },
   { symbol: "wBRL", address: "0xD76f5Faf6888e24D9F04Bf92a0c8B921FE4390e0", decimals: 18, unitsPerUsd: 5 },
-  { symbol: "wCOP", address: "0x8a1D45e102e886510e891d2Ec656a708991e2D76", decimals: 18, unitsPerUsd: 3200 },
+  { symbol: "wCOP", address: "0x8a1D45e102e886510e891d2Ec656a708991e2D76", decimals: 18, unitsPerUsd: 3100 },
+  { symbol: "wMXN", address: "0x337E7456B420bD3481e7FA61fA9850343d610d34", decimals: 18, unitsPerUsd: 18 },
+  { symbol: "wCLP", address: "0x61D450a098b6a7f69fC4b98CE68198fe59768651", decimals: 18, unitsPerUsd: 950 },
+  { symbol: "wPEN", address: "0x4F34c8b3b5FB6D98Da888F0feA543d4d9C9F2eBE", decimals: 18, unitsPerUsd: 3 },
   // cNGN on the DIRECT rail: the recipient receives cNGN and nothing converts —
   // no swap, no redemption, no bank. That is why the rail flags do not gate
   // it (they gate payout types, rails.ts). ~1,363 NGN/USD on 14 Oct 2026,

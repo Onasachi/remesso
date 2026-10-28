@@ -443,7 +443,8 @@ console.log(events.find((e) => e.refId === s.id.toString())?.details?.builderCod
   nothing.
 - **Per payment, the executor sends the equivalent of 1 to 1,000 dollars**: 1
   to 1,000 USDT, USDC, USA₮ or USDm; 1,500 to 1.5 million wARS; 5 to 5,000
-  wBRL; 3,200 to 3.2 million wCOP; 1,300 to 1.3 million cNGN. Outside that a
+  wBRL; 3,100 to 3.1 million wCOP; 18 to 18,000 wMXN; 950 to 950,000 wCLP; 3
+  to 3,000 wPEN; 1,300 to 1.3 million cNGN. Outside that a
   schedule is valid on-chain and never runs, so the SDK refuses it before
   signing. `runLimits(token)` gives the bounds, and
   `https://engaboljiqudghvzmebq.supabase.co/functions/v1/agent` publishes them

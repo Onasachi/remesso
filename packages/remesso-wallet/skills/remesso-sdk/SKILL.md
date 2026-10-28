@@ -29,7 +29,7 @@ license: MIT
 
 <!-- references: written by scripts/build-ai-docs.ts -->
 
-The pages of https://docs.remesso.xyz for remesso-sdk 0.3.0.
+The pages of https://docs.remesso.xyz for remesso-sdk 0.3.1.
 
 ### Get started
 

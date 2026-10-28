@@ -35,7 +35,7 @@ export type TokenInfo = {
   /// What one unit is worth. Only "USD" tokens are summed into a dollar total
   /// or compared against dollar amounts — a wARS is a peso, and adding it 1:1
   /// would overstate a balance by about 1,500 times.
-  currency: "USD" | "NGN" | "ARS" | "BRL" | "COP";
+  currency: "USD" | "NGN" | "ARS" | "BRL" | "COP" | "MXN" | "CLP" | "PEN";
 };
 
 /// Decimals are pinned beside every address on purpose. They are NOT uniform:
@@ -96,9 +96,10 @@ export const CNGN: TokenInfo = {
 };
 
 /// Ripio's wFIAT: local-currency stablecoins backed 1:1, all 18dp. These are
-/// the three Celo's x402 facilitator lists (`/supported`, 2026-10-06), each
-/// verified on-chain that day. MiniPay shows none of them, so a recipient
-/// needs another wallet to see the balance — the form says so.
+/// the six Celo's x402 facilitator lists (`/supported`): wARS, wBRL and wCOP
+/// since 2026-10-06, wMXN, wCLP and wPEN since 2026-10-27, each verified
+/// on-chain when added. MiniPay shows none of them, so a recipient needs
+/// another wallet to see the balance — the form says so.
 export const WARS: TokenInfo = {
   address: "0x0DC4F92879B7670e5f4e4e6e3c801D229129D90D",
   symbol: "wARS",
@@ -123,6 +124,30 @@ export const WCOP: TokenInfo = {
   currency: "COP",
 };
 
+export const WMXN: TokenInfo = {
+  address: "0x337E7456B420bD3481e7FA61fA9850343d610d34",
+  symbol: "wMXN",
+  decimals: 18,
+  miniPayVisible: false,
+  currency: "MXN",
+};
+
+export const WCLP: TokenInfo = {
+  address: "0x61D450a098b6a7f69fC4b98CE68198fe59768651",
+  symbol: "wCLP",
+  decimals: 18,
+  miniPayVisible: false,
+  currency: "CLP",
+};
+
+export const WPEN: TokenInfo = {
+  address: "0x4F34c8b3b5FB6D98Da888F0feA543d4d9C9F2eBE",
+  symbol: "wPEN",
+  decimals: 18,
+  miniPayVisible: false,
+  currency: "PEN",
+};
+
 /// Assets the Direct rail can handle — sender funds in one of these and the
 /// recipient receives the same asset, unswapped. The contract's allowlist
 /// decides which a NEW schedule may use (`useAllowedDirectTokens`); this list
@@ -131,7 +156,7 @@ export const WCOP: TokenInfo = {
 // swapped or redeemed, and they cash it out themselves on Textile
 // (lib/textile.ts). Offered for a new schedule only once the contract's
 // allowlist takes it (useAllowedDirectTokens) — the naira RAILS stay off.
-export const DIRECT_TOKENS: TokenInfo[] = [USDT, USDC, CUSD, USAT, WARS, WBRL, WCOP, CNGN];
+export const DIRECT_TOKENS: TokenInfo[] = [USDT, USDC, CUSD, USAT, WARS, WBRL, WCOP, WMXN, WCLP, WPEN, CNGN];
 
 const BY_ADDRESS: Record<string, TokenInfo> = Object.fromEntries(
   [...DIRECT_TOKENS, CNGN].map((t) => [t.address.toLowerCase(), t]),
@@ -149,7 +174,10 @@ const MIN_RUN_WHOLE: Record<TokenInfo["currency"], bigint> = {
   NGN: 1300n,
   ARS: 1500n,
   BRL: 5n,
-  COP: 3200n,
+  COP: 3100n,
+  MXN: 18n,
+  CLP: 950n,
+  PEN: 3n,
 };
 
 export function minRunUnits(t: TokenInfo): bigint {

@@ -10,7 +10,7 @@ Remesso has a small number of moving parts. This page explains each one and what
 
 Remesso runs on Celo mainnet (chain id `42220`) and nowhere else.
 
-Payments are in stablecoins and local-currency tokens: USDT, USDC, USDm and USA₮ (US dollars), Ripio's wARS, wBRL and wCOP (Argentine pesos, Brazilian reais, Colombian pesos), and cNGN (Nigerian naira). Tokens have different decimals: USDT has 6 and wARS has 18. The SDK takes amounts as decimal strings, like `"2.50"`, and returns base units as `bigint`. The full list is in [tokens and limits](./reference/tokens-and-limits.md).
+Payments are in stablecoins and local-currency tokens: USDT, USDC, USDm and USA₮ (US dollars), Ripio's wARS, wBRL, wCOP, wMXN, wCLP and wPEN (Argentine, Colombian, Mexican and Chilean pesos, Brazilian reais and Peruvian soles), and cNGN (Nigerian naira). Tokens have different decimals: USDT has 6 and wARS has 18. The SDK takes amounts as decimal strings, like `"2.50"`, and returns base units as `bigint`. The full list is in [tokens and limits](./reference/tokens-and-limits.md).
 
 ## Schedules: a payer signs once
 

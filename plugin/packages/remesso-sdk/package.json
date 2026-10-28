@@ -1,6 +1,6 @@
 {
   "name": "remesso-sdk",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "Agent-to-agent stablecoin remittances on Celo: wallet and policy funding, verified receipts, invoices, recurring payments and signed webhooks. TypeScript on viem.",
   "type": "module",
   "exports": {

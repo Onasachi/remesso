@@ -40,7 +40,7 @@ curl -X POST https://engaboljiqudghvzmebq.supabase.co/functions/v1/request-payme
 | `payer` | yes | The wallet you're asking to pay. |
 | `to` | yes | The address you want paid. |
 | `amount` | no | What you want to receive per payment, as a decimal. The payer's form adds Remesso's fee on top. |
-| `token` | no | `USDT`, `USDC`, `USDm`, `USA₮`, `wARS`, `wBRL`, `wCOP` or `cNGN`. The `GET` description lists the current set. |
+| `token` | no | `USDT`, `USDC`, `USDm`, `USA₮`, `wARS`, `wBRL`, `wCOP`, `wMXN`, `wCLP`, `wPEN` or `cNGN`. The `GET` description lists the current set. |
 | `every` | no | `week`, `fortnight`, `month` or `quarter`. `weekly`, `fortnightly`, `monthly` and `quarterly` also work. |
 | `runs` | no | How many payments, 1 to 9999. |
 | `from` | no | Who is asking, up to 40 characters. |
@@ -315,11 +315,11 @@ Its sections:
 
 ## Paid services
 
-Remesso also sells a few services per call, paid in stablecoins over [x402](https://x402.celo.org/) on Celo, with no account:
+Remesso also sells a few services per call over [x402](https://x402.celo.org/) on Celo, with no account. Each has one price in dollars, payable in USDC, USDT or USA₮, or in Ripio's wARS, wBRL, wCOP, wMXN, wCLP or wPEN at the same price in local currency:
 
 - `trigger-run` brings one payment of a schedule forward;
 - `rate-service` gives live USDT/NGN and USDC/NGN rates;
 - `latam-rate` gives USD to wARS and wBRL rates;
-- `latam-route` gives a route for delivering pesos or reais.
+- `latam-route` gives a route for delivering pesos, reais or soles.
 
 A `POST` without a payment returns the price in a `402` response. The capability document lists each one under `services`, and [AGENTS.md](https://bitbucket.org/crackedstudios/remesso/src/main/docs/AGENTS.md) explains how to pay for them.

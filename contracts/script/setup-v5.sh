@@ -62,6 +62,12 @@ allow directTokenAllowed setDirectToken 0x0DC4F92879B7670e5f4e4e6e3c801D229129D9
 allow directTokenAllowed setDirectToken 0xD76f5Faf6888e24D9F04Bf92a0c8B921FE4390e0 "wBRL 18dp"
 allow directTokenAllowed setDirectToken 0x8a1D45e102e886510e891d2Ec656a708991e2D76 "wCOP 18dp"
 allow directTokenAllowed setDirectToken 0xF6829D7393dAe24509eb1E52eE8e572e2E271a4f "cNGN  6dp"
+# Beyond V4's list: the three wFIAT Celo's x402 facilitator added on
+# 2026-10-27, read on-chain 2026-10-28 (18dp, Ripio's proxies). On a V5 that
+# already has the rest, a run sends only these three.
+allow directTokenAllowed setDirectToken 0x337E7456B420bD3481e7FA61fA9850343d610d34 "wMXN 18dp"
+allow directTokenAllowed setDirectToken 0x61D450a098b6a7f69fC4b98CE68198fe59768651 "wCLP 18dp"
+allow directTokenAllowed setDirectToken 0x4F34c8b3b5FB6D98Da888F0feA543d4d9C9F2eBE "wPEN 18dp"
 
 # Swap-rail payouts beyond the constructor's cNGN.
 allow swapTokenAllowed setSwapToken 0xcebA9300f2b948710d2653dD7B07f33A8B32118C "USDC"

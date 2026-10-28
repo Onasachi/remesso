@@ -1,6 +1,6 @@
 ---
 name: remesso
-description: Send, receive and schedule stablecoin payments on Celo as an autonomous agent. Use this when an agent needs to pay for an API in USDC, USD₮ or USA₮ over x402, ask a human or another agent to pay it on a recurring schedule, commit its own wallet to paying someone on a schedule, or bring a scheduled payment forward. Covers the live mainnet endpoints, the contract reads that verify any claim made here, and the decimal and EIP-712 traps that silently cost money on Celo.
+description: Send, receive and schedule stablecoin payments on Celo as an autonomous agent. Use this when an agent needs to pay for an API in USDC, USD₮, USA₮ or Ripio's local-currency tokens over x402, ask a human or another agent to pay it on a recurring schedule, commit its own wallet to paying someone on a schedule, or bring a scheduled payment forward. Covers the live mainnet endpoints, the contract reads that verify any claim made here, and the decimal and EIP-712 traps that silently cost money on Celo.
 license: MIT
 ---
 
@@ -17,8 +17,8 @@ Three things an agent can do, and they are independent:
 | | needs | does not need |
 |---|---|---|
 | **Be paid** by a schedule | an address | gas, a balance, an account, any software |
-| **Pay** for a service | USDC, USD₮ or USA₮ on Celo | CELO — the facilitator pays settlement gas |
-| **Pay** on a schedule | USDC/USDT/USDm/USA₮, wARS/wBRL/wCOP or cNGN **and** ~0.06 CELO | — you submit these two transactions yourself |
+| **Pay** for a service | USDC, USD₮, USA₮ or a Ripio wFIAT on Celo | CELO — the facilitator pays settlement gas |
+| **Pay** on a schedule | USDC/USDT/USDm/USA₮, wARS/wBRL/wCOP/wMXN/wCLP/wPEN or cNGN **and** ~0.06 CELO | — you submit these two transactions yourself |
 
 ## With the Remesso wallet installed: use its tools
 
@@ -126,11 +126,15 @@ including in this file. A plain POST with no payment header returns it for free.
 | `/functions/v1/request-payment` | free | Ask someone to pay you on a schedule |
 | `/functions/v1/rate-service` | 0.001 | Live USDT/NGN and USDC/NGN from on-chain RFQ makers |
 | `/functions/v1/latam-rate` | 0.001 | USD-to-wARS and USD-to-wBRL from RFQ makers and the Uniswap pool, side by side |
-| `/functions/v1/latam-route` | 0.002 | A route to deliver pesos or reais: venue, dollars needed, Ripio links, schedule link |
+| `/functions/v1/latam-route` | 0.002 | A route to deliver pesos, reais or soles: venue, dollars needed, Ripio links, schedule link |
 | `/functions/v1/trigger-run` | 0.01 | Bring one payment of an existing schedule forward |
 
-Prices are in **USDC, USD₮ or USA₮** — the same number of base units in each,
-because all three are 6dp. The 402 lists them; the selector above picks one.
+Prices are in dollars, payable in **USDC, USD₮ or USA₮** (the same number of
+base units in each, because all three are 6dp) or in **Ripio's wARS, wBRL,
+wCOP, wMXN, wCLP or wPEN** (the same price in local currency, at 18dp). The
+402 lists them all; the selector above picks one. The wFIAT settle through
+Permit2, gasless for the payer too: the `remesso-x402` skill shows the two
+settings a client needs for them.
 
 ## Being paid
 
@@ -237,7 +241,8 @@ If an endpoint and the contract disagree, the contract is right.
   adapter is an error of 10¹². USD₮'s symbol is also literally `USD₮`, not
   `USDT`.
 - **Decimals are not uniform.** USDC, USD₮ and USA₮ are 6dp; USDm (formerly cUSD) and Ripio's
-  wARS, wBRL and wCOP are 18dp. A wFIAT amount is pesos or reais, not dollars.
+  wARS, wBRL, wCOP, wMXN, wCLP and wPEN are 18dp. A wFIAT amount is pesos,
+  reais or soles, not dollars.
 - **v2 uses headers, not the body.** The price list arrives in
   `PAYMENT-REQUIRED`, the payment goes back in `PAYMENT-SIGNATURE`, the receipt
   comes in `PAYMENT-RESPONSE`. v1's body-and-`X-PAYMENT` shape is still

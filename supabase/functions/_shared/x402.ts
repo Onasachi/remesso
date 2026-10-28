@@ -1,4 +1,5 @@
 import { ATTRIBUTION_CODES } from "./attribution.ts";
+import { directToken } from "./config.ts";
 /// x402: charging for a call, over plain HTTP.
 ///
 /// The protocol is three moves. A caller asks for something; we answer 402
@@ -54,8 +55,21 @@ export const X402 = {
 };
 
 /// The assets this seller takes, each with the EIP-712 domain its token
-/// actually signs under. All EIP-3009, so a payer signs an authorisation and
-/// needs no native CELO whichever one they pick.
+/// actually signs under, and how it settles. The payer needs no native CELO
+/// whichever one they pick:
+///
+///  - USDC, USD₮ and USA₮ are 6dp and EIP-3009: the payer signs a transfer
+///    authorisation and the facilitator submits it.
+///  - Ripio's six wFIAT are 18dp and have no EIP-3009, so they settle through
+///    Permit2 (`assetTransferMethod: "permit2"` in `extra`), and the 402
+///    declares `eip2612GasSponsoring` (`gasSponsoringExtension`): the client
+///    then signs an EIP-2612 permit to Permit2 as well, and the facilitator
+///    lands it inside the settlement. Celo's facilitator settles all six
+///    since 2026-10-27 (`/supported`; names from its token table).
+///  - cNGN settles through Permit2 too, but it has no EIP-2612 `permit()`, so
+///    a first-time payer must send `approve(Permit2)` themselves and pay CELO
+///    for it, and Celo's guide says not to declare gas sponsoring on a cNGN
+///    route. One 402 carries one set of extensions, so cNGN is not offered.
 ///
 /// Two traps live in this table, both verified on-chain 2026-09-30:
 ///
@@ -98,7 +112,46 @@ export const ASSETS = [
     version: "1",
     decimals: 6,
   },
-] as const;
+  // `name` is the token's EIP-712 domain, Spanish and accented: "Real
+  // Brasileño" is why the 402 header is UTF-8 (`b64`), not Latin-1.
+  { symbol: "wARS", address: "0x0DC4F92879B7670e5f4e4e6e3c801D229129D90D" as `0x${string}`, name: "Peso Argentino", version: "1", decimals: 18, transfer: "permit2" },
+  { symbol: "wBRL", address: "0xD76f5Faf6888e24D9F04Bf92a0c8B921FE4390e0" as `0x${string}`, name: "Real Brasileño", version: "1", decimals: 18, transfer: "permit2" },
+  { symbol: "wCOP", address: "0x8a1D45e102e886510e891d2Ec656a708991e2D76" as `0x${string}`, name: "Peso Colombiano", version: "1", decimals: 18, transfer: "permit2" },
+  { symbol: "wMXN", address: "0x337E7456B420bD3481e7FA61fA9850343d610d34" as `0x${string}`, name: "Peso Mexicano", version: "1", decimals: 18, transfer: "permit2" },
+  { symbol: "wCLP", address: "0x61D450a098b6a7f69fC4b98CE68198fe59768651" as `0x${string}`, name: "Peso Chileno", version: "1", decimals: 18, transfer: "permit2" },
+  { symbol: "wPEN", address: "0x4F34c8b3b5FB6D98Da888F0feA543d4d9C9F2eBE" as `0x${string}`, name: "Sol Peruano", version: "1", decimals: 18, transfer: "permit2" },
+] as const satisfies readonly X402Asset[];
+
+export type X402Asset = {
+  symbol: string;
+  address: `0x${string}`;
+  name: string;
+  version: string;
+  decimals: number;
+  /// Absent means EIP-3009.
+  transfer?: "permit2";
+};
+
+/// A service's price is set in dollars, 6dp (`"1000"` is $0.001); this is
+/// that price in `asset`'s own base units. A peso is not a dollar: 1,000
+/// units of USDC are $0.001, and $0.001 in wARS is 1.5 wARS, 1.5×10^18 units.
+/// The rate is the backend's own rounded-down `unitsPerUsd`, so one table
+/// prices every currency and a local price is a little under the dollar one.
+export function amountIn(asset: X402Asset, usdUnits: string): string {
+  const rate = directToken(asset.address)?.unitsPerUsd;
+  if (!rate) throw new Error(`x402: no unitsPerUsd for ${asset.symbol}; add it to DIRECT_TOKENS`);
+  if (asset.decimals < 6) throw new Error(`x402: ${asset.symbol} has fewer than 6 decimals`);
+  return (BigInt(usdUnits) * BigInt(rate) * 10n ** BigInt(asset.decimals - 6)).toString();
+}
+
+// Every asset must price, or every paid function fails at boot rather than
+// quoting one currency at the wrong scale.
+for (const a of ASSETS) amountIn(a, "1");
+
+const assetAt = (address: string): X402Asset | undefined =>
+  (ASSETS as readonly X402Asset[]).find((a) => a.address.toLowerCase() === address.toLowerCase());
+
+const isPermit2 = (r: PaymentRequirements) => r.extra.assetTransferMethod === "permit2";
 
 /// Kept for the default and for anything still naming one asset.
 const USDC: `0x${string}` = ASSETS[0].address;
@@ -127,7 +180,7 @@ export type PaymentRequirements = {
   amount: string;
   payTo: string;
   maxTimeoutSeconds: number;
-  extra: { name: string; version: string };
+  extra: { name: string; version: string; assetTransferMethod?: "permit2" };
 };
 
 /// What is being sold, once, rather than repeated per currency.
@@ -138,35 +191,56 @@ export type ResourceInfo = {
 };
 
 /// One entry per asset we accept, which is what the `accepts` array of a 402
-/// is for: the payer picks the currency they already hold.
-///
-/// Every asset here is 6dp, so one `amount` is correct for all of them.
-/// Adding an 18dp asset (Ripio's wARS and friends) means pricing per asset at
-/// its own scale — and those settle through Permit2 rather than EIP-3009, so
-/// they need `assetTransferMethod` in `extra` too. Not a line to add casually.
+/// is for: the payer picks the currency they already hold. Each `amount` is
+/// the same dollar price at that asset's own scale (`amountIn`).
 export function requirements(): PaymentRequirements[] {
-  return ASSETS.map((a) => ({
+  return (ASSETS as readonly X402Asset[]).map((a) => ({
     scheme: "exact" as const,
     network: NETWORK,
     asset: a.address,
-    amount: X402.priceUnits,
+    amount: amountIn(a, X402.priceUnits),
     payTo: X402.payTo,
     // Long enough for a signature round trip, short enough that a stale
     // authorisation cannot be replayed against a later price.
     maxTimeoutSeconds: 60,
     // The EIP-712 domain the payer signs against. Getting this wrong makes
-    // every signature invalid for reasons the payer cannot see.
-    extra: { name: a.name, version: a.version },
+    // every signature invalid for reasons the payer cannot see. Without
+    // `assetTransferMethod` a client signs EIP-3009 for a token that has none.
+    extra: a.transfer === "permit2"
+      ? { name: a.name, version: a.version, assetTransferMethod: "permit2" as const }
+      : { name: a.name, version: a.version },
   }));
 }
 
-/// Override the price on every accepted asset at once.
+/// Set one dollar price (`units`, 6dp) on every accepted asset at once.
 ///
 /// A helper rather than a `map` at each call site, because forgetting one
 /// entry publishes two different prices for the same call and the cheaper one
 /// is the one a payer picks.
 export function priced(reqs: PaymentRequirements[], units: string): PaymentRequirements[] {
-  return reqs.map((r) => ({ ...r, amount: units }));
+  return reqs.map((r) => {
+    const a = assetAt(r.asset);
+    if (!a) throw new Error(`x402: ${r.asset} is not an asset this seller prices`);
+    return { ...r, amount: amountIn(a, units) };
+  });
+}
+
+/// A service's price as a document shows it: the dollar price, and the exact
+/// amount in each accepted asset. What `/agent` and a service's GET publish,
+/// so a payer can read the price in its own currency without a 402.
+export function priceList(usdUnits: string) {
+  return {
+    amount: usdUnits,
+    decimals: 6,
+    assets: (ASSETS as readonly X402Asset[]).map((a) => ({
+      symbol: a.symbol,
+      address: a.address,
+      decimals: a.decimals,
+      amount: amountIn(a, usdUnits),
+      transfer: a.transfer ?? "eip3009",
+      eip712: { name: a.name, version: a.version },
+    })),
+  };
 }
 
 /// A 402 that both versions can read.
@@ -185,25 +259,75 @@ export function paymentRequired(
   resource: ResourceInfo,
   error = "payment required",
 ): { body: unknown; headers: Record<string, string> } {
-  const extensions = builderCodeExtension();
+  const extensions = {
+    ...builderCodeExtension(),
+    // Only when a Permit2 asset is on offer: it is what makes the client sign
+    // the permit the facilitator sponsors. Without it a payer with no Permit2
+    // allowance gets `412 permit2_allowance_required` naming an allowance,
+    // not the missing declaration (Celo's guide, measured on mainnet).
+    ...(accepts.some(isPermit2) ? gasSponsoringExtension() : {}),
+  };
   return {
-    // v1 shape, because the body is where a v1 client looks.
+    // v1 shape, because the body is where a v1 client looks. EIP-3009 assets
+    // only: a v1 client predates Permit2 settlement, and a v1 payload carries
+    // no asset, so every entry here is one more signature to try.
     body: {
       x402Version: 1,
       error,
-      accepts: accepts.map((a) => asV1(a, resource)),
+      accepts: accepts.filter((a) => !isPermit2(a)).map((a) => asV1(a, resource)),
     },
     headers: {
-      "PAYMENT-REQUIRED": btoa(JSON.stringify({
+      "PAYMENT-REQUIRED": b64(JSON.stringify({
         x402Version: 2,
         error,
         resource,
         accepts,
-        ...(extensions ? { extensions } : {}),
+        ...(Object.keys(extensions).length ? { extensions } : {}),
       })),
     },
   };
 }
+
+/// Base64 of the UTF-8 bytes, as `@x402/core` encodes and decodes its headers.
+/// `btoa` alone takes Latin-1, so "Real Brasileño" went out as one byte the
+/// client then read as broken UTF-8, and every wBRL signature would have been
+/// made for a domain name nobody uses.
+function b64(text: string): string {
+  return btoa(Array.from(new TextEncoder().encode(text), (b) => String.fromCharCode(b)).join(""));
+}
+
+function unb64(data: string): string {
+  return new TextDecoder().decode(Uint8Array.from(atob(data), (c) => c.charCodeAt(0)));
+}
+
+/// The EIP-2612 gas-sponsoring declaration, verbatim from
+/// `declareEip2612GasSponsoringExtension()` in `@x402/extensions` 2.28.0,
+/// which `x402.test.ts` checks. The facilitator advertising it in
+/// `/supported` is half of the handshake; a 402 repeating it is the other.
+export function gasSponsoringExtension() {
+  return { eip2612GasSponsoring: { info: GAS_SPONSORING_INFO, schema: GAS_SPONSORING_SCHEMA } };
+}
+
+const GAS_SPONSORING_INFO = {
+  description: "The facilitator accepts EIP-2612 gasless Permit to `Permit2` canonical contract.",
+  version: "1",
+};
+
+const GAS_SPONSORING_SCHEMA = {
+  $schema: "https://json-schema.org/draft/2020-12/schema",
+  type: "object",
+  properties: {
+    from: { type: "string", pattern: "^0x[a-fA-F0-9]{40}$", description: "The address of the sender." },
+    asset: { type: "string", pattern: "^0x[a-fA-F0-9]{40}$", description: "The address of the ERC-20 token contract." },
+    spender: { type: "string", pattern: "^0x[a-fA-F0-9]{40}$", description: "The address of the spender (Canonical Permit2)." },
+    amount: { type: "string", pattern: "^[0-9]+$", description: "The amount to approve (uint256). Typically MaxUint." },
+    nonce: { type: "string", pattern: "^[0-9]+$", description: "The current nonce of the sender." },
+    deadline: { type: "string", pattern: "^[0-9]+$", description: "The timestamp at which the signature expires." },
+    signature: { type: "string", pattern: "^0x[a-fA-F0-9]+$", description: "The 65-byte concatenated signature (r, s, v) as a hex string." },
+    version: { type: "string", pattern: "^[0-9]+(\\.[0-9]+)*$", description: "Schema version identifier." },
+  },
+  required: ["from", "asset", "spender", "amount", "nonce", "deadline", "signature", "version"],
+};
 
 /// The ERC-8021 builder-code declaration for our 402s, the shape
 /// `declareBuilderCodeExtension` from `@x402/extensions` writes.
@@ -322,7 +446,9 @@ export function match(payment: unknown, accepts: PaymentRequirements[]): {
   candidates: PaymentRequirements[];
 } {
   const p = payment as { x402Version?: unknown; accepted?: { asset?: unknown } };
-  if (p?.x402Version === 1) return { version: 1, candidates: accepts };
+  // The v1 body offers EIP-3009 assets only, so those are all a v1 payer can
+  // have signed for.
+  if (p?.x402Version === 1) return { version: 1, candidates: accepts.filter((a) => !isPermit2(a)) };
 
   const asset = String(p?.accepted?.asset ?? "").toLowerCase();
   const mine = accepts.filter((a) => a.asset.toLowerCase() === asset);
@@ -399,7 +525,9 @@ export function decodePayment(req: Request): unknown | null {
   const raw = req.headers.get("payment-signature") ?? req.headers.get("x-payment");
   if (!raw) return null;
   try {
-    return JSON.parse(atob(raw));
+    // UTF-8, as `@x402/core` encodes it: a v2 payment echoes our requirements,
+    // and wBRL's are "Real Brasileño".
+    return JSON.parse(unb64(raw));
   } catch {
     console.error("x402: the payment header is not base64 JSON");
     return null;
@@ -420,7 +548,7 @@ export function settlementHeaders(
   txHash: string | undefined,
   version: 1 | 2,
 ): Record<string, string> {
-  const encoded = btoa(JSON.stringify({
+  const encoded = b64(JSON.stringify({
     success: true,
     transaction: txHash ?? null,
     network: version === 1 ? NETWORK_V1 : NETWORK,

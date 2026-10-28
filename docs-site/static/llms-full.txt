@@ -2,7 +2,7 @@
 
 > Recurring and agent payments on Celo, in TypeScript.
 
-Every page of https://docs.remesso.xyz for remesso-sdk 0.3.0, in the order of its sidebar. Each page starts with a level-1 heading and its URL.
+Every page of https://docs.remesso.xyz for remesso-sdk 0.3.1, in the order of its sidebar. Each page starts with a level-1 heading and its URL.
 
 # Introduction
 
@@ -463,7 +463,7 @@ Remesso has a small number of moving parts. This page explains each one and what
 
 Remesso runs on Celo mainnet (chain id `42220`) and nowhere else.
 
-Payments are in stablecoins and local-currency tokens: USDT, USDC, USDm and USA₮ (US dollars), Ripio's wARS, wBRL and wCOP (Argentine pesos, Brazilian reais, Colombian pesos), and cNGN (Nigerian naira). Tokens have different decimals: USDT has 6 and wARS has 18. The SDK takes amounts as decimal strings, like `"2.50"`, and returns base units as `bigint`. The full list is in [tokens and limits](https://docs.remesso.xyz/docs/reference/tokens-and-limits).
+Payments are in stablecoins and local-currency tokens: USDT, USDC, USDm and USA₮ (US dollars), Ripio's wARS, wBRL, wCOP, wMXN, wCLP and wPEN (Argentine, Colombian, Mexican and Chilean pesos, Brazilian reais and Peruvian soles), and cNGN (Nigerian naira). Tokens have different decimals: USDT has 6 and wARS has 18. The SDK takes amounts as decimal strings, like `"2.50"`, and returns base units as `bigint`. The full list is in [tokens and limits](https://docs.remesso.xyz/docs/reference/tokens-and-limits).
 
 ## Schedules: a payer signs once
 
@@ -2477,7 +2477,10 @@ Remesso's executor sends the equivalent of **1 to 1,000 US dollars per payment**
 | **USA₮** | USD | 6 | 1 to 1,000 | Yes | [`0xD2ab3C9A02DBBAB236BfEC45D1d755DF4267F771`](https://celoscan.io/address/0xD2ab3C9A02DBBAB236BfEC45D1d755DF4267F771) |
 | **wARS** | ARS | 18 | 1,500 to 1,500,000 | No | [`0x0DC4F92879B7670e5f4e4e6e3c801D229129D90D`](https://celoscan.io/address/0x0DC4F92879B7670e5f4e4e6e3c801D229129D90D) |
 | **wBRL** | BRL | 18 | 5 to 5,000 | No | [`0xD76f5Faf6888e24D9F04Bf92a0c8B921FE4390e0`](https://celoscan.io/address/0xD76f5Faf6888e24D9F04Bf92a0c8B921FE4390e0) |
-| **wCOP** | COP | 18 | 3,200 to 3,200,000 | No | [`0x8a1D45e102e886510e891d2Ec656a708991e2D76`](https://celoscan.io/address/0x8a1D45e102e886510e891d2Ec656a708991e2D76) |
+| **wCOP** | COP | 18 | 3,100 to 3,100,000 | No | [`0x8a1D45e102e886510e891d2Ec656a708991e2D76`](https://celoscan.io/address/0x8a1D45e102e886510e891d2Ec656a708991e2D76) |
+| **wMXN** | MXN | 18 | 18 to 18,000 | No | [`0x337E7456B420bD3481e7FA61fA9850343d610d34`](https://celoscan.io/address/0x337E7456B420bD3481e7FA61fA9850343d610d34) |
+| **wCLP** | CLP | 18 | 950 to 950,000 | No | [`0x61D450a098b6a7f69fC4b98CE68198fe59768651`](https://celoscan.io/address/0x61D450a098b6a7f69fC4b98CE68198fe59768651) |
+| **wPEN** | PEN | 18 | 3 to 3,000 | No | [`0x4F34c8b3b5FB6D98Da888F0feA543d4d9C9F2eBE`](https://celoscan.io/address/0x4F34c8b3b5FB6D98Da888F0feA543d4d9C9F2eBE) |
 | **cNGN** | NGN | 6 | 1,300 to 1,300,000 | No | [`0xF6829D7393dAe24509eb1E52eE8e572e2E271a4f`](https://celoscan.io/address/0xF6829D7393dAe24509eb1E52eE8e572e2E271a4f) |
 
 These come from the deployment the SDK is generated from, and Remesso's capability document publishes the live values under `limits.perRun`. In code, `runLimits` gives the bounds in base units:
@@ -2524,7 +2527,7 @@ The token it uses is the one the transaction is about:
 - **creating or managing a policy:** the policy's token;
 - **an agent payment:** the policy's token, but held by the agent's own key, since the agent pays its gas. Most agents hold none, so they need a little CELO.
 
-USDT, USDC, USDm and USA₮ can pay gas: the "Pays gas" column in the table above. wARS, wBRL, wCOP and cNGN can't, so a payer funding a schedule in them needs some CELO.
+USDT, USDC, USDm and USA₮ can pay gas: the "Pays gas" column in the table above. Ripio's tokens and cNGN can't, so a payer funding a schedule in them needs some CELO.
 
 Gas paid in a token costs a little more gas than gas paid in CELO. In our mainnet test on 2026-10-25, a wallet holding no CELO sent an approval, a `createPolicy` and a `revoke`, which used 115,469, 211,253 and 115,498 gas. The three cost 0.007028 USDT in all.
 
@@ -2544,7 +2547,7 @@ try {
 
 An early send brings one payment of a schedule forward, when its payer granted a trigger (see [Let a payment be sent early](https://docs.remesso.xyz/docs/guides/schedules#let-a-payment-be-sent-early)):
 
-- **Through Remesso,** for a schedule whose trigger is `"remesso"`: `trigger-run` costs 0.01 USDC, USDT or USA₮, paid over x402. The x402 facilitator pays the settlement's gas, and Remesso's executor pays for the run. See the [HTTP API](https://docs.remesso.xyz/docs/reference/http-api).
+- **Through Remesso,** for a schedule whose trigger is `"remesso"`: `trigger-run` costs 0.01 USDC, USDT or USA₮, or the same in a Ripio token, paid over x402. The x402 facilitator pays the settlement's gas, and Remesso's executor pays for the run. See the [HTTP API](https://docs.remesso.xyz/docs/reference/http-api).
 - **Yourself,** when your own address is the trigger: call `runNow` on the contract, and pay its gas.
 
 An early send costs no extra fee beyond the 0.25% the payment carries anyway, and it never adds a payment.
@@ -3164,9 +3167,9 @@ Someone working in London supports family in Lagos, and sends money every month.
 
 The family's wallet and their way to cash out decide the token:
 
-- **In MiniPay, pay USDT, USDC, USDm or USA₮.** MiniPay shows only those four. It doesn't show cNGN or Ripio's wARS, wBRL and wCOP: a recipient paid in those needs another wallet.
+- **In MiniPay, pay USDT, USDC, USDm or USA₮.** MiniPay shows only those four. It doesn't show cNGN or Ripio's local-currency tokens: a recipient paid in those needs another wallet.
 - **For naira, pay USDT.** On Celo, USDT is the token Textile pairs with cNGN. The recipient opens Textile with their own wallet, swaps USDT to cNGN, and uses "Withdraw NGN" to a Nigerian bank account in their own name: `https://app.textilecredit.com/s/swap?sell=USDT&buy=cNGN&chainId=42220`.
-- **For pesos or reais, pay wARS or wBRL.** The recipient cashes out on Ripio's ramp, for example `https://ramp.ripio.com/off-ramp?country=AR&chain=42220&token=WARS` for Argentina, or `country=BR` with `token=WBRL` for Brazil.
+- **For pesos, reais or soles, pay the country's Ripio token:** wARS, wBRL, wCOP, wMXN, wCLP or wPEN. The recipient cashes out on Ripio's ramp, for example `https://ramp.ripio.com/off-ramp?country=AR&chain=42220&token=WARS` for Argentina, or `country=BR` with `token=WBRL` for Brazil. Which countries Ripio ramps on Celo is Ripio's to decide.
 
 Remesso never pays into a bank account on the sender's behalf. The family receives tokens in their own wallet, and cashes them out themselves, if and when they choose.
 
@@ -4622,13 +4625,16 @@ These are the tokens Remesso's executor accepts for new schedules, with the boun
 | **USA₮** | USD | 6 | 1 to 1,000 | Yes | [`0xD2ab3C9A02DBBAB236BfEC45D1d755DF4267F771`](https://celoscan.io/address/0xD2ab3C9A02DBBAB236BfEC45D1d755DF4267F771) |
 | **wARS** | ARS | 18 | 1,500 to 1,500,000 | No | [`0x0DC4F92879B7670e5f4e4e6e3c801D229129D90D`](https://celoscan.io/address/0x0DC4F92879B7670e5f4e4e6e3c801D229129D90D) |
 | **wBRL** | BRL | 18 | 5 to 5,000 | No | [`0xD76f5Faf6888e24D9F04Bf92a0c8B921FE4390e0`](https://celoscan.io/address/0xD76f5Faf6888e24D9F04Bf92a0c8B921FE4390e0) |
-| **wCOP** | COP | 18 | 3,200 to 3,200,000 | No | [`0x8a1D45e102e886510e891d2Ec656a708991e2D76`](https://celoscan.io/address/0x8a1D45e102e886510e891d2Ec656a708991e2D76) |
+| **wCOP** | COP | 18 | 3,100 to 3,100,000 | No | [`0x8a1D45e102e886510e891d2Ec656a708991e2D76`](https://celoscan.io/address/0x8a1D45e102e886510e891d2Ec656a708991e2D76) |
+| **wMXN** | MXN | 18 | 18 to 18,000 | No | [`0x337E7456B420bD3481e7FA61fA9850343d610d34`](https://celoscan.io/address/0x337E7456B420bD3481e7FA61fA9850343d610d34) |
+| **wCLP** | CLP | 18 | 950 to 950,000 | No | [`0x61D450a098b6a7f69fC4b98CE68198fe59768651`](https://celoscan.io/address/0x61D450a098b6a7f69fC4b98CE68198fe59768651) |
+| **wPEN** | PEN | 18 | 3 to 3,000 | No | [`0x4F34c8b3b5FB6D98Da888F0feA543d4d9C9F2eBE`](https://celoscan.io/address/0x4F34c8b3b5FB6D98Da888F0feA543d4d9C9F2eBE) |
 | **cNGN** | NGN | 6 | 1,300 to 1,300,000 | No | [`0xF6829D7393dAe24509eb1E52eE8e572e2E271a4f`](https://celoscan.io/address/0xF6829D7393dAe24509eb1E52eE8e572e2E271a4f) |
 
 ## Reading the table
 
 - **Per payment, before the fee.** The executor sends each payment only if its gross amount is between the equivalent of 1 and 1,000 dollars. Local currencies are converted with rough rates rounded down, so the bounds only ever err on the strict side. A schedule outside them is valid on-chain but never runs, so the SDK refuses it before you sign. `runLimits(token)` returns the same bounds in base units.
-- **Decimals differ.** USDT, USDC, USA₮ and cNGN have 6 decimals; USDm, wARS, wBRL and wCOP have 18. Pass amounts as decimal strings and let `toUnits` convert them.
+- **Decimals differ.** USDT, USDC, USA₮ and cNGN have 6 decimals; USDm and Ripio's wARS, wBRL, wCOP, wMXN, wCLP and wPEN have 18. Pass amounts as decimal strings and let `toUnits` convert them.
 - **Pays gas.** A wallet without CELO can pay transaction fees in these tokens, through Celo's fee abstraction. The SDK does this by itself when the account holds too little CELO and some of the token it is sending. See [fees, limits and gas](https://docs.remesso.xyz/docs/guides/fees-and-gas).
 - **Payments are in the same token.** A schedule funded in a token pays out in that token: there is no conversion.
 
@@ -4649,8 +4655,8 @@ Match tokens by address when you can. On Celo, USDT, USDC and USA₮ each have a
 
 What a recipient's wallet displays matters as much as what the contract accepts.
 
-- **MiniPay** shows only USDT, USDC, USDm and USA₮. A MiniPay user paid in cNGN, wARS, wBRL or wCOP receives the tokens but can't see them in the app.
-- **Local-currency tokens** suit recipients with a wallet that shows them, or who cash out through a ramp: Ripio's for wARS, wBRL and wCOP, and Textile's for naira from USDT. Remesso links to these ramps; the recipient uses them with their own wallet.
+- **MiniPay** shows only USDT, USDC, USDm and USA₮. A MiniPay user paid in cNGN or a Ripio token receives the tokens but can't see them in the app.
+- **Local-currency tokens** suit recipients with a wallet that shows them, or who cash out through a ramp: Ripio's for its six local currencies, and Textile's for naira from USDT. Remesso links to these ramps; the recipient uses them with their own wallet.
 
 ## Changes
 
@@ -4775,7 +4781,7 @@ curl -X POST https://engaboljiqudghvzmebq.supabase.co/functions/v1/request-payme
 | `payer` | yes | The wallet you're asking to pay. |
 | `to` | yes | The address you want paid. |
 | `amount` | no | What you want to receive per payment, as a decimal. The payer's form adds Remesso's fee on top. |
-| `token` | no | `USDT`, `USDC`, `USDm`, `USA₮`, `wARS`, `wBRL`, `wCOP` or `cNGN`. The `GET` description lists the current set. |
+| `token` | no | `USDT`, `USDC`, `USDm`, `USA₮`, `wARS`, `wBRL`, `wCOP`, `wMXN`, `wCLP`, `wPEN` or `cNGN`. The `GET` description lists the current set. |
 | `every` | no | `week`, `fortnight`, `month` or `quarter`. `weekly`, `fortnightly`, `monthly` and `quarterly` also work. |
 | `runs` | no | How many payments, 1 to 9999. |
 | `from` | no | Who is asking, up to 40 characters. |
@@ -5050,12 +5056,12 @@ Its sections:
 
 ## Paid services
 
-Remesso also sells a few services per call, paid in stablecoins over [x402](https://x402.celo.org/) on Celo, with no account:
+Remesso also sells a few services per call over [x402](https://x402.celo.org/) on Celo, with no account. Each has one price in dollars, payable in USDC, USDT or USA₮, or in Ripio's wARS, wBRL, wCOP, wMXN, wCLP or wPEN at the same price in local currency:
 
 - `trigger-run` brings one payment of a schedule forward;
 - `rate-service` gives live USDT/NGN and USDC/NGN rates;
 - `latam-rate` gives USD to wARS and wBRL rates;
-- `latam-route` gives a route for delivering pesos or reais.
+- `latam-route` gives a route for delivering pesos, reais or soles.
 
 A `POST` without a payment returns the price in a `402` response. The capability document lists each one under `services`, and [AGENTS.md](https://bitbucket.org/crackedstudios/remesso/src/main/docs/AGENTS.md) explains how to pay for them.
 
@@ -5227,6 +5233,13 @@ Report security issues privately to the Remesso maintainers, through the [reposi
 Source: https://docs.remesso.xyz/docs/resources/changelog
 
 Releases of [`remesso-sdk`](https://www.npmjs.com/package/remesso-sdk) on npm.
+
+## 0.3.1
+
+Released 28 October 2026.
+
+- **Three more currencies.** Ripio's wMXN, wCLP and wPEN (Mexican peso, Chilean peso, Peruvian sol) can be scheduled and paid like the other local-currency tokens: 18 to 18,000 wMXN, 950 to 950,000 wCLP and 3 to 3,000 wPEN per payment.
+- **wCOP's per-payment limits are 3,100 to 3.1 million**, from 3,200 to 3.2 million. The Colombian peso gained on the dollar, and the limits stay at or under $1,000.
 
 ## 0.3.0
 

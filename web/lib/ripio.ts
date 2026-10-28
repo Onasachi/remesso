@@ -15,9 +15,11 @@ import type { TokenInfo } from "./config";
 ///
 /// Which networks and tokens a country supports is Ripio's to decide. Celo
 /// for wARS in Argentina is their own example; the others are the obvious
-/// pairing and Ripio may still decline them.
+/// pairing and Ripio may still decline them. Ripio operates in all six; its
+/// ramp refuses automated reads, so Mexico, Chile and Peru on Celo were not
+/// checked there (2026-10-28).
 
-const COUNTRY: Record<string, string> = { ARS: "AR", BRL: "BR", COP: "CO" };
+const COUNTRY: Record<string, string> = { ARS: "AR", BRL: "BR", COP: "CO", MXN: "MX", CLP: "CL", PEN: "PE" };
 
 /// `null` for a token Ripio does not ramp — every dollar stablecoin here.
 export function ripioRampUrl(

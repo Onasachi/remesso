@@ -117,14 +117,19 @@ header** as base64 JSON, not in the body; the payment goes back in
 body-and-`X-PAYMENT` shape is still accepted, so an older client keeps working
 — both are served by the same response.
 
-The signature is EIP-3009 `TransferWithAuthorization`. Take the EIP-712 domain
-from `extra` rather than hardcoding it — the seller states it, and a wrong
-domain makes every signature invalid for reasons the payer cannot see.
+For USDC, USD₮ and USA₮ the signature is EIP-3009 `TransferWithAuthorization`.
+Ripio's wFIAT have no EIP-3009: their entries carry `assetTransferMethod:
+"permit2"` in `extra`, and the payer signs a Permit2 transfer plus an EIP-2612
+permit the facilitator sponsors, so it still needs no CELO. Take the EIP-712
+domain from `extra` rather than hardcoding it — the seller states it, and a
+wrong domain makes every signature invalid for reasons the payer cannot see.
 
-**Pay in the currency you hold.** The 402 lists two, same price in each since
-both are 6dp: USDC (`0xcebA9300…118C`, domain `USDC` v2) and USA₮
-(`0xD2ab3C9A…F771`, domain **`Tether America USD`** v1). `ASSET=USAT` picks one
-in the example client.
+**Pay in the currency you hold.** The 402 lists nine. USDC (`0xcebA9300…118C`,
+domain `USDC` v2), USD₮ (`0x48065fbB…3D5e`, `Tether USD` v1) and USA₮
+(`0xD2ab3C9A…F771`, domain **`Tether America USD`** v1) take the same number of
+base units, since all three are 6dp. wARS, wBRL, wCOP, wMXN, wCLP and wPEN take
+the same dollar price in local currency, at 18dp. `ASSET=USAT` picks one in the
+example client; the `remesso-x402` skill's `pay.mjs` pays in any of them.
 
 Two things to get right, both verified on-chain:
 `extra.name` is **not** the symbol — USA₮ signs as `Tether America USD`. And

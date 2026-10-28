@@ -10,8 +10,10 @@
 /// agent pricing a corridor should hear that the market is split, not get a
 /// silent average of two numbers that do not agree.
 ///
-/// wCOP has neither a pool nor a maker on Celo (checked 2026-10-11), so it is
-/// answered as "no on-chain market", never with a number from somewhere else.
+/// wCOP has neither a pool nor a maker on Celo (checked 2026-10-11), and nor do
+/// wMXN, wCLP and wPEN (no Uniswap pool against USDT or USDC at any fee tier,
+/// no Textile ticker; checked 2026-10-28), so they are answered as "no on-chain
+/// market", never with a number from somewhere else.
 import { quoteExactIn } from "./celo.ts";
 import { CELO } from "./config.ts";
 
@@ -24,9 +26,9 @@ const APP = (Deno.env.get("WEB_ORIGIN") ?? "https://remesso.crackedstudios.xyz")
 const DISAGREE_BPS = 100;
 
 export type Corridor = {
-  country: "AR" | "BR" | "CO";
-  currency: "ARS" | "BRL" | "COP";
-  symbol: "wARS" | "wBRL" | "wCOP";
+  country: "AR" | "BR" | "CO" | "MX" | "CL" | "PE";
+  currency: "ARS" | "BRL" | "COP" | "MXN" | "CLP" | "PEN";
+  symbol: "wARS" | "wBRL" | "wCOP" | "wMXN" | "wCLP" | "wPEN";
   address: `0x${string}`;
   decimals: 18;
   /// Textile ticker id, or null where no maker quotes it.
@@ -35,11 +37,15 @@ export type Corridor = {
   poolFee: number | null;
 };
 
-/// Addresses verified on-chain 2026-10-06; pools and tickers 2026-10-11.
+/// Addresses verified on-chain 2026-10-06 (wMXN, wCLP, wPEN 2026-10-28); pools
+/// and tickers 2026-10-11 and 2026-10-28.
 export const CORRIDORS: Corridor[] = [
   { country: "AR", currency: "ARS", symbol: "wARS", address: "0x0DC4F92879B7670e5f4e4e6e3c801D229129D90D", decimals: 18, ticker: "USDT_WARS", poolFee: 100 },
   { country: "BR", currency: "BRL", symbol: "wBRL", address: "0xD76f5Faf6888e24D9F04Bf92a0c8B921FE4390e0", decimals: 18, ticker: "USDT_WBRL", poolFee: 100 },
   { country: "CO", currency: "COP", symbol: "wCOP", address: "0x8a1D45e102e886510e891d2Ec656a708991e2D76", decimals: 18, ticker: null, poolFee: null },
+  { country: "MX", currency: "MXN", symbol: "wMXN", address: "0x337E7456B420bD3481e7FA61fA9850343d610d34", decimals: 18, ticker: null, poolFee: null },
+  { country: "CL", currency: "CLP", symbol: "wCLP", address: "0x61D450a098b6a7f69fC4b98CE68198fe59768651", decimals: 18, ticker: null, poolFee: null },
+  { country: "PE", currency: "PEN", symbol: "wPEN", address: "0x4F34c8b3b5FB6D98Da888F0feA543d4d9C9F2eBE", decimals: 18, ticker: null, poolFee: null },
 ];
 
 export function corridor(key: string | undefined): Corridor | undefined {
