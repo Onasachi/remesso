@@ -1,0 +1,12 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": null,
+  "outputDirectory": "public",
+  "trailingSlash": true,
+  "headers": [
+    {
+      "source": "/feed.xml",
+      "headers": [{ "key": "Content-Type", "value": "application/atom+xml; charset=utf-8" }]
+    }
+  ]
+}

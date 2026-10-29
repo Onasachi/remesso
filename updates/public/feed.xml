@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom">
+  <title>Remesso Updates</title>
+  <subtitle>Articles from the team building Remesso: agent-to-agent remittance rails on Celo, where agents pay agents across borders in the currency the recipient spends.</subtitle>
+  <link href="https://updates.remesso.xyz/feed.xml" rel="self"/>
+  <link href="https://updates.remesso.xyz/"/>
+  <id>https://updates.remesso.xyz/</id>
+  <updated>2026-10-29T00:00:00Z</updated>
+  <author><name>Remesso</name><uri>https://x.com/useremesso_si</uri></author>
+  <icon>https://updates.remesso.xyz/icon.png</icon>
+  <entry>
+    <title>How an agent-to-agent integration works</title>
+    <link href="https://updates.remesso.xyz/agent-to-agent-integration/"/>
+    <id>https://updates.remesso.xyz/agent-to-agent-integration/</id>
+    <published>2026-10-29T00:00:00Z</published>
+    <updated>2026-10-29T00:00:00Z</updated>
+    <summary>How a developer plugs Remesso's agent-to-agent remittance rails into their own system, drawn as five figures.</summary>
+  </entry>
+</feed>
