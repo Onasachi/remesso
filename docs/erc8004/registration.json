@@ -1,12 +1,18 @@
 {
   "type": "https://eips.ethereum.org/EIPS/eip-8004#registration-v1",
   "name": "Remesso",
-  "description": "Recurring stablecoin payments on Celo, bound by a mandate the payer signs on-chain. An agent can be paid by a schedule, ask to be paid, pay for services in USDC, USD₮ or USA₮ over x402, or commit its own wallet to paying on a schedule. Nothing can redirect, resize or extend a payment once signed — the contract enforces it, not the operator.",
+  "description": "Recurring stablecoin payments on Celo, bound by a mandate the payer signs on-chain. An agent can be paid by a schedule, ask to be paid, pay for services over x402 in USDC, USD₮, USA₮ or Ripio's local-currency stablecoins, or commit its own wallet to paying on a schedule. Nothing can redirect, resize or extend a payment once signed — the contract enforces it, not the operator.",
   "services": [
     {
       "name": "capabilities",
       "endpoint": "https://engaboljiqudghvzmebq.supabase.co/functions/v1/agent",
       "description": "What this agent does, what it costs, and what it refuses. Free."
+    },
+    {
+      "name": "MCP",
+      "endpoint": "https://remesso.xyz/mcp",
+      "version": "2025-11-25",
+      "description": "Remesso as a remote MCP server for AI assistants (Streamable HTTP; on claude.ai, add it as a custom connector). Its tools prepare payments for the payer to sign in their own wallet, read schedules and balances from the chain, ask to be paid and look up ERC-8004 agents. A person who signs in can also let their hosted agent pay, within limits they set on-chain. Free."
     },
     {
       "name": "request-payment",
@@ -72,9 +78,33 @@
       {
         "symbol": "USAT",
         "address": "0xD2ab3C9A02DBBAB236BfEC45D1d755DF4267F771"
+      },
+      {
+        "symbol": "wARS",
+        "address": "0x0DC4F92879B7670e5f4e4e6e3c801D229129D90D"
+      },
+      {
+        "symbol": "wBRL",
+        "address": "0xD76f5Faf6888e24D9F04Bf92a0c8B921FE4390e0"
+      },
+      {
+        "symbol": "wCOP",
+        "address": "0x8a1D45e102e886510e891d2Ec656a708991e2D76"
+      },
+      {
+        "symbol": "wMXN",
+        "address": "0x337E7456B420bD3481e7FA61fA9850343d610d34"
+      },
+      {
+        "symbol": "wCLP",
+        "address": "0x61D450a098b6a7f69fC4b98CE68198fe59768651"
+      },
+      {
+        "symbol": "wPEN",
+        "address": "0x4F34c8b3b5FB6D98Da888F0feA543d4d9C9F2eBE"
       }
     ],
-    "note": "Take the EIP-712 domain from the 402's extra; match assets by address, not symbol."
+    "note": "Take the EIP-712 domain from the 402's extra; match assets by address, not symbol. The six wFIAT settle through Permit2, as the 402 declares."
   },
   "contracts": [
     {

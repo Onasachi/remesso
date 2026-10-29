@@ -692,16 +692,25 @@ Registered with Self Agent ID on 2026-09-22, from a real passport:
 | agent address | `0x5C3EBb0084233156ba51a5C2dfD42d88d5a74CA6` |
 | human owner | `0xcDEA4Cc4191Ec9A5d8fD1a6B17e3F4C84E993Ae2` (the V1–V4 cold owner) |
 | registry | `0xaC3DF9ABf80d0F5c020C06B04Cced27763355944` — soulbound, `ownerOf(191)` confirms |
-| ERC-8004 | agent `9867`, registry `0x8004A169FB4a3325136EB29fA0ceB6D2e539a432`, registered 2026-09-28, metadata refreshed 2026-10-01 (`0x86e49771…dc77`) and for V5 on 2026-10-16 (`0x28d3eb9d…f3b6`) — owned by the V1–V4 cold owner |
-| ERC-8004 (agent wallet) | agent `9879`, same registry and metadata as 9867, registered 2026-10-06 FROM the then-executor (`0x3c754AD3…49Cd1`, tx `0xc806f21d…bad5`) — the hackathon wants the identity held by the wallet that sends the agent's transactions. Moved to the V5 executor `0xA351…cdb21` on 2026-10-16 by `scripts/erc8004-v5.ts`: transfer `0xa8e717d6…0c3c`, `agentWallet` re-set by that wallet's EIP-712 signature `0xaa0bda8b…1b34` (the registry clears it on any transfer), metadata `0x15a8dec9…c3e4`. |
+| ERC-8004 | agent `9867`, registry `0x8004A169FB4a3325136EB29fA0ceB6D2e539a432`, registered 2026-09-28, metadata refreshed 2026-10-01 (`0x86e49771…dc77`) and for V5 on 2026-10-16 (`0x28d3eb9d…f3b6`), and on 2026-10-29 (`0x4a54ed0c…7e11`) — owned by the V1–V4 cold owner |
+| ERC-8004 (agent wallet) | agent `9879`, same registry and metadata as 9867, registered 2026-10-06 FROM the then-executor (`0x3c754AD3…49Cd1`, tx `0xc806f21d…bad5`) — the hackathon wants the identity held by the wallet that sends the agent's transactions. Moved to the V5 executor `0xA351…cdb21` on 2026-10-16 by `scripts/erc8004-v5.ts`: transfer `0xa8e717d6…0c3c`, `agentWallet` re-set by that wallet's EIP-712 signature `0xaa0bda8b…1b34` (the registry clears it on any transfer), metadata `0x15a8dec9…c3e4`. Metadata again on 2026-10-29 (`0x00009994…cdda`). |
 
 The ERC-8004 metadata is a `data:` URI embedded in the token, not a link to a
 host we control: what is registered cannot be quietly rewritten later. Changing
-it means `setAgentURI` and a transaction anyone can see — ~1.02M gas, about two
-cents, signed by whichever key holds that token (#9867: the V1–V4 cold owner;
-#9879: the V5 executor). The current document is `docs/erc8004/registration.json`
-and `scripts/erc8004-v5.ts` writes it to both; it names the contract, so every
-redeploy needs it again.
+it means `setAgentURI` and a transaction anyone can see, signed by whichever
+key holds that token (#9867: the V1–V4 cold owner; #9879: the V5 executor).
+Gas grows with the document: the 6.2 KB one of 2026-10-29 took 2,475,081 gas
+each, about four cents at 202 gwei with CELO near $0.077. The current document
+is `docs/erc8004/registration.json`. Edit it, then run `scripts/erc8004-v5.ts
+--send`, which writes it to both. It sends one `setAgentURI` per identity whose
+metadata differs, and its send from the executor key holds the executor lease.
+The document names the contract, so every redeploy needs it again.
+
+The 2026-10-29 write added three things:
+- the MCP server, `https://remesso.xyz/mcp`, as the service `MCP`;
+- `payment-events` and `webhooks`, which had been in the file since
+  2026-10-25 but were never written;
+- x402's six wFIAT.
 
 **It goes stale silently, and it is believed.** By 2026-10-01 it still
 advertised x402 v1, `network: "celo"` and USDC alone, so an agent discovering
@@ -863,6 +872,10 @@ message per POST, answered as JSON (`lib/mcp/protocol.ts`, no MCP SDK).
   `remesso.crackedstudios.xyz` serves the same deployment and stays up:
   MiniPay, connectors added before the move and the Edge Functions'
   `WEB_ORIGIN` still use it. Never redirect it.
+- **Agents can find it.** Since 2026-10-29 it is listed as `MCP` (ERC-8004's
+  name for it) in `/.well-known/agent.json`'s endpoints and in the ERC-8004
+  registration's services. The registration also gives version `2025-11-25`,
+  the newest in `lib/mcp/protocol.ts`.
 
 ## The hosted agent — hands-free from the Claude app (2026-10-20)
 

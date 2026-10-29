@@ -52,6 +52,9 @@ export async function GET() {
 
       endpoints: [
         { name: "capabilities", url: `${FUNCTIONS}/agent`, method: "GET" },
+        /// For AI assistants: Remesso's remote MCP server (Streamable HTTP), the
+        /// one Claude adds as a custom connector. Named as ERC-8004 names it.
+        { name: "MCP", url: "https://remesso.xyz/mcp", method: "POST" },
         { name: "request-payment", url: `${FUNCTIONS}/request-payment`, method: "POST" },
         { name: "payment-events", url: `${FUNCTIONS}/payment-events`, method: "GET" },
         { name: "webhooks", url: `${FUNCTIONS}/webhooks`, method: "POST" },
