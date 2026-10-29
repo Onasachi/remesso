@@ -1,0 +1,562 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>How an agent-to-agent integration works · Remesso Updates</title>
+<meta name="description" content="How a developer plugs Remesso's agent-to-agent remittance rails into their own system, drawn as five figures.">
+<link rel="canonical" href="https://updates.remesso.xyz/agent-to-agent-integration/">
+<link rel="alternate" type="application/atom+xml" title="Remesso Updates" href="/feed.xml">
+<link rel="icon" href="/favicon.ico" sizes="any">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<meta property="og:site_name" content="Remesso Updates">
+<meta property="og:type" content="article">
+<meta property="og:title" content="How an agent-to-agent integration works">
+<meta property="og:description" content="How a developer plugs Remesso's agent-to-agent remittance rails into their own system, drawn as five figures.">
+<meta property="og:url" content="https://updates.remesso.xyz/agent-to-agent-integration/">
+<meta property="og:image" content="https://updates.remesso.xyz/agent-to-agent-integration/og.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="Remesso Updates: How an agent-to-agent integration works">
+<meta property="article:published_time" content="2026-10-29T00:00:00Z">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:site" content="@useremesso_si">
+<meta name="twitter:creator" content="@useremesso_si">
+<meta name="twitter:title" content="How an agent-to-agent integration works">
+<meta name="twitter:description" content="How a developer plugs Remesso's agent-to-agent remittance rails into their own system, drawn as five figures.">
+<meta name="twitter:image" content="https://updates.remesso.xyz/agent-to-agent-integration/og.png">
+<meta name="twitter:image:alt" content="Remesso Updates: How an agent-to-agent integration works">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&amp;family=DM+Sans:opsz,wght@9..40,400..700&amp;family=Fraunces:opsz,wght,SOFT,WONK@9..144,400..700,0..100,0..1&amp;display=swap">
+<link rel="stylesheet" href="/assets/site.css">
+<style>
+/* The integration map's figures: plates, the SVG diagrams' shapes, lines and
+   text, and the cards, callouts and tables around them. Tokens, type and the
+   masthead come from /assets/site.css. */
+
+/* plates */
+.plate { width: 100%; max-width: 1040px; margin-inline: auto; min-width: 0; background: var(--surface); border: 1px solid var(--line); border-radius: 18px; padding: 28px 28px 24px; display: grid; gap: 18px; }
+.plate-head { display: grid; gap: 8px; max-width: 680px; }
+.plate-intro { color: var(--ink-2); }
+.fig-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; min-width: 0; }
+.fig-scroll:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 6px; }
+.fig-scroll svg { display: block; width: 100%; min-width: 820px; height: auto; }
+.swipe { display: none; font-size: 13px; color: var(--ink-3); }
+
+.legend { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 8px 22px; font-size: 13.5px; color: var(--ink-2); }
+.legend li { display: inline-flex; align-items: center; gap: 8px; }
+.legend svg { width: 46px; height: 12px; flex: none; }
+.sw { width: 18px; height: 12px; border-radius: 4px; flex: none; border: 1.5px solid; }
+.sw-yours { background: transparent; border-color: var(--ink-2); border-style: dashed; }
+.sw-remesso { background: var(--accent-soft); border-color: var(--accent); }
+.sw-chain { background: var(--sand); border-color: var(--line); }
+.sw-person { background: var(--surface); border-color: var(--ink-3); border-style: dashed; }
+.keys { display: grid; gap: 10px; padding-top: 14px; border-top: 1px solid var(--line); }
+
+/* svg: shapes */
+.zone-yours { fill: none; stroke: var(--ink-2); stroke-width: 1.25; stroke-dasharray: 6 5; }
+.zone-remesso { fill: var(--accent-soft); stroke: var(--accent); stroke-width: 1.25; stroke-dasharray: 6 5; }
+.zone-chain { fill: var(--sand); stroke: var(--line); stroke-width: 1.25; }
+.bx rect, .leaf rect { fill: var(--surface); stroke: var(--line); stroke-width: 1.25; }
+.q rect { fill: var(--sand); stroke: var(--line); stroke-width: 1.25; }
+.hd rect { stroke-width: 1.5; }
+.hd-yours rect { fill: var(--surface); stroke: var(--ink-2); }
+.hd-remesso rect { fill: var(--accent-soft); stroke: var(--accent); }
+.hd-chain rect { fill: var(--sand); stroke: var(--line); }
+.hd-person rect { fill: var(--surface); stroke: var(--ink-3); stroke-width: 1.5; stroke-dasharray: 5 4; }
+.sq-life { stroke: var(--line); stroke-width: 1.5; stroke-dasharray: 3 5; }
+.sq-band { fill: var(--sand); }
+.sq-note { fill: var(--sand); stroke: var(--line); stroke-width: 1; }
+.sq-loop { fill: none; stroke: var(--accent); stroke-width: 1.25; stroke-dasharray: 6 5; }
+.sq-loop-tab { fill: var(--accent); }
+
+/* svg: lines and arrowheads */
+.ln-tx { stroke: var(--accent); stroke-width: 2.4; fill: none; }
+.ln-http { stroke: var(--ink-2); stroke-width: 1.5; fill: none; }
+.ln-read { stroke: var(--ink-3); stroke-width: 1.5; stroke-dasharray: 6 5; fill: none; }
+.ln-plain { stroke: var(--ink-3); stroke-width: 1.25; fill: none; }
+.ah-tx { fill: var(--accent); }
+.ah-http { fill: none; stroke: var(--ink-2); stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+.ah-read { fill: none; stroke: var(--ink-3); stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+.ah-plain { fill: none; stroke: var(--ink-3); stroke-width: 1.4; stroke-linecap: round; stroke-linejoin: round; }
+
+/* svg: text */
+.sv-eyebrow { font: 600 10px var(--sans); letter-spacing: 0.08em; fill: var(--ink-3); }
+.sv-eyebrow-accent { fill: var(--accent-deep); }
+.sv-title { font: 600 14px var(--sans); fill: var(--ink); }
+.sv-title-sm { font: 600 13px var(--sans); fill: var(--ink); }
+.sv-sub { font: 400 11.5px var(--sans); fill: var(--ink-2); }
+.sv-mono { font: 500 13px var(--mono); fill: var(--ink); }
+.sv-mono-sm { font: 400 12px var(--mono); fill: var(--ink-2); }
+.sq-code { font: 500 12.5px var(--mono); fill: var(--ink); }
+.sq-text { font: 400 12px var(--sans); fill: var(--ink-2); }
+.sq-note-t { font: 600 12.5px var(--sans); fill: var(--ink); }
+.sq-band-t { font: 600 10.5px var(--sans); letter-spacing: 0.1em; fill: var(--ink-3); }
+.sq-loop-t { font: 600 10.5px var(--sans); letter-spacing: 0.08em; fill: var(--on-accent); }
+.halo { paint-order: stroke; stroke: var(--surface); stroke-width: 6px; stroke-linejoin: round; }
+.badge circle { fill: var(--sand); stroke: var(--line); stroke-width: 1; }
+.badge text { font: 600 11px var(--sans); fill: var(--ink-2); }
+.badge-strong circle { fill: var(--accent); stroke: var(--surface); stroke-width: 2.5; }
+.badge-strong text { fill: var(--on-accent); }
+
+/* svg: timeline */
+.tl-included { fill: var(--amber-soft); }
+.tl-spread { fill: var(--ok-soft); }
+.tl-spread-lines { fill: url(#tl-hatch); }
+.tl-hatch-line { stroke: var(--ok); stroke-width: 1.5; stroke-opacity: 0.55; }
+.tl-final { fill: var(--ok-soft); }
+.tl-outline { fill: none; stroke: var(--line); stroke-width: 1; }
+.tl-tick { stroke: var(--ink-3); stroke-width: 1; }
+.tl-pin { stroke: var(--ink-3); stroke-width: 1; stroke-dasharray: 2 3; }
+.tl-dot-received { fill: var(--amber); stroke: var(--surface); stroke-width: 2; }
+.tl-dot-final { fill: var(--ok); stroke: var(--surface); stroke-width: 2; }
+
+/* figure 1 steps */
+/* Column-first, so 1–3 read down the left and 4–6 down the right. */
+.steps { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); grid-template-rows: repeat(3, auto); grid-auto-flow: column; gap: 12px 32px; counter-reset: step; }
+.steps li { display: grid; grid-template-columns: 24px minmax(0, 1fr); gap: 12px; align-items: start; font-size: 15px; color: var(--ink-2); counter-increment: step; }
+.steps li::before { content: counter(step); width: 24px; height: 24px; border-radius: 50%; background: var(--accent); color: var(--on-accent); font: 600 12px/24px var(--sans); text-align: center; margin-top: 1px; }
+.steps strong { color: var(--ink); font-weight: 600; }
+.aside-notes { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px 32px; font-size: 14.5px; color: var(--ink-2); }
+.aside-notes p { padding-left: 14px; border-left: 2px solid var(--line); }
+
+/* figure 3 cards */
+.cards { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
+.card { border: 1px solid var(--line); border-radius: 14px; padding: 18px; display: grid; gap: 12px; align-content: start; background: var(--paper); min-width: 0; }
+.card-h { display: flex; align-items: center; gap: 10px; }
+.letter { width: 26px; height: 26px; border-radius: 50%; background: var(--accent); color: var(--on-accent); font: 600 13px/26px var(--sans); text-align: center; flex: none; }
+.card dl { margin: 0; display: grid; gap: 9px; }
+.card dt { font: 600 11px/1.3 var(--sans); letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-3); }
+.card dd { margin: 2px 0 0; font-size: 14.5px; line-height: 1.5; color: var(--ink); }
+
+/* figure 5 callouts */
+.callouts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+.callout { border-radius: 14px; padding: 16px 18px; display: grid; gap: 6px; font-size: 15px; color: var(--ink); min-width: 0; }
+.callout-received { background: var(--amber-soft); }
+.callout-final { background: var(--ok-soft); }
+.callout .k { font: 500 13px var(--mono); color: var(--ink-2); }
+.foot { font-size: 13.5px; color: var(--ink-3); }
+
+/* code */
+.code-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.code-card { border: 1px solid var(--line); border-radius: 14px; background: var(--paper); min-width: 0; display: grid; grid-template-rows: auto 1fr; }
+.code-card h3 { font-size: 17px; padding: 14px 18px 0; }
+pre { margin: 0; padding: 14px 18px 18px; overflow-x: auto; font: 400 12.5px/1.65 var(--mono); color: var(--ink); tab-size: 2; }
+.tok-c { color: var(--ink-3); font-style: italic; }
+.tok-s { color: var(--accent-deep); }
+.tok-k { color: var(--ink); font-weight: 500; }
+.code-note { font-size: 14px; color: var(--ink-2); }
+
+/* lists and tables */
+.section { display: grid; gap: 18px; }
+.section > p { color: var(--ink-2); }
+.checklist { list-style: none; margin: 0; padding: 0; display: grid; gap: 14px; }
+.checklist li { display: grid; gap: 4px; padding: 14px 0 0; border-top: 1px solid var(--line); }
+.checklist strong { font-weight: 600; }
+.checklist span { color: var(--ink-2); font-size: 15px; }
+.ways { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
+.way { border: 1px solid var(--line); border-radius: 14px; padding: 16px 18px; display: grid; gap: 6px; align-content: start; background: var(--surface); min-width: 0; font-size: 14.5px; color: var(--ink-2); }
+.way h3 { font-size: 17px; }
+.table-scroll { overflow-x: auto; border: 1px solid var(--line); border-radius: 14px; background: var(--surface); }
+table { width: 100%; border-collapse: collapse; font-size: 14.5px; min-width: 560px; }
+th, td { text-align: left; padding: 11px 14px; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { font: 600 11px/1.3 var(--sans); letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-3); background: var(--sand); }
+tr:last-child td { border-bottom: 0; }
+td.num { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.open { display: grid; gap: 10px; margin: 0; padding-left: 20px; color: var(--ink-2); font-size: 15px; }
+main > footer { border-top: 1px solid var(--line); padding-top: 18px; display: grid; gap: 6px; font-size: 14px; color: var(--ink-3); }
+
+@media (max-width: 860px) {
+  .swipe { display: block; }
+  .cards, .ways, .code-grid, .callouts { grid-template-columns: minmax(0, 1fr); }
+  .steps, .aside-notes { grid-template-columns: minmax(0, 1fr); }
+  .steps { grid-template-rows: none; grid-auto-flow: row; }
+  .plate { padding: 20px 16px 18px; border-radius: 14px; }
+}
+</style>
+</head>
+<body>
+<a class="skip" href="#content">Skip to content</a>
+<header class="site-head">
+  <div class="site-bar wide">
+    <a class="brand" href="/"><span class="wordmark" role="img" aria-label="Remesso">remess<svg class="ring" viewBox="0 0 100 100" aria-hidden="true"><path d="M84.57 44.53A35 35 0 1 1 55.47 15.43" fill="none" stroke-width="22"/><circle cx="74.75" cy="25.25" r="14"/></svg></span><span class="brand-tag">Updates</span></a>
+    <nav class="site-nav" aria-label="Remesso">
+      <a href="https://docs.remesso.xyz">Docs</a>
+      <a href="https://x.com/useremesso_si"><svg class="x-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg><span>@useremesso_si</span></a>
+      <a class="nav-app" href="https://remesso.xyz">Open the app</a>
+    </nav>
+  </div>
+</header>
+<main id="content">
+<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+  <defs>
+    <marker id="ah-tx" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="10" markerHeight="10" markerUnits="userSpaceOnUse" orient="auto-start-reverse"><path class="ah-tx" d="M0 0.5L10 5L0 9.5z"/></marker>
+    <marker id="ah-http" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="10" markerHeight="10" markerUnits="userSpaceOnUse" orient="auto-start-reverse"><path class="ah-http" d="M1.5 1.5L8.5 5L1.5 8.5"/></marker>
+    <marker id="ah-read" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="10" markerHeight="10" markerUnits="userSpaceOnUse" orient="auto-start-reverse"><path class="ah-read" d="M1.5 1.5L8.5 5L1.5 8.5"/></marker>
+    <marker id="ah-plain" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="9" markerHeight="9" markerUnits="userSpaceOnUse" orient="auto-start-reverse"><path class="ah-plain" d="M1.5 1.5L8.5 5L1.5 8.5"/></marker>
+    <pattern id="tl-hatch" width="7" height="7" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><line class="tl-hatch-line" x1="0" y1="0" x2="0" y2="7"/></pattern>
+  </defs>
+</svg>
+
+  <header class="col mast">
+    <p class="eyebrow"><time datetime="2026-10-29">29 October 2026</time> · remesso-sdk 0.3.1</p>
+    <h1>How an <span class="nw">agent-to-agent</span> integration works</h1>
+    <p class="lede">Your system runs the agents, and each one holds its own key. The person whose money moves signs once, in their own wallet. Remesso provides the contracts on Celo, a request inbox, an indexer and signed webhooks.</p>
+    <ul class="chips" aria-label="What an integrator doesn't need">
+      <li>No sign-up</li><li>No API key</li><li>Receiving needs no gas</li><li>Money never passes through Remesso</li>
+    </ul>
+  </header>
+
+  
+<section class="plate" id="map" aria-labelledby="map-h">
+  <header class="plate-head">
+    <p class="eyebrow">Fig. 1</p>
+    <h2 id="map-h">Who runs what</h2>
+    <p class="plate-intro">Two agents on your side, Remesso in the middle, Celo underneath. The numbers follow one payment from request to delivery.</p>
+  </header>
+  <div class="fig-scroll" tabindex="0" aria-label="Who runs what, scrolls sideways on small screens"><svg viewBox="0 0 960 604" role="img" aria-label="Who runs what: your receiving and paying agents, Remesso's inbox, webhooks, indexer and executor, and the contracts on Celo">
+  <rect class="zone-yours" x="16" y="16" width="286" height="262" rx="14"/>
+  <text class="sv-eyebrow" x="36" y="41">YOUR SYSTEM · RECEIVING SIDE</text>
+  <rect class="zone-remesso" x="337" y="16" width="286" height="372" rx="14"/>
+  <text class="sv-eyebrow sv-eyebrow-accent" x="357" y="41">REMESSO · PUBLIC, NO API KEY</text>
+  <rect class="zone-yours" x="658" y="16" width="286" height="262" rx="14"/>
+  <text class="sv-eyebrow" x="678" y="41">YOUR SYSTEM · PAYING SIDE</text>
+
+  <rect class="zone-chain" x="16" y="440" width="928" height="150" rx="14"/>
+  <text class="sv-eyebrow" x="36" y="466">CELO MAINNET</text>
+  <g class="bx"><rect x="150" y="482" width="300" height="72" rx="10"/><text class="sv-mono" x="300" y="514" text-anchor="middle">RemessoAgentAllowance</text><text class="sv-sub" x="300" y="533" text-anchor="middle">spending limits · no fee</text></g>
+  <g class="bx"><rect x="510" y="482" width="300" height="72" rx="10"/><text class="sv-mono" x="660" y="514" text-anchor="middle">RemessoExecutorV5</text><text class="sv-sub" x="660" y="533" text-anchor="middle">wallet payments and mandates · 0.25% fee</text></g>
+  <text class="sv-sub" x="480" y="576" text-anchor="middle">Tokens move straight from the payer's wallet to the receiver. Remesso never holds them.</text>
+
+  <g class="bx"><rect x="56" y="56" width="226" height="72" rx="10"/><text class="sv-title" x="169" y="88" text-anchor="middle">Receiving agent</text><text class="sv-sub" x="169" y="107" text-anchor="middle">its own key, needs no gas</text></g>
+  <g class="bx"><rect x="56" y="166" width="226" height="72" rx="10"/><text class="sv-title" x="169" y="198" text-anchor="middle">Webhook endpoint</text><text class="sv-sub" x="169" y="217" text-anchor="middle">checks every signature</text></g>
+  <g class="bx"><rect x="357" y="56" width="246" height="72" rx="10"/><text class="sv-title" x="480" y="88" text-anchor="middle">Request inbox</text><text class="sv-sub" x="480" y="107" text-anchor="middle">asks a wallet to pay, free</text></g>
+  <g class="bx"><rect x="357" y="166" width="246" height="72" rx="10"/><text class="sv-title" x="480" y="198" text-anchor="middle">Webhooks</text><text class="sv-sub" x="480" y="217" text-anchor="middle">signed, retried for 24 hours</text></g>
+  <g class="bx"><rect x="357" y="286" width="117" height="72" rx="10"/>
+    <text class="sv-title-sm" x="415.5" y="318" text-anchor="middle">Indexer</text>
+    <text class="sv-sub" x="415.5" y="337" text-anchor="middle">reads every block</text></g>
+  <g class="bx"><rect x="486" y="286" width="117" height="72" rx="10"/>
+    <text class="sv-title-sm" x="544.5" y="318" text-anchor="middle">Executor agent</text>
+    <text class="sv-sub" x="544.5" y="337" text-anchor="middle">pays mandates</text></g>
+  <g class="bx"><rect x="678" y="56" width="226" height="72" rx="10"/><text class="sv-title" x="791" y="88" text-anchor="middle">Paying agent</text><text class="sv-sub" x="791" y="107" text-anchor="middle">its own key</text></g>
+  <g class="bx"><rect x="678" y="166" width="226" height="72" rx="10"/><text class="sv-title" x="791" y="198" text-anchor="middle">Journal</text><text class="sv-sub" x="791" y="217" text-anchor="middle">one payment per key</text></g>
+  <g class="hd-person"><rect x="678" y="310" width="226" height="72" rx="10"/>
+    <text class="sv-eyebrow" x="791" y="330" text-anchor="middle">YOUR USER</text>
+    <text class="sv-title" x="791" y="350" text-anchor="middle">The person's wallet</text>
+    <text class="sv-sub" x="791" y="368" text-anchor="middle">signs a limit or a mandate once</text></g>
+
+  <line class="ln-plain" x1="791" y1="128" x2="791" y2="166"/>
+  <line class="ln-plain" x1="415.5" y1="286" x2="415.5" y2="246" marker-end="url(#ah-plain)"/>
+
+  <line class="ln-http" x1="282" y1="92" x2="349" y2="92" marker-end="url(#ah-http)"/>
+  <g class="badge badge-strong"><circle cx="316" cy="92" r="10.5"/><text x="316" y="96" text-anchor="middle">1</text></g>
+  <line class="ln-http" x1="678" y1="92" x2="611" y2="92" marker-end="url(#ah-http)"/>
+  <g class="badge badge-strong"><circle cx="643" cy="92" r="10.5"/><text x="643" y="96" text-anchor="middle">2</text></g>
+  <path class="ln-tx" d="M904 92H924V432" marker-end="url(#ah-tx)"/>
+  <g class="badge badge-strong"><circle cx="924" cy="250" r="10.5"/><text x="924" y="254" text-anchor="middle">3</text></g>
+  <line class="ln-read" x1="415.5" y1="440" x2="415.5" y2="366" marker-end="url(#ah-read)"/>
+  <g class="badge badge-strong"><circle cx="415.5" cy="413" r="10.5"/><text x="415.5" y="417" text-anchor="middle">4</text></g>
+  <line class="ln-http" x1="357" y1="202" x2="290" y2="202" marker-end="url(#ah-http)"/>
+  <g class="badge badge-strong"><circle cx="322" cy="202" r="10.5"/><text x="322" y="206" text-anchor="middle">5</text></g>
+  <path class="ln-read" d="M56 92H36V432" marker-end="url(#ah-read)"/>
+  <g class="badge badge-strong"><circle cx="36" cy="250" r="10.5"/><text x="36" y="254" text-anchor="middle">6</text></g>
+  <line class="ln-tx" x1="791" y1="382" x2="791" y2="432" marker-end="url(#ah-tx)"/>
+  <text class="sv-sub" x="801" y="414">signs once</text>
+  <line class="ln-tx" x1="544.5" y1="358" x2="544.5" y2="432" marker-end="url(#ah-tx)"/>
+  <text class="sv-sub" x="554.5" y="414">when due</text>
+</svg></div>
+  <p class="swipe">Swipe sideways to see the whole figure.</p>
+  
+  <ol class="steps">
+    <li><span><strong>The receiving agent asks to be paid.</strong> It names the wallet that will pay, an exact amount and one token.</span></li>
+    <li><span><strong>The paying agent reads that wallet's inbox</strong> and finds the request.</span></li>
+    <li><span><strong>It pays on Celo</strong>, from its own wallet or from the person's, inside the limit they signed.</span></li>
+    <li><span><strong>Remesso's indexer sees the payment</strong> and matches it to the request.</span></li>
+    <li><span><strong>Remesso posts signed webhooks</strong> to the receiving side: <code>payment.received</code>, then <code>payment.finalized</code>.</span></li>
+    <li><span><strong>The receiving agent checks the payment on Celo itself</strong>, with no key, and then delivers.</span></li>
+  </ol>
+  <div class="aside-notes">
+    <p><strong>Signed once.</strong> The person's wallet approves a spending limit or a mandate. The contracts refuse anything outside it, and the person can revoke it alone.</p>
+    <p><strong>Mandates.</strong> Remesso's executor agent sends each payment of a mandate when it's due. It can't change the receiver, the amount or the dates.</p>
+  </div>
+  <div class="keys"><ul class="legend" aria-label="Key">
+  <li><svg viewBox="0 0 46 12" aria-hidden="true"><line class="ln-tx" x1="2" y1="6" x2="36" y2="6" marker-end="url(#ah-tx)"/></svg>Transaction on Celo, signed by its sender</li>
+  <li><svg viewBox="0 0 46 12" aria-hidden="true"><line class="ln-http" x1="2" y1="6" x2="36" y2="6" marker-end="url(#ah-http)"/></svg>Call to Remesso or a webhook, free</li>
+  <li><svg viewBox="0 0 46 12" aria-hidden="true"><line class="ln-read" x1="2" y1="6" x2="36" y2="6" marker-end="url(#ah-read)"/></svg>Reads the chain, no key</li>
+</ul><ul class="legend" aria-label="Who runs each part">
+  <li><span class="sw sw-yours"></span>Your system</li>
+  <li><span class="sw sw-remesso"></span>Remesso</li>
+  <li><span class="sw sw-chain"></span>Celo mainnet</li>
+  <li><span class="sw sw-person"></span>Your user's wallet</li>
+</ul></div>
+</section>
+
+  
+<section class="plate" id="one-payment" aria-labelledby="one-payment-h">
+  <header class="plate-head">
+    <p class="eyebrow">Fig. 2</p>
+    <h2 id="one-payment-h">One payment, step by step</h2>
+    <p class="plate-intro">A spending-limit payment of 1,500 wARS. The person signs once. After that the agent pays on its own, and the contract refuses anything outside the limit.</p>
+  </header>
+  <div class="fig-scroll" tabindex="0" aria-label="One payment, step by step, scrolls sideways on small screens"><svg viewBox="0 0 980 841" role="img" aria-label="One spending-limit payment of 1,500 wARS, step by step"><line class="sq-life" x1="138" y1="70" x2="138" y2="837"/><line class="sq-life" x1="325" y1="70" x2="325" y2="837"/><line class="sq-life" x1="512" y1="70" x2="512" y2="837"/><line class="sq-life" x1="699" y1="70" x2="699" y2="837"/><line class="sq-life" x1="886" y1="70" x2="886" y2="837"/><g class="hd hd-person"><rect x="50" y="6" width="176" height="64" rx="10"/><text class="sv-eyebrow" x="138" y="25" text-anchor="middle">YOUR USER</text><text class="sv-title" x="138" y="44" text-anchor="middle">Person's wallet</text><text class="sv-sub" x="138" y="61" text-anchor="middle">owns the money</text></g><g class="hd hd-yours"><rect x="237" y="6" width="176" height="64" rx="10"/><text class="sv-eyebrow" x="325" y="25" text-anchor="middle">YOUR SYSTEM</text><text class="sv-title" x="325" y="44" text-anchor="middle">Paying agent</text><text class="sv-sub" x="325" y="61" text-anchor="middle">its own key</text></g><g class="hd hd-chain"><rect x="424" y="6" width="176" height="64" rx="10"/><text class="sv-eyebrow" x="512" y="25" text-anchor="middle">CELO MAINNET</text><text class="sv-title" x="512" y="44" text-anchor="middle">Contracts</text><text class="sv-sub" x="512" y="61" text-anchor="middle">RemessoAgentAllowance</text></g><g class="hd hd-remesso"><rect x="611" y="6" width="176" height="64" rx="10"/><text class="sv-eyebrow" x="699" y="25" text-anchor="middle">PUBLIC, NO API KEY</text><text class="sv-title" x="699" y="44" text-anchor="middle">Remesso</text><text class="sv-sub" x="699" y="61" text-anchor="middle">inbox, indexer, webhooks</text></g><g class="hd hd-yours"><rect x="798" y="6" width="176" height="64" rx="10"/><text class="sv-eyebrow" x="886" y="25" text-anchor="middle">YOUR SYSTEM</text><text class="sv-title" x="886" y="44" text-anchor="middle">Receiving agent</text><text class="sv-sub" x="886" y="61" text-anchor="middle">its own key, no gas</text></g><rect class="sq-band" x="46" y="90" width="930" height="22" rx="6"/><text class="sq-band-t" x="58" y="105">ONCE</text><line class="ln-tx" x1="143" y1="166" x2="504" y2="166" marker-end="url(#ah-tx)"/><text class="sq-code halo" x="325" y="144" text-anchor="middle">policies.create</text><text class="sq-text halo" x="325" y="158" text-anchor="middle">an approval, then a policy naming the agent</text><g class="badge"><circle cx="22" cy="166" r="10.5"/><text x="22" y="170" text-anchor="middle">1</text></g><rect class="sq-band" x="46" y="188" width="930" height="22" rx="6"/><text class="sq-band-t" x="58" y="203">EACH PAYMENT</text><line class="ln-http" x1="881" y1="264" x2="707" y2="264" marker-end="url(#ah-http)"/><text class="sq-code halo" x="792.5" y="242" text-anchor="middle">requests.create</text><text class="sq-text halo" x="792.5" y="256" text-anchor="middle">1,500 wARS from the person</text><g class="badge"><circle cx="22" cy="264" r="10.5"/><text x="22" y="268" text-anchor="middle">2</text></g><line class="ln-http" x1="330" y1="322" x2="691" y2="322" marker-end="url(#ah-http)"/><text class="sq-code halo" x="512" y="300" text-anchor="middle">requests.list</text><text class="sq-text halo" x="512" y="314" text-anchor="middle">reads the person's inbox</text><g class="badge"><circle cx="22" cy="322" r="10.5"/><text x="22" y="326" text-anchor="middle">3</text></g><line class="ln-tx" x1="330" y1="380" x2="504" y2="380" marker-end="url(#ah-tx)"/><text class="sq-code halo" x="418.5" y="358" text-anchor="middle">remittances.send</text><text class="sq-text halo" x="418.5" y="372" text-anchor="middle">pays inside the limit</text><g class="badge"><circle cx="22" cy="380" r="10.5"/><text x="22" y="384" text-anchor="middle">4</text></g><line class="ln-tx" x1="517" y1="438" x2="878" y2="438" marker-end="url(#ah-tx)"/><text class="sq-code halo" x="699" y="416" text-anchor="middle">1,500 wARS</text><text class="sq-text halo" x="699" y="430" text-anchor="middle">straight from the person's wallet</text><g class="badge"><circle cx="22" cy="438" r="10.5"/><text x="22" y="442" text-anchor="middle">5</text></g><line class="ln-read" x1="694" y1="496" x2="520" y2="496" marker-end="url(#ah-read)"/><text class="sq-code halo" x="605.5" y="474" text-anchor="middle">index-events</text><text class="sq-text halo" x="605.5" y="488" text-anchor="middle">reads every block</text><g class="badge"><circle cx="22" cy="496" r="10.5"/><text x="22" y="500" text-anchor="middle">6</text></g><rect class="sq-note" x="589" y="518" width="220" height="60" rx="8"/><text class="sq-note-t" x="699" y="537" text-anchor="middle">Binds it to the request</text><text class="sq-text" x="699" y="553" text-anchor="middle">from the wallet asked,</text><text class="sq-text" x="699" y="568" text-anchor="middle">to the address that asked</text><g class="badge"><circle cx="22" cy="548" r="10.5"/><text x="22" y="552" text-anchor="middle">7</text></g><line class="ln-http" x1="704" y1="634" x2="878" y2="634" marker-end="url(#ah-http)"/><text class="sq-code halo" x="792.5" y="612" text-anchor="middle">payment.received</text><text class="sq-text halo" x="792.5" y="626" text-anchor="middle">signed, within a minute</text><g class="badge"><circle cx="22" cy="634" r="10.5"/><text x="22" y="638" text-anchor="middle">8</text></g><line class="ln-http" x1="704" y1="692" x2="878" y2="692" marker-end="url(#ah-http)"/><text class="sq-code halo" x="792.5" y="670" text-anchor="middle">payment.finalized</text><text class="sq-text halo" x="792.5" y="684" text-anchor="middle">about 25 minutes later</text><g class="badge"><circle cx="22" cy="692" r="10.5"/><text x="22" y="696" text-anchor="middle">9</text></g><line class="ln-read" x1="881" y1="750" x2="520" y2="750" marker-end="url(#ah-read)"/><text class="sq-code halo" x="699" y="728" text-anchor="middle">receipts.verify</text><text class="sq-text halo" x="699" y="742" text-anchor="middle">no key, no trust in Remesso</text><g class="badge"><circle cx="22" cy="750" r="10.5"/><text x="22" y="754" text-anchor="middle">10</text></g><rect class="sq-note" x="754" y="772" width="220" height="45" rx="8"/><text class="sq-note-t" x="864" y="791" text-anchor="middle">Deliver</text><text class="sq-text" x="864" y="807" text-anchor="middle">store proof.eventId once</text><g class="badge"><circle cx="22" cy="794.5" r="10.5"/><text x="22" y="798.5" text-anchor="middle">11</text></g></svg></div>
+  <p class="swipe">Swipe sideways to see the whole figure.</p>
+  <div class="keys"><ul class="legend" aria-label="Key">
+  <li><svg viewBox="0 0 46 12" aria-hidden="true"><line class="ln-tx" x1="2" y1="6" x2="36" y2="6" marker-end="url(#ah-tx)"/></svg>Transaction on Celo, signed by its sender</li>
+  <li><svg viewBox="0 0 46 12" aria-hidden="true"><line class="ln-http" x1="2" y1="6" x2="36" y2="6" marker-end="url(#ah-http)"/></svg>Call to Remesso or a webhook, free</li>
+  <li><svg viewBox="0 0 46 12" aria-hidden="true"><line class="ln-read" x1="2" y1="6" x2="36" y2="6" marker-end="url(#ah-read)"/></svg>Reads the chain, no key</li>
+</ul></div>
+</section>
+
+  
+<section class="plate" id="funding" aria-labelledby="funding-h">
+  <header class="plate-head">
+    <p class="eyebrow">Fig. 3</p>
+    <h2 id="funding-h">Choosing how to pay</h2>
+    <p class="plate-intro">Three ways to fund a payment. The receiving side works the same way for all three.</p>
+  </header>
+  <div class="fig-scroll" tabindex="0" aria-label="Choosing how to pay, scrolls sideways on small screens"><svg viewBox="0 0 960 284" role="img" aria-label="Choosing how to pay: a repeating payment is a mandate; a one-off is paid under a spending limit or from the agent's own wallet">
+  <g class="q"><rect x="16" y="20" width="220" height="60" rx="30"/>
+    <text class="sv-title" x="126" y="55" text-anchor="middle">Does it repeat?</text></g>
+  <g class="q"><rect x="16" y="120" width="220" height="60" rx="30"/>
+    <text class="sv-title" x="126" y="155" text-anchor="middle">Whose money moves?</text></g>
+  <line class="ln-http" x1="236" y1="50" x2="612" y2="50" marker-end="url(#ah-http)"/>
+  <text class="sq-text halo" x="428" y="42" text-anchor="middle">yes, every week, fortnight, month or quarter</text>
+  <line class="ln-http" x1="126" y1="80" x2="126" y2="112" marker-end="url(#ah-http)"/>
+  <text class="sq-text" x="138" y="101">no, it's paid once</text>
+  <line class="ln-http" x1="236" y1="150" x2="612" y2="150" marker-end="url(#ah-http)"/>
+  <text class="sq-text halo" x="428" y="142" text-anchor="middle">a person's or a treasury's</text>
+  <path class="ln-http" d="M126 180V240H612" marker-end="url(#ah-http)"/>
+  <text class="sq-text halo" x="428" y="232" text-anchor="middle">the agent's own</text>
+  <g class="leaf"><rect x="620" y="20" width="324" height="60" rx="10"/><g class="badge badge-strong"><circle cx="650" cy="50" r="10.5"/><text x="650" y="54" text-anchor="middle">C</text></g><text class="sv-title" x="674" y="46">Mandate</text><text class="sv-mono-sm" x="674" y="65">schedules.create({ request })</text></g>
+  <g class="leaf"><rect x="620" y="120" width="324" height="60" rx="10"/><g class="badge badge-strong"><circle cx="650" cy="150" r="10.5"/><text x="650" y="154" text-anchor="middle">A</text></g><text class="sv-title" x="674" y="146">Spending limit</text><text class="sv-mono-sm" x="674" y="165">funding: &quot;policy&quot;</text></g>
+  <g class="leaf"><rect x="620" y="210" width="324" height="60" rx="10"/><g class="badge badge-strong"><circle cx="650" cy="240" r="10.5"/><text x="650" y="244" text-anchor="middle">B</text></g><text class="sv-title" x="674" y="236">The agent's own wallet</text><text class="sv-mono-sm" x="674" y="255">funding: &quot;wallet&quot;</text></g>
+</svg></div>
+  <p class="swipe">Swipe sideways to see the whole figure.</p>
+  
+  <div class="cards">
+    <article class="card">
+      <div class="card-h"><span class="letter">A</span><h3>Spending limit</h3></div>
+      <dl>
+        <div><dt>Who signs</dt><dd>The person, once: an approval and a policy naming the agent. Then the agent pays alone.</dd></div>
+        <div><dt>Each payment</dt><dd>One transaction from the agent, about 90k gas.</dd></div>
+        <div><dt>Remesso's fee</dt><dd>None.</dd></div>
+        <div><dt>Per payment</dt><dd>What the policy allows: caps per payment and per day, an expiry, and optionally a recipient list.</dd></div>
+      </dl>
+    </article>
+    <article class="card">
+      <div class="card-h"><span class="letter">B</span><h3>The agent's own wallet</h3></div>
+      <dl>
+        <div><dt>Who signs</dt><dd>The agent, each time. In Fig. 2, step 1 drops out and step 4 becomes three transactions: a one-payment schedule, an approval and the run.</dd></div>
+        <div><dt>Each payment</dt><dd>About 370k gas across the three.</dd></div>
+        <div><dt>Remesso's fee</dt><dd>0.25%, added on top, so the receiver gets the exact amount.</dd></div>
+        <div><dt>Per payment</dt><dd>$1 to $1,000 equivalent. In wARS, 1,500 to 1,500,000.</dd></div>
+      </dl>
+    </article>
+    <article class="card">
+      <div class="card-h"><span class="letter">C</span><h3>Mandate</h3></div>
+      <dl>
+        <div><dt>Who signs</dt><dd>The payer, once: an approval and a schedule with the receiver, amount, cadence, count and expiry.</dd></div>
+        <div><dt>Each payment</dt><dd>Sent by Remesso's executor agent when due. Remesso pays that gas.</dd></div>
+        <div><dt>Remesso's fee</dt><dd>0.25% per payment, added on top.</dd></div>
+        <div><dt>Per payment</dt><dd>$1 to $1,000 equivalent, as for B.</dd></div>
+      </dl>
+    </article>
+  </div>
+</section>
+
+  
+<section class="plate" id="mandate" aria-labelledby="mandate-h">
+  <header class="plate-head">
+    <p class="eyebrow">Fig. 4</p>
+    <h2 id="mandate-h">A monthly mandate</h2>
+    <p class="plate-intro">For a recurring request, the payer signs one mandate. Remesso's executor agent sends each payment when it's due, and only the payer can stop it.</p>
+  </header>
+  <div class="fig-scroll" tabindex="0" aria-label="A monthly mandate, scrolls sideways on small screens"><svg viewBox="0 0 980 653" role="img" aria-label="A monthly mandate: signed once, then paid by Remesso's executor agent every month"><line class="sq-life" x1="138" y1="70" x2="138" y2="649"/><line class="sq-life" x1="387.33333333333337" y1="70" x2="387.33333333333337" y2="649"/><line class="sq-life" x1="636.6666666666667" y1="70" x2="636.6666666666667" y2="649"/><line class="sq-life" x1="886" y1="70" x2="886" y2="649"/><g class="hd hd-person"><rect x="50" y="6" width="176" height="64" rx="10"/><text class="sv-eyebrow" x="138" y="25" text-anchor="middle">YOUR USER</text><text class="sv-title" x="138" y="44" text-anchor="middle">Payer's wallet</text><text class="sv-sub" x="138" y="61" text-anchor="middle">owns the money</text></g><g class="hd hd-chain"><rect x="299.33333333333337" y="6" width="176" height="64" rx="10"/><text class="sv-eyebrow" x="387.33333333333337" y="25" text-anchor="middle">CELO MAINNET</text><text class="sv-title" x="387.33333333333337" y="44" text-anchor="middle">RemessoExecutorV5</text><text class="sv-sub" x="387.33333333333337" y="61" text-anchor="middle">holds the mandate</text></g><g class="hd hd-remesso"><rect x="548.6666666666667" y="6" width="176" height="64" rx="10"/><text class="sv-eyebrow" x="636.6666666666667" y="25" text-anchor="middle">PUBLIC, NO API KEY</text><text class="sv-title" x="636.6666666666667" y="44" text-anchor="middle">Remesso</text><text class="sv-sub" x="636.6666666666667" y="61" text-anchor="middle">inbox, executor, webhooks</text></g><g class="hd hd-yours"><rect x="798" y="6" width="176" height="64" rx="10"/><text class="sv-eyebrow" x="886" y="25" text-anchor="middle">YOUR SYSTEM</text><text class="sv-title" x="886" y="44" text-anchor="middle">Receiving agent</text><text class="sv-sub" x="886" y="61" text-anchor="middle">its own key, no gas</text></g><line class="ln-http" x1="881" y1="126" x2="644.6666666666667" y2="126" marker-end="url(#ah-http)"/><text class="sq-code halo" x="761.3333333333334" y="104" text-anchor="middle">requests.create</text><text class="sq-text halo" x="761.3333333333334" y="118" text-anchor="middle">1,500 wARS a month, 12 times</text><g class="badge"><circle cx="22" cy="126" r="10.5"/><text x="22" y="130" text-anchor="middle">1</text></g><rect class="sq-band" x="46" y="148" width="930" height="22" rx="6"/><text class="sq-band-t" x="58" y="163">ONCE</text><line class="ln-tx" x1="143" y1="224" x2="379.33333333333337" y2="224" marker-end="url(#ah-tx)"/><text class="sq-code halo" x="262.6666666666667" y="202" text-anchor="middle">schedules.create({ request })</text><text class="sq-text halo" x="262.6666666666667" y="216" text-anchor="middle">an approval, then the schedule</text><g class="badge"><circle cx="22" cy="224" r="10.5"/><text x="22" y="228" text-anchor="middle">2</text></g><line class="ln-http" x1="143" y1="282" x2="628.6666666666667" y2="282" marker-end="url(#ah-http)"/><text class="sq-code halo" x="387.33333333333337" y="260" text-anchor="middle">requests.answer</text><text class="sq-text halo" x="387.33333333333337" y="274" text-anchor="middle">sent for you by schedules.create: accepted</text><g class="badge"><circle cx="22" cy="282" r="10.5"/><text x="22" y="286" text-anchor="middle">3</text></g><rect class="sq-note" x="526.6666666666667" y="304" width="220" height="45" rx="8"/><text class="sq-note-t" x="636.6666666666667" y="323" text-anchor="middle">Finds the new mandate</text><text class="sq-text" x="636.6666666666667" y="339" text-anchor="middle">within 5 minutes</text><g class="badge"><circle cx="22" cy="326.5" r="10.5"/><text x="22" y="330.5" text-anchor="middle">4</text></g><rect class="sq-loop" x="301.33333333333337" y="367" width="674.6666666666666" height="204" rx="10"/><path class="sq-loop-tab" d="M301.33333333333337 391V377a10 10 0 0 1 10-10H527.1333333333334v14l-10 10z"/><text class="sq-loop-t" x="313.33333333333337" y="383">EVERY MONTH, UP TO 12 TIMES</text><line class="ln-tx" x1="631.6666666666667" y1="435" x2="395.33333333333337" y2="435" marker-end="url(#ah-tx)"/><text class="sq-code halo" x="512" y="413" text-anchor="middle">executeRun</text><text class="sq-text halo" x="512" y="427" text-anchor="middle">when the payment is due</text><g class="badge"><circle cx="22" cy="435" r="10.5"/><text x="22" y="439" text-anchor="middle">5</text></g><line class="ln-tx" x1="392.33333333333337" y1="493" x2="878" y2="493" marker-end="url(#ah-tx)"/><text class="sq-code halo" x="636.6666666666667" y="471" text-anchor="middle">1,500 wARS</text><text class="sq-text halo" x="636.6666666666667" y="485" text-anchor="middle">from the payer's wallet, exactly as asked</text><g class="badge"><circle cx="22" cy="493" r="10.5"/><text x="22" y="497" text-anchor="middle">6</text></g><line class="ln-http" x1="641.6666666666667" y1="551" x2="878" y2="551" marker-end="url(#ah-http)"/><text class="sq-code halo" x="761.3333333333334" y="529" text-anchor="middle">payment.received</text><text class="sq-text halo" x="761.3333333333334" y="543" text-anchor="middle">then payment.finalized</text><g class="badge"><circle cx="22" cy="551" r="10.5"/><text x="22" y="555" text-anchor="middle">7</text></g><line class="ln-tx" x1="143" y1="627" x2="379.33333333333337" y2="627" marker-end="url(#ah-tx)"/><text class="sq-code halo" x="262.6666666666667" y="605" text-anchor="middle">schedules.cancel</text><text class="sq-text halo" x="262.6666666666667" y="619" text-anchor="middle">any time, by the payer only</text><g class="badge"><circle cx="22" cy="627" r="10.5"/><text x="22" y="631" text-anchor="middle">8</text></g></svg></div>
+  <p class="swipe">Swipe sideways to see the whole figure.</p>
+  <div class="keys"><ul class="legend" aria-label="Key">
+  <li><svg viewBox="0 0 46 12" aria-hidden="true"><line class="ln-tx" x1="2" y1="6" x2="36" y2="6" marker-end="url(#ah-tx)"/></svg>Transaction on Celo, signed by its sender</li>
+  <li><svg viewBox="0 0 46 12" aria-hidden="true"><line class="ln-http" x1="2" y1="6" x2="36" y2="6" marker-end="url(#ah-http)"/></svg>Call to Remesso or a webhook, free</li>
+  <li><svg viewBox="0 0 46 12" aria-hidden="true"><line class="ln-read" x1="2" y1="6" x2="36" y2="6" marker-end="url(#ah-read)"/></svg>Reads the chain, no key</li>
+</ul></div>
+</section>
+
+  
+<section class="plate" id="timing" aria-labelledby="timing-h">
+  <header class="plate-head">
+    <p class="eyebrow">Fig. 5</p>
+    <h2 id="timing-h">When to deliver</h2>
+    <p class="plate-intro">Every payment produces two signed webhooks. Which one you act on depends on whether you could take the delivery back.</p>
+  </header>
+  <div class="fig-scroll" tabindex="0" aria-label="When to deliver, scrolls sideways on small screens"><svg viewBox="0 0 980 172" role="img" aria-label="Timeline: payment.received about a minute after the payment, payment.finalized a median of 23 minutes after, at most 31 measured">
+  <clipPath id="tl-clip"><rect x="60" y="104" width="880" height="14" rx="7"/></clipPath>
+  <g clip-path="url(#tl-clip)">
+    <rect class="tl-included" x="60" y="104" width="578.3" height="14"/>
+    <rect class="tl-spread" x="638.3" y="104" width="201.10000000000002" height="14"/>
+    <rect class="tl-spread-lines" x="638.3" y="104" width="201.10000000000002" height="14"/>
+    <rect class="tl-final" x="839.4" y="104" width="100.60000000000002" height="14"/>
+  </g>
+  <rect class="tl-outline" x="60" y="104" width="880" height="14" rx="7"/>
+  <line class="tl-tick" x1="60" y1="118" x2="60" y2="124"/><text class="sv-sub" x="60" y="139" text-anchor="start">0 min, mined</text><line class="tl-tick" x1="185.7" y1="118" x2="185.7" y2="124"/><text class="sv-sub" x="185.7" y="139" text-anchor="middle">5</text><line class="tl-tick" x1="311.4" y1="118" x2="311.4" y2="124"/><text class="sv-sub" x="311.4" y="139" text-anchor="middle">10</text><line class="tl-tick" x1="437.1" y1="118" x2="437.1" y2="124"/><text class="sv-sub" x="437.1" y="139" text-anchor="middle">15</text><line class="tl-tick" x1="562.9" y1="118" x2="562.9" y2="124"/><text class="sv-sub" x="562.9" y="139" text-anchor="middle">20</text><line class="tl-tick" x1="688.6" y1="118" x2="688.6" y2="124"/><text class="sv-sub" x="688.6" y="139" text-anchor="middle">25</text><line class="tl-tick" x1="814.3" y1="118" x2="814.3" y2="124"/><text class="sv-sub" x="814.3" y="139" text-anchor="middle">30</text><line class="tl-tick" x1="940" y1="118" x2="940" y2="124"/><text class="sv-sub" x="940" y="139" text-anchor="end">35 min</text>
+  <line class="tl-pin" x1="85.1" y1="68" x2="85.1" y2="104"/>
+  <circle class="tl-dot-received" cx="85.1" cy="111" r="5.5"/>
+  <text class="sv-mono" x="79.1" y="44">payment.received</text>
+  <text class="sv-sub" x="79.1" y="61">about a minute in · final: false</text>
+  <line class="tl-pin" x1="638.3" y1="68" x2="638.3" y2="104"/>
+  <circle class="tl-dot-final" cx="638.3" cy="111" r="5.5"/>
+  <text class="sv-mono" x="632.3" y="44">payment.finalized</text>
+  <text class="sv-sub" x="632.3" y="61">median 23 min, at most 31 · final: true</text>
+  <text class="sq-text" x="349.1" y="162" text-anchor="middle">included: a reorg could still undo it</text>
+  <text class="sq-text" x="801.7" y="162" text-anchor="middle">final: can't be undone</text>
+</svg></div>
+  <p class="swipe">Swipe sideways to see the whole figure.</p>
+  
+  <div class="callouts">
+    <div class="callout callout-received"><span class="k">on payment.received</span><span>Deliver what you can take back: an API answer, a file, a translated page.</span></div>
+    <div class="callout callout-final"><span class="k">on payment.finalized</span><span>Deliver what you can't: a cash-out, shipped goods, a payout to someone else.</span></div>
+  </div>
+  <p class="foot">Measured on Celo over 12.5 hours: Celo's finalized block ran a median of 23 minutes behind the newest block, 31 at most, and no block was replaced. If a reorg ever undid a payment after <code>payment.received</code>, Remesso would send <code>payment.removed</code>.</p>
+</section>
+
+  <section class="wide section" id="code" aria-labelledby="code-h">
+    <div class="col" style="max-width:680px;margin-inline:0;display:grid;gap:8px">
+      <p class="eyebrow">The code</p>
+      <h2 id="code-h">What each side writes</h2>
+      <p class="plate-intro">Both sides use the same package: <code>npm install remesso-sdk viem</code>. These are the calls from Fig. 2.</p>
+    </div>
+    <div class="code-grid">
+      <div class="code-card"><h3>Receiving agent</h3><pre><code><span class="tok-k">import</span> { createRemesso, webhookHandler } <span class="tok-k">from</span> <span class="tok-s">&quot;remesso-sdk&quot;</span>;
+
+<span class="tok-k">const</span> seller = createRemesso({ account }); <span class="tok-c">// the agent's own key</span>
+
+<span class="tok-c">// 1. Ask the wallet whose money will move</span>
+<span class="tok-k">const</span> req = <span class="tok-k">await</span> seller.requests.create({
+  payer, amount: <span class="tok-s">&quot;1500&quot;</span>, token: <span class="tok-s">&quot;wARS&quot;</span>, runs: 1, note: <span class="tok-s">&quot;Order 1042&quot;</span>,
+});
+
+<span class="tok-c">// 2. Serve the handler at your URL, then subscribe it</span>
+<span class="tok-k">let</span> secret: string | undefined;
+<span class="tok-k">const</span> handler = webhookHandler({ recipient: seller.address, secret: () =&gt; secret, onPayment });
+secret = (<span class="tok-k">await</span> seller.webhooks.subscribe({ url: <span class="tok-s">&quot;https://agent.example/remesso&quot;</span> })).secret;
+
+<span class="tok-c">// 3. Before delivering, check the payment on Celo yourself</span>
+<span class="tok-k">const</span> proof = <span class="tok-k">await</span> createRemesso().receipts.verify({
+  txHash, <span class="tok-k">from</span>: payer, to: seller.address, token: <span class="tok-s">&quot;wARS&quot;</span>, amount: <span class="tok-s">&quot;1500&quot;</span>,
+  policyId, memo: req.reference, <span class="tok-c">// or scheduleId, for a wallet payment or a mandate</span>
+  finality: <span class="tok-s">&quot;finalized&quot;</span>,
+});
+<span class="tok-c">// store proof.eventId once, then deliver</span></code></pre></div>
+      <div class="code-card"><h3>Paying agent</h3><pre><code><span class="tok-k">import</span> { createRemesso } <span class="tok-k">from</span> <span class="tok-s">&quot;remesso-sdk&quot;</span>;
+<span class="tok-k">import</span> { fileRemittanceStore, fileStore } <span class="tok-k">from</span> <span class="tok-s">&quot;remesso-sdk/node&quot;</span>;
+
+<span class="tok-c">// The agent's own key, with journals so a retry never pays twice</span>
+<span class="tok-k">const</span> buyer = createRemesso({
+  account,
+  store: fileStore(<span class="tok-s">&quot;./state/policy-payments.json&quot;</span>),
+  remittanceStore: fileRemittanceStore(<span class="tok-s">&quot;./state/wallet-payments.json&quot;</span>),
+});
+
+<span class="tok-c">// Once, signed in the person's own wallet</span>
+<span class="tok-k">const</span> { id: policyId } = <span class="tok-k">await</span> person.policies.create({
+  agent: buyer.address, token: <span class="tok-s">&quot;wARS&quot;</span>,
+  perPayment: <span class="tok-s">&quot;2000&quot;</span>, perDay: <span class="tok-s">&quot;5000&quot;</span>, days: 30, budget: <span class="tok-s">&quot;20000&quot;</span>,
+});
+
+<span class="tok-c">// Each time: read the person's inbox and pay the request</span>
+<span class="tok-k">const</span> [r] = <span class="tok-k">await</span> buyer.requests.list(person.address);
+<span class="tok-k">const</span> sent = <span class="tok-k">await</span> buyer.remittances.send({
+  funding: <span class="tok-s">&quot;policy&quot;</span>, policyId, to: r.to, amount: <span class="tok-s">&quot;1500&quot;</span>, token: <span class="tok-s">&quot;wARS&quot;</span>,
+  requestId: r.id, idempotencyKey: <span class="tok-s">`request:${r.id}`</span>,
+});
+<span class="tok-c">// &quot;pending&quot; can still be paid: call send again with the same key</span></code></pre></div>
+    </div>
+    <p class="code-note"><code>account</code> is a viem account for the agent's key. <code>person</code> is a Remesso client in the person's own wallet, for example a browser wallet in your app. People can also set a limit at <a href="https://remesso.xyz/agent-wallet">remesso.xyz/agent-wallet</a>.</p>
+  </section>
+
+  <section class="col section" id="go-live" aria-labelledby="go-live-h">
+    <p class="eyebrow">Before going live</p>
+    <h2 id="go-live-h">What an integrator plans for</h2>
+    <ul class="checklist">
+      <li><strong>Keep the journals.</strong><span>They make a retry safe after a crash or a timeout. Use <code>fileStore</code> for one process, and Postgres when several workers share one key. A retry under a new key is a second payment.</span></li>
+      <li><strong>Hold gas in the right token.</strong><span>USDT, USDC, USDm and USA₮ can pay their own gas. wFIAT and cNGN can't, so an agent paying in them holds CELO. On 28 Oct a wARS wallet payment needed about 0.34 CELO in the agent, because the SDK wants twice the gas estimate before it signs.</span></li>
+      <li><strong>Pick the webhook you deliver on.</strong><span>Fig. 5. Store <code>proof.eventId</code> under a unique key, so one payment can never fulfil two orders.</span></li>
+      <li><strong>Test on a local copy of mainnet.</strong><span><code>npx remesso-sdk dev --smoke</code> forks Celo with funded test agents. There is no testnet, and the SDK signs only on Celo mainnet. The local backend takes one-off requests only and never sends <code>payment.finalized</code>.</span></li>
+      <li><strong>Leave cash-out to the receiver.</strong><span>Ripio's ramp for wARS, wBRL and the other wFIAT, and Textile for naira, each into the receiver's own account.</span></li>
+    </ul>
+  </section>
+
+  <section class="wide section" id="other-ways" aria-labelledby="other-ways-h">
+    <div class="col" style="margin-inline:0;display:grid;gap:8px">
+      <p class="eyebrow">Without TypeScript</p>
+      <h2 id="other-ways-h">Other ways in</h2>
+    </div>
+    <div class="ways">
+      <article class="way"><h3>Any language</h3><p>The HTTP API (<code>request-payment</code>, <code>payment-events</code>, <code>webhooks</code>) needs no API key. Subscribing takes an EIP-712 signature from the receiving address. Deliveries follow Standard Webhooks, and payments are plain calls to the two contracts.</p></article>
+      <article class="way"><h3>Agent hosts</h3><p><code>npx -y remesso-wallet</code> gives Claude Code, Codex or Cursor tools such as <code>pay</code>, <code>request_payment</code> and <code>limits</code>. Claude's apps use the connector at <code>https://remesso.xyz/mcp</code>.</p></article>
+      <article class="way"><h3>Coding assistants</h3><p>The docs are also published as <code>llms.txt</code> and as the <code>remesso-sdk</code> skill, so an assistant writes the integration from the same pages.</p></article>
+    </div>
+  </section>
+
+  <section class="wide section" id="proof" aria-labelledby="proof-h">
+    <div class="col" style="margin-inline:0;display:grid;gap:8px">
+      <p class="eyebrow">On Celo mainnet, 28 Oct 2026</p>
+      <h2 id="proof-h">All three, run in wARS</h2>
+      <p class="plate-intro">For each one the request appeared in the payer's inbox, Remesso bound the payment to it, the receiver got signed <code>payment.received</code> and <code>payment.finalized</code>, and <code>receipts.verify</code> confirmed it finalized with no key.</p>
+    </div>
+    <div class="table-scroll">
+      <table>
+        <thead><tr><th></th><th>How it was paid</th><th>Receiver got</th><th>Block</th><th>Transaction</th></tr></thead>
+        <tbody>
+          <tr><td><span class="letter">A</span></td><td>Spending limit, policy #18</td><td class="num">10 wARS</td><td class="num">81,310,984</td><td class="num"><a href="https://celoscan.io/tx/0x5a7a67d3c3640f32e673515c6994818700be176c1dd55fdaa847f4a86c9a463f">0x5a7a…463f</a></td></tr>
+          <tr><td><span class="letter">B</span></td><td>The agent's own wallet, schedule #9</td><td class="num">1,500 wARS</td><td class="num">81,318,562</td><td class="num"><a href="https://celoscan.io/tx/0x59f6e12f4a042c8f982db578103a97ff5a9d76392fa9a90149ef3def1f0d09e8">0x59f6…09e8</a></td></tr>
+          <tr><td><span class="letter">C</span></td><td>Monthly mandate, schedule #10. Remesso's agent paid month one about 3 minutes after signing.</td><td class="num">1,500 wARS</td><td class="num">81,318,705</td><td class="num"><a href="https://celoscan.io/tx/0x514e1a9a4637998939bc9dd647eef5003e1d36941b0af64d884379e5ecb08861">0x514e…8861</a></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="col section" id="open" aria-labelledby="open-h">
+    <p class="eyebrow">Open on Remesso's side</p>
+    <h2 id="open-h">Two limits to know</h2>
+    <ul class="open">
+      <li>No person has audited <code>RemessoExecutorV5</code> or <code>RemessoAgentAllowance</code>.</li>
+      <li>Schedules created outside the app, including the one behind each wallet payment, are found by scanning schedule ids, and that scan falls behind as schedules pile up. The fix is to read the <code>schedule_created</code> events the indexer already records instead.</li>
+    </ul>
+  </section>
+
+  <footer class="col">
+    <p>Full guide: <a href="https://docs.remesso.xyz/docs/guides/agent-to-agent">Build an agent-to-agent app</a> at docs.remesso.xyz. Quickstart: <a href="https://remesso.xyz/developers">remesso.xyz/developers</a>, from install to a mainnet payment and its webhook in about 15 minutes.</p>
+    <p>Drawn 29 Oct 2026 from remesso-sdk 0.3.1 and the mainnet runs of 28 Oct.</p>
+  </footer>
+</main>
+<aside class="site-cta" aria-labelledby="cta-h">
+  <div class="cta-card wide">
+    <div>
+      <h2 id="cta-h">Try Remesso</h2>
+      <p>Mandates and spending limits a human signs on-chain, so agents can pay agents across borders in the currency the recipient spends.</p>
+    </div>
+    <div class="cta-actions">
+      <a class="btn btn-primary" href="https://remesso.xyz">Open the app</a>
+      <a class="btn" href="https://docs.remesso.xyz">Read the docs</a>
+      <a class="btn" href="https://x.com/intent/tweet?text=How+an+agent-to-agent+integration+works&amp;url=https%3A%2F%2Fupdates.remesso.xyz%2Fagent-to-agent-integration%2F&amp;via=useremesso_si">Share on X</a>
+    </div>
+  </div>
+</aside>
+<footer class="site-foot">
+  <div class="foot-inner wide">
+    <div class="foot-brand">
+      <a class="brand" href="/"><span class="wordmark" role="img" aria-label="Remesso">remess<svg class="ring" viewBox="0 0 100 100" aria-hidden="true"><path d="M84.57 44.53A35 35 0 1 1 55.47 15.43" fill="none" stroke-width="22"/><circle cx="74.75" cy="25.25" r="14"/></svg></span><span class="brand-tag">Updates</span></a>
+      <p class="foot-line">Agent-to-agent remittance rails on Celo.</p>
+    </div>
+    <nav class="foot-nav" aria-label="Elsewhere">
+      <a href="https://remesso.xyz">App</a>
+      <a href="https://docs.remesso.xyz">Docs</a>
+      <a href="https://x.com/useremesso_si">X</a>
+      <a href="https://github.com/Onasachi/remesso">GitHub</a>
+      <a href="/feed.xml">RSS</a>
+    </nav>
+  </div>
+</footer>
+</body>
+</html>

@@ -126,6 +126,13 @@ deno run --allow-read --allow-write scripts/build-docs-data.ts --check
 # or SDK version bump, then scripts/build-plugin.sh, which copies the skill.
 deno run --allow-read --allow-write scripts/build-ai-docs.ts --check
 
+# updates.remesso.xyz (updates/, see its README): articles in updates/articles,
+# built into the committed updates/public, which Vercel serves as is. og.ts draws
+# the link previews with Chrome; --check fails while public/ is stale.
+deno run --allow-read --allow-write --allow-run --allow-env updates/og.ts
+deno run --allow-read --allow-write updates/build.ts
+deno run --allow-read updates/build.ts --check
+
 # builder codes (Phase 6): an integrator's ERC-8021 code rides on every run
 deno test --allow-env supabase/functions/_shared/attribution.test.ts   # read and write, pinned to Celo's SDK
 deno test --allow-env supabase/functions/_shared/builder-codes.test.ts # which codes a run carries; never fails a run

@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://updates.remesso.xyz/sitemap.xml
