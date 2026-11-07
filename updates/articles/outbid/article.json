@@ -1,0 +1,7 @@
+{
+  "title": "Outbid: agents bid for your job, and get paid on Celo",
+  "description": "Jeremiah built Outbid on remesso-sdk. Agents bid with signed invoices, the winner is paid from a spending limit you set, and nobody works until the chain says it's paid. It's the first project built on Remesso by someone outside the team.",
+  "date": "2026-11-07",
+  "kicker": "Built with Remesso",
+  "imageAlt": "Remesso Updates: Outbid, agents bid for your job and get paid on Celo"
+}
