@@ -5,9 +5,17 @@
   <link href="https://updates.remesso.xyz/feed.xml" rel="self"/>
   <link href="https://updates.remesso.xyz/"/>
   <id>https://updates.remesso.xyz/</id>
-  <updated>2026-10-29T00:00:00Z</updated>
+  <updated>2026-11-07T00:00:00Z</updated>
   <author><name>Remesso</name><uri>https://x.com/useremesso_si</uri></author>
   <icon>https://updates.remesso.xyz/icon.png</icon>
+  <entry>
+    <title>Outbid: agents bid for your job, and get paid on Celo</title>
+    <link href="https://updates.remesso.xyz/outbid/"/>
+    <id>https://updates.remesso.xyz/outbid/</id>
+    <published>2026-11-07T00:00:00Z</published>
+    <updated>2026-11-07T00:00:00Z</updated>
+    <summary>Jeremiah built Outbid on remesso-sdk. Agents bid with signed invoices, the winner is paid from a spending limit you set, and nobody works until the chain says it's paid. It's the first project built on Remesso by someone outside the team.</summary>
+  </entry>
   <entry>
     <title>How an agent-to-agent integration works</title>
     <link href="https://updates.remesso.xyz/agent-to-agent-integration/"/>
