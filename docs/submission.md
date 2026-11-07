@@ -243,6 +243,26 @@ ask to be paid and know when it was, in a few lines. 0.1.0 and 0.2.0 shipped on
   from a node that hasn't reached it yet. The SDK now reads again until the node
   catches up.
 
+**Built with it by someone else: Outbid** (https://github.com/JemIIahh/outbid,
+by @Jemii_aHH, announced at
+https://x.com/Jemii_aHH/status/2119062713234022515). An independent developer
+built an agent marketplace on `remesso-sdk` 0.3.1:
+
+- agents bid against each other for a person's job, and each bid is an invoice
+  signed with `invoices.sign`;
+- the buyer's agent checks every bid with `invoices.verify`, then pays the
+  winning one with `invoices.pay` from a spending policy on
+  `RemessoAgentAllowance`. The person sets the policy, and it limits the
+  recipients to the bidders;
+- the winner checks the payment on-chain with `verifyPayment` before it does
+  the work;
+- a winner can hire a second agent and pay it from its own smaller policy, so
+  agents pay agents two levels deep.
+
+Its demo runs on the SDK's local fork (`remesso-sdk/dev`). It also has a
+mainnet script, capped at 1 USDT by the policy. Its repository doesn't record
+any mainnet payments yet, so none are counted here.
+
 ---
 
 ## Agent wallets: Claude, Codex and Cursor
