@@ -19,6 +19,11 @@
 /// re-run after a failure sends only what is left. Every transaction carries
 /// the ERC-8021 attribution suffix. Keys are read from their files and never
 /// printed.
+///
+/// It is also how an edit to docs/erc8004/registration.json reaches the
+/// chain: with the move done, a re-run sends one setAgentURI per identity
+/// whose metadata differs from the file, and nothing else. A send from the V5
+/// executor holds the executor lease, as execute-due-runs and trigger-run do.
 import {
   createPublicClient,
   createWalletClient,
@@ -28,7 +33,9 @@ import {
 } from "npm:viem@2";
 import { privateKeyToAccount } from "npm:viem@2/accounts";
 import { celo } from "npm:viem@2/chains";
+import { createClient } from "npm:@supabase/supabase-js@2";
 import { ATTRIBUTION_CODES, suffixFor } from "../supabase/functions/_shared/attribution.ts";
+import { takeExecutorLease } from "../supabase/functions/_shared/lease.ts";
 
 const SEND = Deno.args.includes("--send");
 const REGISTRY = "0x8004A169FB4a3325136EB29fA0ceB6D2e539a432" as const;
@@ -77,16 +84,39 @@ console.log(`metadata     : ${URI.length} chars, contract ${doc.contracts[0].nam
 const nonces = new Map<string, number>();
 async function send(account: typeof owner, fn: "transferFrom" | "setAgentWallet" | "setAgentURI", args: readonly unknown[]) {
   if (!SEND) return console.log(`  would send ${fn} from ${account.address}`);
-  let n = nonces.get(account.address);
-  if (n === undefined) n = await pub.getTransactionCount({ address: account.address });
-  const wc = createWalletClient({ account, chain: celo, transport: http(RPC) });
-  // deno-lint-ignore no-explicit-any
-  const { request } = await pub.simulateContract({ address: REGISTRY, abi, functionName: fn, args: args as any, account, nonce: n, ...(SUFFIX ? { dataSuffix: SUFFIX } : {}) });
-  const hash = await wc.writeContract(request);
-  nonces.set(account.address, n + 1);
-  const r = await pub.waitForTransactionReceipt({ hash });
-  console.log(`  ${fn}: ${hash} ${r.status} gas ${r.gasUsed}`);
-  if (r.status !== "success") throw new Error(`${fn} reverted`);
+  // The payment functions sign with the V5 executor's key too: without their
+  // lease, a run and this send can pick the same nonce.
+  const lease = same(account.address, newExecutor.address) ? await executorLease() : null;
+  let mined: number | undefined;
+  try {
+    const n = Math.max(
+      nonces.get(account.address) ?? await pub.getTransactionCount({ address: account.address, blockTag: "pending" }),
+      lease?.nonceFloor ?? 0,
+    );
+    const wc = createWalletClient({ account, chain: celo, transport: http(RPC) });
+    // deno-lint-ignore no-explicit-any
+    const { request } = await pub.simulateContract({ address: REGISTRY, abi, functionName: fn, args: args as any, account, nonce: n, ...(SUFFIX ? { dataSuffix: SUFFIX } : {}) });
+    const hash = await wc.writeContract(request);
+    nonces.set(account.address, n + 1);
+    const r = await pub.waitForTransactionReceipt({ hash });
+    mined = n;
+    console.log(`  ${fn}: ${hash} ${r.status} gas ${r.gasUsed}`);
+    if (r.status !== "success") throw new Error(`${fn} reverted`);
+  } finally {
+    await lease?.release(mined);
+  }
+}
+
+/// lease.ts finds the executor from the environment, as the functions do, so
+/// the key read from .env goes there, for this process only.
+async function executorLease() {
+  Deno.env.set("EXECUTOR_PRIVATE_KEY", fromDotEnv("EXECUTOR_PRIVATE_KEY"));
+  const db = createClient(fromDotEnv("SUPABASE_URL"), fromDotEnv("SUPABASE_SERVICE_ROLE_KEY"), {
+    auth: { persistSession: false },
+  });
+  const lease = await takeExecutorLease(db, "erc8004-v5", { ttlSec: 120, waitMs: 60_000 });
+  if (!lease) throw new Error("the executor key stayed busy for a minute; run this again");
+  return lease;
 }
 
 const read = <T>(functionName: "ownerOf" | "tokenURI" | "getAgentWallet", id: bigint) =>
