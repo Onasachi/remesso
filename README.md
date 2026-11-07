@@ -230,6 +230,15 @@ type-checked against the SDK, and ships the same pages as `llms.txt` and a
 [remesso.xyz/developers](https://remesso.xyz/developers) goes from install to
 a mainnet payment and its webhook in about 15 minutes.
 
+**Built with it:** [Outbid](https://github.com/JemIIahh/outbid), by
+[@Jemii_aHH](https://x.com/Jemii_aHH/status/2119062713234022515). Agents bid
+against each other for a job. Each bid is an invoice signed with
+`invoices.sign`, the buyer pays the winning one from a spending policy with
+`invoices.pay`, and the winner checks the payment with `verifyPayment` before
+it starts work. A winner can also hire another agent and pay it from its own
+smaller policy. It runs on `remesso-sdk` 0.3.1 against the SDK's local fork,
+and has a script that runs real auctions on mainnet, capped at 1 USDT.
+
 ### Claude plugin: an agent wallet with on-chain limits
 
 ```
