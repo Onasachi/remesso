@@ -1,16 +1,16 @@
 "use client";
 
-import { useAccount, useConnect, useDisconnect, useSwitchChain } from "wagmi";
+import { useAccount, useDisconnect, useSwitchChain } from "wagmi";
 import { activeChain } from "@/lib/wagmi";
 import { useMiniPayState } from "@/lib/hooks";
 import { addressName } from "@/lib/identity";
 import { Icon } from "./Icon";
+import { ConnectButton } from "./ConnectButton";
 
 export function ConnectBar({ compact = false }: { compact?: boolean }) {
   // The wallet's own chain: the config's chain id stays on a configured chain
   // when the wallet is on one the app does not list, and would hide this button.
   const { address, isConnected, chainId } = useAccount();
-  const { connect, connectors, isPending } = useConnect();
   const { disconnect } = useDisconnect();
   const { switchChain } = useSwitchChain();
   const miniPay = useMiniPayState();
@@ -30,15 +30,10 @@ export function ConnectBar({ compact = false }: { compact?: boolean }) {
         </span>
       );
     }
-    const injected = connectors.find((c) => c.id === "injected");
     return (
-      <button
-        className="btn-ink btn-sm"
-        disabled={!injected || isPending}
-        onClick={() => injected && connect({ connector: injected })}
-      >
-        {isPending ? "Connecting…" : injected ? "Connect wallet" : "No wallet found"}
-      </button>
+      <ConnectButton className="btn-ink btn-sm">
+        {(pending) => (pending ? "Connecting…" : "Connect wallet")}
+      </ConnectButton>
     );
   }
 

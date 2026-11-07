@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import { useAccount, useConnect } from "wagmi";
+import { useAccount } from "wagmi";
 import { useAllowedDirectTokens, useBalances, useIsMiniPay, useMiniPayState, useSchedules } from "@/lib/hooks";
 import { recipientLabel } from "@/lib/identity";
 import { formatUnits, intervalLabel, relativeTime } from "@/lib/format";
@@ -12,6 +12,7 @@ import { PaymentRequests } from "@/components/PaymentRequests";
 import { Notices } from "@/components/Notices";
 import { Icon } from "@/components/Icon";
 import { Mark } from "@/components/Mark";
+import { ConnectButton } from "@/components/ConnectButton";
 import { ripioRampUrl } from "@/lib/ripio";
 import { TEXTILE_NAIRA_WITHDRAW, TEXTILE_SWAP_TO_CNGN } from "@/lib/textile";
 import { ReapproveButton, useApprovalCover } from "@/components/Reapprove";
@@ -402,9 +403,6 @@ function EmptyState() {
 /// Seen only outside MiniPay, or for the moment before MiniPay auto-connects.
 function Landing() {
   const miniPay = useMiniPayState();
-  const { connect, connectors, isPending } = useConnect();
-  const injected = connectors.find((c) => c.id === "injected");
-
   // Both lists are read from the contract's allowlist like the send form, so
   // neither can promise a currency the contract would refuse — and a token
   // appears here the day it is allowed, without anyone editing copy.
@@ -466,14 +464,14 @@ function Landing() {
             Connecting to your wallet…
           </p>
         ) : (
-          <button
-            className="btn-primary w-full"
-            disabled={!injected || isPending}
-            onClick={() => injected && connect({ connector: injected })}
-          >
-            <Icon name="account_balance_wallet" />
-            {isPending ? "Connecting…" : injected ? "Connect wallet to begin" : "Open in MiniPay"}
-          </button>
+          <ConnectButton className="btn-primary w-full">
+            {(pending) => (
+              <>
+                <Icon name="account_balance_wallet" />
+                {pending ? "Connecting…" : "Connect wallet to begin"}
+              </>
+            )}
+          </ConnectButton>
         )}
       </div>
     </div>
