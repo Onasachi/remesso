@@ -263,6 +263,20 @@ Its demo runs on the SDK's local fork (`remesso-sdk/dev`). It also has a
 mainnet script, capped at 1 USDT by the policy. Its repository doesn't record
 any mainnet payments yet, so none are counted here.
 
+**And another: Trialoom** (https://github.com/Thekal33d/trialoom, demo video
+https://youtu.be/1Z4yWWqhWM8). A testing marketplace on Celo: a sealed browser
+tests a builder's website, the builder replays what broke, and testers are paid
+in USDC for work the builder accepts. It pays testers with `remesso-sdk` 0.3.0:
+
+- the builder connects a spending policy on `RemessoAgentAllowance`, and each
+  accepted job is paid from it with `remittances.send` (`funding: "policy"`);
+- a payout that may have been sent is continued with `remittances.reconcile`
+  under its key rather than sent again, with the SDK's Postgres storage
+  (`remesso-sdk/postgres`) holding the records.
+
+Its payment test runs on a local Anvil fork of Celo. Its README says hosted paid
+execution isn't deployed yet, so no mainnet payments from it are counted here.
+
 ---
 
 ## Agent wallets: Claude, Codex and Cursor
