@@ -563,3 +563,45 @@ export function useMiniPayPhoneVerified(): boolean | undefined {
   if (q.isError) return false;
   return (q.data?.[1]?.length ?? 0) > 0;
 }
+
+
+/// How long after a payment its reward lands: index-events marks a payment
+/// final 23–31 minutes after it, and pay-rewards runs every five. Said as
+/// "about half an hour" everywhere a person reads it.
+export const REWARD_WAIT = "about 30 minutes";
+
+/// Whether this wallet would earn the live reward with its next payment: a
+/// campaign is open, it hasn't had one, and it is a person (a MiniPay number
+/// or a live Self check). `undefined` while that is still being read.
+export function useRewardEligibility() {
+  const { data: c } = useRewardCampaign();
+  const { data: mine, isPending: minePending } = useMyReward();
+  const phone = useMiniPayPhoneVerified();
+  const { data: identity } = useIdentity();
+  if (!c || !c.active || (c.cap !== null && c.taken >= c.cap)) return { campaign: c ?? null, eligible: false } as const;
+  if (minePending || phone === undefined) return { campaign: c, eligible: undefined } as const;
+  const person = phone || identity?.verified?.environment === "live";
+  return { campaign: c, eligible: !mine && person } as const;
+}
+
+/// The moment this browser saw this wallet start a payment that runs at once,
+/// so the home screen can say the reward is coming in the half hour before
+/// pay-rewards has seen it. A hint only: browser storage, never trusted.
+const justPaidKey = (wallet: string) => `remesso:paid-at:${wallet.toLowerCase()}`;
+export function markJustPaid(wallet: string | undefined) {
+  if (!wallet) return;
+  try {
+    localStorage.setItem(justPaidKey(wallet), String(Date.now()));
+  } catch {
+    // Private mode or blocked storage: the banner just won't say it.
+  }
+}
+export function justPaidAt(wallet: string | undefined): number | null {
+  if (!wallet) return null;
+  try {
+    const v = Number(localStorage.getItem(justPaidKey(wallet)));
+    return Number.isFinite(v) && v > 0 ? v : null;
+  } catch {
+    return null;
+  }
+}

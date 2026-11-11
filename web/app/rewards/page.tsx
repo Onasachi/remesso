@@ -43,7 +43,7 @@ export default function RewardsPage() {
         <h2 className="eyebrow">How to get it</h2>
         <ol className="mt-2 grid gap-2 text-[14px] text-ink-2">
           <li>1. Send any amount to someone else with Remesso, once or on a schedule.</li>
-          <li>2. Once the payment has gone through on Celo, the reward is sent to the wallet you paid from, usually within half an hour.</li>
+          <li>2. The reward lands in the wallet you paid from about 30 minutes after the payment goes through. That is how long Celo takes to make a payment final; we only reward final payments.</li>
         </ol>
       </section>
 

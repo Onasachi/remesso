@@ -47,7 +47,7 @@ import {
 import { ActionBar, Amount, MINIPAY_DEPOSIT_URL, Row } from "@/components/ui";
 import { Icon } from "@/components/Icon";
 import { Mark } from "@/components/Mark";
-import { useIsMiniPay } from "@/lib/hooks";
+import { markJustPaid, useIsMiniPay } from "@/lib/hooks";
 import { runsToCover } from "@/lib/allowance";
 import { isEmptyPayLink, parsePayLink, type PayLink } from "@/lib/payLink";
 import { feeOf, grossFor } from "@/lib/fee";
@@ -385,6 +385,7 @@ export default function NewSchedulePage() {
         ({ data: confirmed, error: uErr } = await sb.functions.invoke("confirm-schedule", { body }));
         if (!uErr || uErr.name !== "FunctionsFetchError") break;
       }
+      if (terms.startNow) markJustPaid(address);
       if (uErr?.name === "FunctionsFetchError") {
         await queryClient.invalidateQueries({ queryKey: ["schedules"] });
         router.push("/");

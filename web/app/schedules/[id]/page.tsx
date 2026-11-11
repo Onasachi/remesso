@@ -34,6 +34,7 @@ import { RunPill, SchedulePill } from "@/components/StatusPill";
 import { ReapproveButton } from "@/components/Reapprove";
 import { Amount, CopyValue, MINIPAY_DEPOSIT_URL, Row, Sheet, Skeleton } from "@/components/ui";
 import { one, type Run } from "@/lib/types";
+import { REWARD_WAIT, useRewardEligibility } from "@/lib/hooks";
 import { failureCopy } from "@/lib/failures";
 import { Notices } from "@/components/Notices";
 
@@ -188,6 +189,7 @@ export default function ScheduleDetailPage() {
               " It answers the payment request with your changes; they see the terms you signed."}
             {answered && answered !== "accepted" && answered !== "accepted_with_changes" &&
               " It couldn't be linked to the payment request, so they won't see it there. The payment still runs."}
+            <RewardComing />
           </span>
         </div>
       )}
@@ -606,5 +608,20 @@ function WhatHappened({ reason, skipped }: { reason: string; skipped: boolean })
       </p>
       <p className="mono mt-1.5 border-t border-ink/10 pt-1.5 text-[12px] opacity-80">{reason}</p>
     </div>
+  );
+}
+
+/// On the "all set" screen: if this payment earns the first-payment reward,
+/// say when it lands. Silent unless the wallet surely qualifies, so nobody is
+/// promised money pay-rewards will refuse.
+function RewardComing() {
+  const { campaign: c, eligible } = useRewardEligibility();
+  if (!eligible || !c) return null;
+  const t = tokenFor(c.token);
+  return (
+    <span className="mt-1.5 block">
+      Your first payment also earns {formatUnits(c.amount_units, t.decimals)} {t.symbol} back. It lands in this wallet{" "}
+      {REWARD_WAIT} after the first payment goes through.
+    </span>
   );
 }

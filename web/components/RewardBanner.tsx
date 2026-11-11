@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import { useIdentity, useMiniPayPhoneVerified, useMyReward, useRewardCampaign } from "@/lib/hooks";
+import { useAccount } from "wagmi";
+import { justPaidAt, REWARD_WAIT, useIdentity, useMiniPayPhoneVerified, useMyReward, useRewardCampaign } from "@/lib/hooks";
 import { tokenFor } from "@/lib/config";
 import { formatUnits } from "@/lib/format";
 import { Icon } from "./Icon";
@@ -22,6 +23,7 @@ export function RewardBanner() {
   const phone = useMiniPayPhoneVerified();
   const { data: identity } = useIdentity();
   const [open, setOpen] = useState(false);
+  const { address } = useAccount();
   if (!c) return null;
 
   const token = tokenFor(c.token);
@@ -33,7 +35,11 @@ export function RewardBanner() {
     return (
       <div className="mt-3 flex min-h-11 items-center gap-2 rounded-xl bg-sand/70 px-4 py-2 text-[13px] text-ink-2">
         <Icon name={paid ? "check_circle" : "arrow_forward"} size={18} className="shrink-0 text-ink-3" />
-        <span>{paid ? `You got ${amount} back for your first payment.` : `Your ${amount} is on its way.`}</span>
+        <span>
+          {paid
+            ? `You got ${amount} back for your first payment.`
+            : `Your ${amount} is on its way. It usually lands within a few minutes.`}
+        </span>
       </div>
     );
   }
@@ -52,6 +58,21 @@ export function RewardBanner() {
         : phone
           ? "Your MiniPay number already counts, so you qualify. Verifying with Self is optional."
           : "First verify you're a person with Self. It's free and takes a minute with your passport.";
+
+  // Paid from this browser in the last two hours, and pay-rewards hasn't
+  // picked it up yet (it only sees a payment once it is final, 23–31 minutes
+  // on): say it's coming rather than repeat the offer as if nothing happened.
+  const paidAt = justPaidAt(address);
+  if (qualifies && paidAt && Date.now() - paidAt < 2 * 3_600_000) {
+    return (
+      <div className="mt-3 flex min-h-11 items-center gap-2 rounded-xl bg-sand/70 px-4 py-2 text-[13px] text-ink-2">
+        <Icon name="arrow_forward" size={18} className="shrink-0 text-ink-3" />
+        <span>
+          Your {amount} back arrives {REWARD_WAIT} after your first payment goes through.
+        </span>
+      </div>
+    );
+  }
 
   const toVerify = () => {
     setOpen(false);
@@ -91,7 +112,7 @@ export function RewardBanner() {
 
         <ol className="mt-4 grid gap-2 text-[14px] text-ink-2">
           <li>1. Send any amount to someone else, once or on a schedule.</li>
-          <li>2. About half an hour after it goes through, {amount} lands in your wallet.</li>
+          <li>2. {amount} lands in the wallet you paid from, {REWARD_WAIT} after the payment goes through.</li>
         </ol>
 
         <p className="mt-3 text-[12px] text-ink-3">
