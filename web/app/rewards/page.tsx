@@ -12,8 +12,8 @@ export default function RewardsPage() {
   const { data: c, isPending } = useRewardCampaign();
   const token = c ? tokenFor(c.token) : null;
   const amount = c && token ? `${formatUnits(c.amount_units, token.decimals)} ${token.symbol}` : "a reward";
-  const left = c ? Math.max(0, c.cap - c.taken) : null;
-  const open = Boolean(c?.active && left);
+  const left = c && c.cap !== null ? Math.max(0, c.cap - c.taken) : null;
+  const open = Boolean(c?.active && left !== 0);
 
   return (
     <div className="mt-2 pb-10">
@@ -29,9 +29,13 @@ export default function RewardsPage() {
         <p className="mt-2 text-[14px] text-ink-2">
           {!c
             ? "There's no reward running right now."
-            : open
-              ? `For the first ${c.cap} people. ${left} places left.`
-              : `All ${c.cap} places have been taken. Thank you to everyone who tried Remesso.`}
+            : !open
+              ? c.active
+                ? `All ${c.cap} places have been taken. Thank you to everyone who tried Remesso.`
+                : "This reward has ended. Thank you to everyone who tried Remesso."
+              : left === null
+                ? "For everyone who makes their first payment, while the offer runs."
+                : `For the first ${c.cap} people. ${left} places left.`}
         </p>
       )}
 

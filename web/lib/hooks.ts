@@ -489,7 +489,8 @@ export function useTriggerAddress() {
 export const REWARDS_CAMPAIGN = process.env.NEXT_PUBLIC_REWARDS_CAMPAIGN ?? "first-payment-2026-11";
 
 export type RewardCampaign = {
-  cap: number;
+  /// Null: no limit on how many people get one.
+  cap: number | null;
   taken: number;
   amount_units: string;
   token: string;

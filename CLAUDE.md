@@ -953,10 +953,12 @@ refused unless `allow_repeat` is passed.
 ## First-payment rewards (built 2026-11-11, not yet deployed)
 
 `pay-rewards` (cron, every 5 min) pays a campaign's reward (first campaign
-`first-payment-2026-11`: 0.20 USDT to each of the first 150 people) to the
+`first-payment-2026-11`: 0.20 USDT to each verified person, no limit) to the
 wallet that made a person's first real payment. The token, amount and cap are
-a `reward_campaigns` row: raise `cap` to extend it, set `active` false to end
-it. No deploy needed for either.
+a `reward_campaigns` row. The first campaign's `cap` is null (no limit): it
+runs until `active` is set false, and the wallet's balance is the real limit.
+A reward reserved while the wallet is empty waits and is paid on top-up. A
+number in `cap` limits it. No deploy needed for any of this.
 
 - **One per person, not per wallet.** A person is a MiniPay phone identity
   (`FederatedAttestations.lookupIdentifiers` for MiniPay's issuer, a free

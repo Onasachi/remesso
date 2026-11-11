@@ -40,7 +40,7 @@ export function RewardBanner() {
     );
   }
 
-  const left = Math.max(0, c.cap - c.taken);
+  const left = c.cap === null ? null : Math.max(0, c.cap - c.taken);
   if (!c.active || left === 0) return null;
 
   // A test-key ("mock passport") check never earns the reward.
@@ -63,7 +63,7 @@ export function RewardBanner() {
         <Icon name="paid" size={18} className="shrink-0 text-ink-3" />
         <span>
           Your first payment gets <strong className="text-ink">{amount}</strong> back.{" "}
-          <span className="text-ink-3">{left} of {c.cap} left.</span>
+          {left !== null && <span className="text-ink-3">{left} of {c.cap} left.</span>}
           {how && <span className="mt-0.5 block text-[12px] text-ink-3">{how}</span>}
         </span>
       </span>

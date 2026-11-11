@@ -1,9 +1,10 @@
 -- First-payment rewards: a small amount of USDT to a person whose first real
 -- payment through Remesso ran on-chain.
 --
--- A campaign is a row, not code: its token, amount and cap are data, so the
--- first 150 becomes the first 1,000 by raising `cap` (or a new campaign row),
--- with no deploy. `pay-rewards` decides who qualifies (_shared/rewards.ts) and
+-- A campaign is a row, not code: its token, amount and cap are data, so it
+-- changes with no deploy. A null cap means no limit: the campaign runs until
+-- `active` is set false, and the rewards wallet's balance is the real limit
+-- (a reward reserved while it is empty waits there and is paid on top-up). `pay-rewards` decides who qualifies (_shared/rewards.ts) and
 -- pays from its own key, REWARDS_PRIVATE_KEY, never the executor's.
 --
 -- One reward per PERSON, not per wallet. A wallet costs nothing to make, and
@@ -16,8 +17,8 @@ create table public.reward_campaigns (
   -- The token the reward is paid in, lowercased, and its amount in base units.
   token        text not null check (token = lower(token) and token ~ '^0x[0-9a-f]{40}$'),
   amount_units numeric(78,0) not null check (amount_units > 0),
-  -- How many rewards in total. Raise it to extend the campaign.
-  cap          integer not null check (cap >= 0),
+  -- How many rewards in total; null for no limit.
+  cap          integer check (cap is null or cap >= 0),
   -- Only payments made in this window count.
   starts_at    timestamptz not null default now(),
   ends_at      timestamptz,
@@ -82,10 +83,11 @@ insert into public.reward_exclusions (address, reason) values
   ('0x5c3ebb0084233156ba51a5c2dfd42d88d5a74ca6', 'Self agent identity')
 on conflict do nothing;
 
--- The first campaign: 0.20 USDT (6dp) to each of the first 150 people.
--- Starts when this migration runs; nothing before it counts.
+-- The first campaign: 0.20 USDT (6dp) to every verified person's first
+-- payment, with no limit on how many. Starts when this migration runs;
+-- nothing before it counts.
 insert into public.reward_campaigns (id, token, amount_units, cap)
-values ('first-payment-2026-11', '0x48065fbbe25f71c9282ddf5e1cd6d6a887483d5e', 200000, 150)
+values ('first-payment-2026-11', '0x48065fbbe25f71c9282ddf5e1cd6d6a887483d5e', 200000, null)
 on conflict do nothing;
 
 -- Service role only, apart from the two read functions below.
@@ -115,7 +117,7 @@ begin
 
   select count(*) into v_taken from public.rewards
    where campaign_id = p_campaign and status <> 'failed';
-  if v_taken >= c.cap then
+  if c.cap is not null and v_taken >= c.cap then
     return query select null::uuid, 'full'; return;
   end if;
 
