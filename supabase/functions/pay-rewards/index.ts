@@ -1,5 +1,5 @@
 /// First-payment rewards: find people whose first real payment ran, and pay
-/// each one the campaign's reward, once. Every five minutes (cron).
+/// each one the campaign's reward, once. Every minute (cron).
 ///
 /// Who qualifies is `_shared/rewards.ts`; this gathers the facts and moves the
 /// money. The order inside a pass:
@@ -33,9 +33,12 @@ import { decideReward, phonePersons, type RewardPayment } from "../_shared/rewar
 
 const CAMPAIGN = Deno.env.get("REWARDS_CAMPAIGN") ?? "first-payment-2026-11";
 /// Most rewards paid in one pass, and most payers looked up. Both bound the
-/// RPC calls a pass makes; anything left waits five minutes.
+/// RPC calls a pass makes; anything left waits for the next minute's pass.
 const MAX_PAYOUTS = 5;
 const MAX_LOOKUPS = 40;
+/// A payer who earned nothing is looked at again after this, even without a
+/// new payment: they may have verified with Self since.
+const RECHECK = "1 hour";
 
 const MINIPAY_ISSUER: Address = "0x7888612486844Bb9BE598668081c59A9f7367FBc";
 const FEDERATED_ATTESTATIONS: Address = "0x0aD5b1d0C25ecF6266Dd951403723B2687d6aff2";
@@ -70,6 +73,8 @@ type EventRow = {
   final: boolean;
   removed: boolean;
 };
+
+type Candidate = { wallet: string; first_seq: number | string; last_seq: number | string };
 
 type RewardRow = {
   id: string;
@@ -267,40 +272,54 @@ Deno.serve(async (req) => {
       return json(report);
     }
 
-    // 2. Find new qualifying payments.
-    const { data: had, error: hErr } = await db.from("rewards").select("wallet").eq("campaign_id", CAMPAIGN);
-    if (hErr) throw new Error(hErr.message);
-    const rewarded = new Set((had ?? []).map((r) => r.wallet));
+    // 2. Find new qualifying payments. The database picks the payers worth a
+    // look (reward_candidates): not yet rewarded, not ours, and not checked
+    // since their last payment unless an hour has passed. So a payer who
+    // can't qualify is not looked up on every pass, and nobody waits behind
+    // them.
     const { data: ex, error: xErr } = await db.from("reward_exclusions").select("address");
     if (xErr) throw new Error(xErr.message);
     const excluded = new Set([...(ex ?? []).map((e) => e.address), me]);
 
-    const { data: events, error: eErr } = await db
-      .from("payment_events")
-      .select("tx_hash,log_index,kind,from_address,to_address,token,amount,amount_in,block_time,final,removed")
-      .in("kind", ["run", "policy_payment"])
-      .eq("final", true)
-      .eq("removed", false)
-      .gte("block_time", campaign.starts_at)
-      .order("seq", { ascending: true })
-      .limit(5000);
-    if (eErr) throw new Error(eErr.message);
+    const { data: candidates, error: cErr } = await db.rpc("reward_candidates", {
+      p_campaign: CAMPAIGN,
+      p_limit: MAX_LOOKUPS,
+      p_recheck: RECHECK,
+    });
+    if (cErr) throw new Error(`reward_candidates: ${cErr.message}`);
 
-    // Each payer's payments, oldest first: the first one that qualifies earns it.
-    const byPayer = new Map<string, EventRow[]>();
-    for (const e of (events ?? []) as EventRow[]) {
-      if (rewarded.has(e.from_address) || excluded.has(e.from_address)) continue;
-      const list = byPayer.get(e.from_address) ?? [];
-      list.push(e);
-      byPayer.set(e.from_address, list);
-    }
-
-    let lookups = 0;
     const tally = (reason: string) => (report.refused[reason] = (report.refused[reason] ?? 0) + 1);
-    payers: for (const [payer, list] of byPayer) {
-      if (lookups >= MAX_LOOKUPS) break;
-      lookups++;
+    // What a payer's check found, remembered so the next pass skips them
+    // until they pay again or RECHECK passes. Not written in a dry run.
+    const checked = async (wallet: string, lastSeq: string | number, reason: string) => {
+      if (dry) return;
+      const { error } = await db.from("reward_checks").upsert({
+        campaign_id: CAMPAIGN,
+        wallet,
+        last_seq: String(lastSeq),
+        checked_at: new Date().toISOString(),
+        reason,
+      });
+      if (error) throw new Error(`reward_checks: ${error.message}`);
+    };
+
+    payers: for (const cand of (candidates ?? []) as Candidate[]) {
+      const payer = cand.wallet;
+      const { data: rows, error: eErr } = await db
+        .from("payment_events")
+        .select("tx_hash,log_index,kind,from_address,to_address,token,amount,amount_in,block_time,final,removed")
+        .eq("from_address", payer)
+        .in("kind", ["run", "policy_payment"])
+        .eq("final", true)
+        .eq("removed", false)
+        .gte("block_time", campaign.starts_at)
+        .order("seq", { ascending: true })
+        .limit(50);
+      if (eErr) throw new Error(eErr.message);
+      const list = (rows ?? []) as EventRow[];
+
       const payerPersons = await personsOf(payer);
+      let last = "no_payment";
       for (const e of list) {
         const payment: RewardPayment = {
           kind: e.kind,
@@ -325,7 +344,8 @@ Deno.serve(async (req) => {
         });
         if (!d.ok) {
           tally(d.reason);
-          if (d.reason === "no_identity") continue payers; // the same for every payment of theirs
+          last = d.reason;
+          if (d.reason === "no_identity") break; // the same for every payment of theirs
           continue;
         }
         if (dry) {
@@ -344,8 +364,13 @@ Deno.serve(async (req) => {
         if (outcome === "reserved") report.reserved++;
         else tally(outcome ?? "unknown");
         if (outcome === "full" || outcome === "closed") break payers;
+        // "duplicate": this person already has one through another wallet.
+        // Remember it, or this wallet would come back every hour.
+        if (outcome !== "reserved") await checked(payer, cand.last_seq, outcome ?? "unknown");
         continue payers; // one reward per payer, whatever the outcome
       }
+      // Nothing of theirs qualified this time.
+      await checked(payer, cand.last_seq, last);
     }
 
     // 3. Pay what is reserved.

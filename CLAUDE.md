@@ -952,7 +952,7 @@ refused unless `allow_repeat` is passed.
 
 ## First-payment rewards (built 2026-11-11, not yet deployed)
 
-`pay-rewards` (cron, every 5 min) pays a campaign's reward (first campaign
+`pay-rewards` (cron, every minute) pays a campaign's reward (first campaign
 `first-payment-2026-11`: 0.20 USDT to each verified person, no limit) to the
 wallet that made a person's first real payment. The token, amount and cap are
 a `reward_campaigns` row. The first campaign's `cap` is null (no limit): it
@@ -974,6 +974,13 @@ number in `cap` limits it. No deploy needed for any of this.
   It takes the executor-lease row keyed by its own address for nonces, and
   saves signed bytes before broadcast. A payout whose fate is unclear is
   marked `failed` for a person to check on Celoscan, never re-signed.
+- **Who it looks at is the database's choice** (`reward_candidates`,
+  `20261111000002`): payers not yet rewarded or excluded, oldest first
+  payment first, 40 a pass. `reward_checks` remembers each payer looked at,
+  so one who earned nothing comes back only with a newer final payment or
+  after an hour. Before this, 40 payers who could never qualify sat at the
+  front and were looked up every pass, and nobody behind them was reached.
+  At most 5 payouts a pass, a pass a minute: ~7,200 a day.
 - One person could still earn twice with a MiniPay wallet and a separate
   passport-verified wallet. Accepted at this size.
 
