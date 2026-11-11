@@ -297,11 +297,15 @@ function ApprovalStrip({ token }: { token: TokenInfo }) {
     );
   }
 
-  if (allowance === 0n && !n) {
+  // No live schedule in this token: whatever approval is left over (from a
+  // finished schedule, or one never signed) pays nothing, so it isn't news.
+  // Showing it as "Remesso can move up to 1.00 USDC" read as a sending limit
+  // (MiniPay, 2026-11-11).
+  if (!n) {
     return (
       <p className="mt-3 flex min-h-10 items-center gap-2 rounded-xl bg-sand/70 px-3 text-[13px] text-ink-2">
         <Icon name="event_busy" size={18} className="text-ink-3" />
-        No schedules paid in {token.symbol}
+        No active schedules paid in {token.symbol}
       </p>
     );
   }
@@ -310,21 +314,26 @@ function ApprovalStrip({ token }: { token: TokenInfo }) {
     <details className="group mt-3 rounded-xl bg-sand/70">
       <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between px-4 text-[13px] text-ink-2 [&::-webkit-details-marker]:hidden">
         <span>
-          Remesso can move up to{" "}
-          <span className="font-medium text-ink">
-            {allowance !== undefined ? formatUnits(allowance, token.decimals) : "—"} {token.symbol}
-          </span>{" "}
-          in total
+          {n === 1 ? "1 schedule" : `${n} schedules`} paid in {token.symbol}
+          {covers !== undefined && (
+            <span className="text-ink-3">
+              {" "}
+              · {covers} more {covers === 1 ? "payment" : "payments"} covered
+            </span>
+          )}
         </span>
         <span className="text-ink-3 transition group-open:rotate-180" aria-hidden>
           ▾
         </span>
       </summary>
       <p className="px-4 pb-3 text-[13px] leading-relaxed text-ink-2">
-        That is the most Remesso can ever take from your {token.symbol}, across every
-        schedule paid in it — the contract enforces the limit, not us.
-        {covers !== undefined && n > 0 && ` Enough for ${covers} more ${covers === 1 ? "payment" : "payments"}.`}{" "}
-        To stop a payment, pause or cancel its schedule.
+        You approved Remesso to send up to{" "}
+        <span className="font-medium text-ink">
+          {allowance !== undefined ? formatUnits(allowance, token.decimals) : "—"} {token.symbol}
+        </span>{" "}
+        for {n === 1 ? "this schedule" : "these schedules"}, and it can never take more. This isn&rsquo;t a limit
+        on what you can send: a new schedule asks you to approve its own amount. To stop a payment, pause or
+        cancel its schedule.
       </p>
     </details>
   );
