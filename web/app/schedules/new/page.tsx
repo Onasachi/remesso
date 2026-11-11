@@ -372,9 +372,24 @@ export default function NewSchedulePage() {
       // whether this schedule really answers it (same payer, same recipient,
       // created after the request), and says how.
       setBusy("Confirming");
-      const { data: confirmed, error: uErr } = await sb.functions.invoke("confirm-schedule", {
-        body: { schedule: scheduleRow.id, txHash: hash, ...(fromLink?.request ? { request: fromLink.request } : {}) },
-      });
+      // The schedule is already on Celo here, so a request that never reaches
+      // the server (a phone switching networks: "Failed to send a request to
+      // the Edge Function", MiniPay, 2026-11-11) is retried, and if it still
+      // can't get through it is not shown as a failure: sync-schedules fills
+      // this row in from the chain within five minutes.
+      const body = { schedule: scheduleRow.id, txHash: hash, ...(fromLink?.request ? { request: fromLink.request } : {}) };
+      let confirmed: unknown = null;
+      let uErr: (Error & { name: string }) | null = null;
+      for (let attempt = 0; attempt < 3; attempt++) {
+        if (attempt) await new Promise((r) => setTimeout(r, 2000 * attempt));
+        ({ data: confirmed, error: uErr } = await sb.functions.invoke("confirm-schedule", { body }));
+        if (!uErr || uErr.name !== "FunctionsFetchError") break;
+      }
+      if (uErr?.name === "FunctionsFetchError") {
+        await queryClient.invalidateQueries({ queryKey: ["schedules"] });
+        router.push("/");
+        return;
+      }
       if (uErr) throw new Error(await functionError(uErr));
       const answered = fromLink?.request
         ? String((confirmed as { request?: { status?: string } } | null)?.request?.status ?? "unbound")

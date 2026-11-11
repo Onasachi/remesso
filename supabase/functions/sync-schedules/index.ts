@@ -164,6 +164,50 @@ Deno.serve(async () => {
         senderId = made.id;
       }
 
+      // The app's own row, if the sender made this schedule in the app and
+      // its confirm call never arrived (a phone dropping the request after
+      // the signature: seen in MiniPay 2026-11-11). It has the names the
+      // sender typed, so fill it in from the chain rather than making a
+      // second row called "Created on-chain" and leaving it stuck at pending.
+      // It must be this sender's, unconfirmed, and match the chain's terms
+      // exactly; the values written are the chain's, never the row's.
+      const { data: pending } = await db
+        .from("schedules")
+        .select("id, token_address, recipients!inner(wallet_address)")
+        .eq("sender_id", senderId)
+        .is("onchain_id", null)
+        .eq("status", "pending_authorization")
+        .eq("amount_in", String(s.amountIn))
+        .eq("interval_seconds", Number(s.interval))
+        .ilike("recipients.wallet_address", s.destination)
+        .gte("created_at", new Date(Date.now() - 3 * 86_400_000).toISOString())
+        .order("created_at", { ascending: false })
+        .limit(5);
+      const own = (pending ?? []).find((r) => r.token_address.toLowerCase() === s.token.toLowerCase());
+      if (own) {
+        const { data: filled, error: e0 } = await db
+          .from("schedules")
+          .update({
+            onchain_id: String(id),
+            executor_address: CELO.executor,
+            min_rate_e6: String(s.minRateE6),
+            max_runs: Number(s.maxRuns),
+            token_address: s.token,
+            expires_at: s.expiresAt === 0n ? null : new Date(Number(s.expiresAt) * 1000).toISOString(),
+            next_run_at: new Date(Number(s.nextRunAt) * 1000).toISOString(),
+            status: "active",
+          })
+          .eq("id", own.id)
+          .is("onchain_id", null) // a confirm landing meanwhile wins
+          .select("id");
+        if (e0) throw new Error(`schedule: ${e0.message}`);
+        if (filled?.length) {
+          adopted++;
+          results.push({ id: String(id), adopted: true, into: own.id, sender: wallet, to: s.destination });
+          continue;
+        }
+      }
+
       // A name we can show before anyone has given us one. The sender never
       // typed a display name, so the address is the only honest label.
       const short = `${s.destination.slice(0, 6)}…${s.destination.slice(-4)}`;
