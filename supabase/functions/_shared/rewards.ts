@@ -2,10 +2,13 @@
 /// (the payment from `payment_events`, each side's identity from the chain and
 /// from Self), and this decides. Pinned by rewards.test.ts.
 ///
-/// The reward is small, and $1 sent between two of your own wallets costs
+/// The reward is small, and a payment between two of your own wallets costs
 /// about half a cent, so every rule here is about one thing: the reward goes
-/// once to a real person who paid somebody else.
-import { directToken, runLimits } from "./config.ts";
+/// once to a real person who paid somebody else. Any amount counts (decided
+/// 2026-11-11): one per person is the guard, not the size of the payment. The
+/// app's own floor still applies to what it can send (the executor's $1 per
+/// run); an agent's policy payment can be smaller and still counts.
+import { directToken } from "./config.ts";
 
 export type RewardPayment = {
   kind: string; // payment_events.kind
@@ -56,15 +59,6 @@ export type RewardRefusal =
 
 const PAYMENT_KINDS = new Set(["run", "policy_payment"]);
 
-/// The least a payment must move to count: the executor's own per-run
-/// minimum ($1 at its rough rate, rounded down) in the token's units. The same
-/// floor a schedule must clear to run at all.
-export function minimumFor(token: string): bigint | null {
-  const t = directToken(token);
-  if (!t) return null;
-  return runLimits(t).min;
-}
-
 export function decideReward(f: RewardFacts): RewardDecision {
   const p = f.payment;
   const no = (reason: RewardRefusal): RewardDecision => ({ ok: false, reason });
@@ -81,11 +75,11 @@ export function decideReward(f: RewardFacts): RewardDecision {
   if (f.excluded.has(from) || f.excluded.has(to)) return no("excluded");
   if (from === to) return no("self_payment");
 
-  if (!p.token) return no("unknown_token");
-  const min = minimumFor(p.token);
-  if (min === null) return no("unknown_token");
+  // A token the backend doesn't know is refused, never assumed.
+  if (!p.token || !directToken(p.token)) return no("unknown_token");
+  // Any amount, as long as something actually moved.
   const moved = p.amountIn ?? p.amount;
-  if (moved === null || moved < min) return no("too_small");
+  if (moved === null || moved <= 0n) return no("too_small");
 
   if (!f.payerPerson) return no("no_identity");
   if (f.recipientPersons.includes(f.payerPerson)) return no("same_person");

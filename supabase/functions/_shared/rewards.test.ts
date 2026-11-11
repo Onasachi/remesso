@@ -1,6 +1,6 @@
 // deno test --allow-env supabase/functions/_shared/rewards.test.ts
 import { assertEquals } from "jsr:@std/assert@1";
-import { decideReward, minimumFor, phonePersons, type RewardFacts } from "./rewards.ts";
+import { decideReward, phonePersons, type RewardFacts } from "./rewards.ts";
 
 const USDT = "0x48065fbbe25f71c9282ddf5e1cd6d6a887483d5e";
 const WARS = "0x0dc4f92879b7670e5f4e4e6e3c801d229129d90d";
@@ -75,17 +75,22 @@ Deno.test("paying the same wallet is refused", () => {
   assertEquals(decideReward(facts({ payment: { to: ALICE } })), { ok: false, reason: "self_payment" });
 });
 
-Deno.test("under the $1 minimum is refused, judged on the gross for a run", () => {
-  assertEquals(decideReward(facts({ payment: { amountIn: 999_999n } })), { ok: false, reason: "too_small" });
-  // The net is under $1 after the fee, but the gross clears it: that counts.
-  assertEquals(decideReward(facts({ payment: { amountIn: 1_000_000n, amount: 997_500n } })).ok, true);
+Deno.test("any amount counts: a cent's policy payment earns it", () => {
+  const d = decideReward(facts({ payment: { kind: "policy_payment", amountIn: null, amount: 10_000n } }));
+  assertEquals(d, { ok: true, personKey: "phone:0xabc" });
+  // In any known token: one wARS unit is enough.
+  assertEquals(decideReward(facts({ payment: { token: WARS, amountIn: 1n, amount: 1n } })).ok, true);
 });
 
-Deno.test("the minimum is in the token's own units: 1,500 wARS, not 1", () => {
-  assertEquals(minimumFor(WARS), 1500n * 10n ** 18n);
-  const wars = (n: bigint) => facts({ payment: { token: WARS, amountIn: n, amount: n } });
-  assertEquals(decideReward(wars(1499n * 10n ** 18n)), { ok: false, reason: "too_small" });
-  assertEquals(decideReward(wars(1500n * 10n ** 18n)).ok, true);
+Deno.test("a payment that moved nothing is refused", () => {
+  assertEquals(
+    decideReward(facts({ payment: { kind: "policy_payment", amountIn: null, amount: 0n } })),
+    { ok: false, reason: "too_small" },
+  );
+  assertEquals(
+    decideReward(facts({ payment: { amountIn: null, amount: null } })),
+    { ok: false, reason: "too_small" },
+  );
 });
 
 Deno.test("a token the backend doesn't know is refused, never assumed", () => {

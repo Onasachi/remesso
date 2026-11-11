@@ -90,7 +90,7 @@ export function RewardBanner() {
         )}
 
         <ol className="mt-4 grid gap-2 text-[14px] text-ink-2">
-          <li>1. Send at least $1 to someone else, once or on a schedule.</li>
+          <li>1. Send any amount to someone else, once or on a schedule.</li>
           <li>2. About half an hour after it goes through, {amount} lands in your wallet.</li>
         </ol>
 

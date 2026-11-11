@@ -42,7 +42,7 @@ export default function RewardsPage() {
       <section className="mt-6">
         <h2 className="eyebrow">How to get it</h2>
         <ol className="mt-2 grid gap-2 text-[14px] text-ink-2">
-          <li>1. Send at least $1 (or the same in your currency) to someone else with Remesso, once or on a schedule.</li>
+          <li>1. Send any amount to someone else with Remesso, once or on a schedule.</li>
           <li>2. Once the payment has gone through on Celo, the reward is sent to the wallet you paid from, usually within half an hour.</li>
         </ol>
       </section>

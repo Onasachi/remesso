@@ -967,7 +967,7 @@ number in `cap` limits it. No deploy needed for any of this.
   the cap can't be overrun.
 - **What qualifies** is `_shared/rewards.ts` (pinned by `rewards.test.ts`):
   a final, unremoved `run` or `policy_payment` after the campaign started, of
-  at least the executor's $1 minimum, to someone else; not our wallets
+  any amount above zero (no minimum, by decision), to someone else; not our wallets
   (`reward_exclusions`), not the same person, not two wallets paying each other.
 - **Its own key**, `REWARDS_PRIVATE_KEY` in `.env` (wallet `0xAF3B…9A35`,
   the user's own, set 2026-11-11), holding only the budget and CELO for gas.
