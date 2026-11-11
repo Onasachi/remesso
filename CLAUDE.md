@@ -45,6 +45,9 @@ deno test --allow-env --allow-read --allow-net supabase/functions/_shared/x402.t
 # pre-flight agent — what it tells a sender about an upcoming payment, and how urgently
 deno test supabase/functions/_shared/preflight.test.ts
 
+# first-payment rewards — who earns one: a verified person's first real payment to someone else
+deno test --allow-env supabase/functions/_shared/rewards.test.ts
+
 # mirror status — a pause is a pause, not "completed"
 deno test supabase/functions/_shared/schedule-status.test.ts
 
@@ -946,6 +949,33 @@ refused unless `allow_repeat` is passed.
 - **The plugin wallet refuses to sign unless its RPC answers chain 42220.** Its
   state is keyed by chain and contract, so the next allowance contract starts
   its own scan.
+
+## First-payment rewards (built 2026-11-11, not yet deployed)
+
+`pay-rewards` (cron, every 5 min) pays a campaign's reward (first campaign
+`first-payment-2026-11`: 0.20 USDT to each verified person, no limit) to the
+wallet that made a person's first real payment. The token, amount and cap are
+a `reward_campaigns` row. The first campaign's `cap` is null (no limit): it
+runs until `active` is set false, and the wallet's balance is the real limit.
+A reward reserved while the wallet is empty waits and is paid on top-up. A
+number in `cap` limits it. No deploy needed for any of this.
+
+- **One per person, not per wallet.** A person is a MiniPay phone identity
+  (`FederatedAttestations.lookupIdentifiers` for MiniPay's issuer, a free
+  on-chain read) or a live Self nullifier. Unique per campaign on person,
+  wallet and qualifying payment; `reserve_reward` locks the campaign row, so
+  the cap can't be overrun.
+- **What qualifies** is `_shared/rewards.ts` (pinned by `rewards.test.ts`):
+  a final, unremoved `run` or `policy_payment` after the campaign started, of
+  at least the executor's $1 minimum, to someone else; not our wallets
+  (`reward_exclusions`), not the same person, not two wallets paying each other.
+- **Its own key**, `REWARDS_PRIVATE_KEY` in `.env` (wallet `0xAF3B…9A35`,
+  the user's own, set 2026-11-11), holding only the budget and CELO for gas.
+  It takes the executor-lease row keyed by its own address for nonces, and
+  saves signed bytes before broadcast. A payout whose fate is unclear is
+  marked `failed` for a person to check on Celoscan, never re-signed.
+- One person could still earn twice with a MiniPay wallet and a separate
+  passport-verified wallet. Accepted at this size.
 
 ## The pre-flight agent — advice before a payment, never the payment
 

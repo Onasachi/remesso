@@ -8,6 +8,7 @@ import { recipientLabel } from "@/lib/identity";
 import { formatUnits, intervalLabel, relativeTime } from "@/lib/format";
 import { SchedulePill } from "@/components/StatusPill";
 import { IdentityCard } from "@/components/IdentityCard";
+import { RewardBanner } from "@/components/RewardBanner";
 import { PaymentRequests } from "@/components/PaymentRequests";
 import { Notices } from "@/components/Notices";
 import { Icon } from "@/components/Icon";
@@ -143,6 +144,10 @@ export default function SchedulesPage() {
           no pesos or cNGN gets them here, not halfway through the send form.
           Links only; never inside MiniPay, which shows none of these. */}
       {!inMiniPay && <LocalActions token={token} address={address} />}
+
+      {/* The first-payment reward, while places are left. Above the identity
+          check, which is how a browser wallet qualifies for it. */}
+      <RewardBanner />
 
       <IdentityCard />
 
