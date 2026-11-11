@@ -53,6 +53,12 @@ export default function PrivacyPage() {
               count of phone-number lookups per session per day, used to limit them.
             </>,
             <>
+              <strong>Rewards</strong>, if a payment of yours earns one: the wallet it was paid to, the payment that
+              earned it, and a key that stops one person earning it twice. That key is the scrambled phone identifier
+              MiniPay already publishes on the Celo blockchain for your wallet, or your Self check&apos;s anonymous
+              identifier. It is never your phone number or your passport details.
+            </>,
+            <>
               <strong>Your email address</strong>, only if you sign in to use hands-free payments through Claude: kept by
               our sign-in provider, with an identifier that links it to the agent wallet you own at Privy and to your
               active Claude sessions. We do not keep your sign-in session after you approve.

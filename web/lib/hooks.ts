@@ -483,3 +483,82 @@ export function useTriggerAddress() {
   // caller will happily write into a grant.
   return { ...q, data: q.data as `0x${string}` | undefined };
 }
+
+/// The first-payment rewards campaign (`pay-rewards`). Its id is a setting so
+/// a later campaign is an env change; the cap and amount are read live.
+export const REWARDS_CAMPAIGN = process.env.NEXT_PUBLIC_REWARDS_CAMPAIGN ?? "first-payment-2026-11";
+
+export type RewardCampaign = {
+  cap: number;
+  taken: number;
+  amount_units: string;
+  token: string;
+  active: boolean;
+};
+
+/// How many of the campaign's places are taken. Null when there is no
+/// campaign (or the database doesn't have the table yet): show nothing.
+export function useRewardCampaign() {
+  return useQuery({
+    queryKey: ["reward-campaign", REWARDS_CAMPAIGN],
+    refetchInterval: 5 * 60_000,
+    queryFn: async () => {
+      const { data, error } = await supabase().rpc("reward_campaign_status", { p_campaign: REWARDS_CAMPAIGN });
+      if (error) return null;
+      return ((data ?? [])[0] ?? null) as RewardCampaign | null;
+    },
+  });
+}
+
+/// The connected wallet's own reward, if it has one.
+export function useMyReward() {
+  const { address } = useAccount();
+  return useQuery({
+    queryKey: ["my-reward", REWARDS_CAMPAIGN, address],
+    enabled: Boolean(address),
+    refetchInterval: 60_000,
+    queryFn: async () => {
+      const { data, error } = await supabase().rpc("reward_for_wallet", {
+        p_campaign: REWARDS_CAMPAIGN,
+        p_wallet: address!,
+      });
+      if (error) return null;
+      return ((data ?? [])[0] ?? null) as { status: string; amount_units: string; token: string; tx_hash: string | null } | null;
+    },
+  });
+}
+
+const MINIPAY_ISSUER = "0x7888612486844Bb9BE598668081c59A9f7367FBc" as const;
+const FEDERATED_ATTESTATIONS = "0x0aD5b1d0C25ecF6266Dd951403723B2687d6aff2" as const;
+const lookupIdentifiersAbi = [
+  {
+    type: "function",
+    name: "lookupIdentifiers",
+    stateMutability: "view",
+    inputs: [
+      { name: "account", type: "address" },
+      { name: "trustedIssuers", type: "address[]" },
+    ],
+    outputs: [
+      { name: "countsPerIssuer", type: "uint256[]" },
+      { name: "identifiers", type: "bytes32[]" },
+    ],
+  },
+] as const;
+
+/// Whether MiniPay has attested a phone number for this wallet: the same
+/// on-chain read `pay-rewards` makes, so the reward banner never says
+/// "verified" about a wallet the payout would refuse. Undefined while loading.
+export function useMiniPayPhoneVerified(): boolean | undefined {
+  const { address } = useAccount();
+  const q = useReadContract({
+    address: FEDERATED_ATTESTATIONS,
+    abi: lookupIdentifiersAbi,
+    functionName: "lookupIdentifiers",
+    args: address ? [address, [MINIPAY_ISSUER]] : undefined,
+    query: { enabled: Boolean(address), staleTime: 10 * 60_000 },
+  });
+  if (!address || q.isPending) return undefined;
+  if (q.isError) return false;
+  return (q.data?.[1]?.length ?? 0) > 0;
+}
