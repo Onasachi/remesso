@@ -149,7 +149,10 @@ export default function SchedulesPage() {
           check, which is how a browser wallet qualifies for it. */}
       <RewardBanner />
 
-      <IdentityCard />
+      {/* `#verify`: the reward sheet scrolls here for a wallet with no identity yet. */}
+      <div id="verify" className="scroll-mt-24">
+        <IdentityCard />
+      </div>
 
       {/* Above the schedules: an unanswered request is the only thing on this
           screen waiting on the sender. Below the balance, because "can I
