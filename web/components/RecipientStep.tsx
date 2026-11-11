@@ -408,8 +408,18 @@ function PhoneField({
         // Their name from the contact, unless the sender already wrote one.
         ...(c.name?.trim() && !value.displayName.trim() ? { displayName: c.name.trim().slice(0, 60) } : {}),
       });
-    } catch {
-      setError("Couldn't open your contacts here. Type their number instead.");
+    } catch (e) {
+      // MiniPay documents no error codes for this. A cancel (EIP-1193's 4001)
+      // is not a failure; anything else shows MiniPay's own words, because
+      // "couldn't open" was wrong when the picker opened and the CONTACT was
+      // the problem (seen 2026-11-11), and it hid the reason from us.
+      const err = e as { code?: number; message?: string } | undefined;
+      console.error("minipay_requestContact failed", err);
+      if (err?.code === 4001) return;
+      const why = err?.message?.trim().slice(0, 120);
+      setError(
+        `MiniPay couldn't use that contact${why ? ` (${why})` : ""}. They may not have MiniPay yet. Type their number instead.`,
+      );
     }
   }
 
